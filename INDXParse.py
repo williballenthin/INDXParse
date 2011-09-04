@@ -17,7 +17,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-import sys,struct
+import sys, struct, argparse, time
 from datetime import datetime
 
 def parse_windows_timestamp(qword):
@@ -364,7 +364,6 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         return self.unpack_wstring(self._filename_offset, self.unpack_byte(self._filename_length_offset))
 
 def entry_csv(entry, filename=False):
-    
     if filename:
         fn = filename
     else:
@@ -374,19 +373,50 @@ def entry_csv(entry, filename=False):
                                                   entry.accessed_time_safe(), entry.changed_time_safe(),
                                                   entry.created_time_safe())
 
+def entry_bodyfile(entry, filename=False):
+    if filename:
+        fn = filename
+    else:
+        fn = entry.filename()
+
+    return u"0|%s|0|0|0|0|%s|%s|%s|%s|%s" % (fn, entry.logical_size(), 
+                                         int(time.mktime(entry.modified_time_safe().timetuple())),
+                                         int(time.mktime(entry.accessed_time_safe().timetuple())), 
+                                         int(time.mktime(entry.changed_time_safe().timetuple())),
+                                         int(time.mktime(entry.created_time_safe().timetuple())))
 
 if __name__ == '__main__':
-    with open(sys.argv[1]) as f:
+    parser = argparse.ArgumentParser(description='Parse NTFS INDX files.')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-c', action="store_true", dest="csv", default=False, help="Output CSV")
+    group.add_argument('-b', action="store_true", dest="bodyfile", default=False, help="Output Bodyfile")
+    parser.add_argument('filename', action="store", help="Input INDX file path")
+    results = parser.parse_args()
+
+    do_csv = results.csv or \
+        (not results.csv and not results.bodyfile)
+
+    if do_csv:
+        print "FILENAME,\tPHYSICAL SIZE,\tLOGICAL SIZE,\tMODIFIED TIME,\tACCESSED TIME,\tCHANGED TIME,\tCREATED TIME"
+
+    with open(results.filename) as f:
         b = f.read()
 
     off = 0
     while off < len(b):
         h = NTATTR_STANDARD_INDEX_HEADER(b, off, False)
         for e in h.entries():
-            try:
-                print entry_csv(e)
-            except UnicodeEncodeError:
-                print entry_csv(e, e.filename().encode("ascii", "replace") + " (error decoding filename)")
+            if do_csv:
+                try:
+                    print entry_csv(e)
+                except UnicodeEncodeError:
+                    print entry_csv(e, e.filename().encode("ascii", "replace") + " (error decoding filename)")
+            elif results.bodyfile:
+                try:
+                    print entry_bodyfile(e)
+                except UnicodeEncodeError:
+                    print entry_bodyfile(e, e.filename().encode("ascii", "replace") + " (error decoding filename)")
+
         off = align(h.end_offset(), 4096)
 
 
