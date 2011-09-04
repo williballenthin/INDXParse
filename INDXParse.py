@@ -7,6 +7,11 @@ def parse_windows_timestamp(qword):
     # see http://integriography.wordpress.com/2010/01/16/using-phython-to-parse-and-present-windows-64-bit-timestamps/
     return datetime.utcfromtimestamp(float(qword) * 1e-7 - 11644473600 )
 
+def align(offset, alignment):
+    if offset % alignment == 0:
+        return offset
+    return offset + (alignment - (offset % alignment))
+
 class INDXException(Exception):
     """
     Base Exception class for INDX parsing.
@@ -138,7 +143,26 @@ class Block(object):
         """
         return self._offset
 
+
 class NTATTR_STANDARD_INDEX_HEADER(Block):
+# 0x0         char magicNumber[4]; // == "INDX"
+    
+# 0x4         unsigned short updatedSequenceArrayOffset;
+# 0x6         unsigned short sizeOfUpdatedSequenceNumberInWords;
+    
+# 0x8         LONGLONG logFileSeqNum;
+# 0x10        LONGLONG thisVirtualClusterNumber;
+    
+# 0x18        DWORD indexEntryOffset;
+# 0x1C        DWORD sizeOfEntries;
+# 0x20        DWORD sizeOfEntriesAlloc;
+    
+# 0x24        BYTE flags;
+# 0x25        BYTE padding[3];
+    
+# 0x28        unsigned short updateSeq;
+# 0x2A        WORD updatedSequenceArray[sizeOfUpdatedSequenceNumberInWords];
+
     def __init__(self, buf, offset, parent):
         """
         Constructor.
@@ -149,32 +173,17 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         """
         super(NTATTR_STANDARD_INDEX_HEADER, self).__init__(buf, offset, parent)
 
-        comment ="""
-0x0         char magicNumber[4]; // == "INDX"
-    
-0x4         unsigned short updatedSequenceArrayOffset;
-0x6         unsigned short sizeOfUpdatedSequenceNumberInWords;
-    
-0x8         LONGLONG logFileSeqNum;
-0x10        LONGLONG thisVirtualClusterNumber;
-    
-0x18        DWORD indexEntryOffset;
-0x1C        DWORD sizeOfEntries;
-0x20        DWORD sizeOfEntriesAlloc;
-    
-0x24        BYTE flags;
-0x25        BYTE padding[3];
-    
-0x28        unsigned short updateSeq;
-0x2A        WORD updatedSequenceArray[sizeOfUpdatedSequenceNumberInWords];
-"""
 
         _magic = self.unpack_string(0, 4)
         if _magic != "INDX":
             raise ParseException("Invalid INDX ID")
 
+        self._entry_size_offset = 0x1C
+        self._entry_allocated_size_offset = 0x20
+
     def entry_offset(self):
-        return self.offset + 0x28 + self.unpack_dword(0x6)
+        string_end = self.offset() + 0x2A + 2 * self.unpack_word(0x6)
+        return align(string_end, 8)
 
     def entry_size(self):
         return self.unpack_dword(0x1C)
@@ -200,6 +209,31 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         return self.offset() + self.entry_allocated_size()
 
 class NTATTR_STANDARD_INDEX_ENTRY(Block):
+# 0x0    LONGLONG mftReference;
+# 0x8    unsigned short sizeOfIndexEntry;
+# 0xA    unsigned short sizeOfStream;
+    
+# 0xC    unsigned short flags;
+# 0xE    BYTE padding[2];
+
+# 0x10    LONGLONG refParentDirectory;
+    
+# 0x18    FILETIME creationTime;
+# 0x20    FILETIME lastModifiedTime;
+# 0x28    FILETIME MFTRecordChangeTime;
+# 0x30    FILETIME lastAccessTime;
+# 0x38    LONGLONG physicalSizeOfFile;
+# 0x40    LONGLONG logicalSizeOfFile;
+# 0x48    DWORD    flags;
+# 0x4C    DWORD    extendedAttributes;
+    
+# 0x50    unsigned BYTE filenameLength;
+# 0x51    NTFS_FNAME_NSPACE filenameType;
+
+# 0x52    wchar_t filename[filenameLength];
+
+# 0xXX    Padding to 8-byte boundary
+
     def __init__(self, buf, offset, parent):
         """
         Constructor.
@@ -210,83 +244,134 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         """
         super(NTATTR_STANDARD_INDEX_ENTRY, self).__init__(buf, offset, parent)
 
-        if self.unpack_byte(0x4A) > 4:
+        self._created_time_offset = 0x18
+        self._modified_time_offset = 0x20
+        self._changed_time_offset = 0x28
+        self._accessed_time_offset = 0x30
+
+        self._physical_size_offset = 0x38
+        self._logical_size_offset = 0x40
+
+        self._filename_length_offset = 0x50      
+        self._filename_type_offset = 0x51
+        self._filename_offset = 0x52
+
+        if self.unpack_byte(self._filename_type_offset) > 4:
             raise ParseException("Invalid INDX record entry filename type")
-
-        comment ="""
-0x0    LONGLONG mftReference;
-0x8    unsigned short sizeOfIndexEntry;
-0xA    unsigned short sizeOfStream;
-    
-0xC    unsigned short flags;
-0xE    BYTE padding[2];
-
-0x10    LONGLONG refParentDirectory;
-    
-0x18    FILETIME creationTime;
-0x20    FILETIME lastModifiedTime;
-0x28    FILETIME MFTRecordChangeTime;
-0x30    FILETIME lastAccessTime;
-0x38    LONGLONG physicalSizeOfFile;
-0x40    LONGLONG logicalSizeOfFile;
-0x44    DWORD    flags;
-0x48    DWORD    extendedAttributes;
-    
-0x49    unsigned BYTE filenameLength;
-0x4A    NTFS_FNAME_NSPACE filenameType;
-
-0x4B    wchar_t filename[filenameLength];
-
-0xXX    Padding to 8-byte boundary
-
-"""
 
     def end_offset(self):
         """
         return the first address not a part of this block
         """
-        string_end = self.offset() + 0x4B + 2 * self.unpack_byte(0x49)
+        string_end = self.offset() + self._filename_offset + \
+             2 * self.unpack_byte(self._filename_length_offset)
 
-        if string_end % 8 == 0:
-            return string_end
-        return string_end + (8 - string_end % 8) 
+        return align(string_end, 8)
 
     def has_next(self):
         return self.end_offset() - self.parent().offset() < self.parent().entry_size()
         
     def next(self):
-        return NTATTR_STANDARD_INDEX_ENTRY(self, self.end_offset(), self.parent())
+        """
+        return the next entry after this one.
+        warning, this does not check to see if another exists, but blindly creates one
+        from the next data in the buffer. check NTATTR_STANDARD_INDEX_ENTRY.has_next() first
+        """
+        return NTATTR_STANDARD_INDEX_ENTRY(self._buf, self.end_offset(), self.parent())
+
+    def parse_time(self, offset):
+        return parse_windows_timestamp(self.unpack_qword(offset))
 
     def created_time(self):
-        return parse_windows_timestamp(self.unpack_qword(0x18))
+        return self.parse_time(self._created_time_offset)
 
     def modified_time(self):
-        return parse_windows_timestamp(self.unpack_qword(0x20))
+        return self.parse_time(self._modified_time_offset)
     
     def changed_time(self):
-        return parse_windows_timestamp(self.unpack_qword(0x28))
+        return self.parse_time(self._changed_time_offset)
 
     def accessed_time(self):
-        return parse_windows_timestamp(self.unpack_qword(0x30))
+        return self.parse_time(self._accessed_time_offset)
+
+    def parse_time_safe(self, offset):
+        """
+        The *_safe time methods return the date of the
+        UNIX epoch if there is an exception parsing the 
+        date
+        """
+        try:
+            return self.parse_time(offset)
+        except ValueError:
+            return datetime(1970, 1, 1, 0, 0, 0)
+
+    def created_time_safe(self):
+        """
+        The *_safe time methods return the date of the
+        UNIX epoch if there is an exception parsing the 
+        date
+        """
+        return self.parse_time_safe(self._created_time_offset)
+
+    def modified_time_safe(self):
+        """
+        The *_safe time methods return the date of the
+        UNIX epoch if there is an exception parsing the 
+        date
+        """
+        return self.parse_time_safe(self._modified_time_offset)
+    
+    def changed_time_safe(self):
+        """
+        The *_safe time methods return the date of the
+        UNIX epoch if there is an exception parsing the 
+        date
+        """
+        return self.parse_time_safe(self._changed_time_offset)
+
+    def accessed_time_safe(self):
+        """
+        The *_safe time methods return the date of the
+        UNIX epoch if there is an exception parsing the 
+        date
+        """
+        return self.parse_time_safe(self._accessed_time_offset)
+
+    def physical_size(self):
+        return self.unpack_qword(self._physical_size_offset)
+
+    def logical_size(self):
+        return self.unpack_qword(self._logical_size_offset)
 
     def filename(self):
-        return self.unpack_wstring(0x4B, self.unpack_byte(0x49))
+        return self.unpack_wstring(self._filename_offset, self.unpack_byte(self._filename_length_offset))
+
+def entry_csv(entry, filename=False):
+    if filename:
+        return u"%s,\t%s,\t%s,\t%s,\t%s,\t%s,\t%s" % (filename, entry.physical_size(),
+                                                      entry.logical_size(), entry.modified_time_safe(),
+                                                      entry.accessed_time_safe(), entry.changed_time_safe(),
+                                                      entry.created_time_safe())
+    else:
+        return u"%s,\t%s,\t%s,\t%s,\t%s,\t%s,\t%s" % (entry.filename(), entry.physical_size(),
+                                                      entry.logical_size(), entry.modified_time_safe(),
+                                                      entry.accessed_time_safe(), entry.changed_time_safe(),
+                                                      entry.created_time_safe())
 
 if __name__ == '__main__':
-    
     with open(sys.argv[1]) as f:
         b = f.read()
 
     off = 0
     while off < len(b):
         h = NTATTR_STANDARD_INDEX_HEADER(b, off, False)
-        print "header"
         for e in h.entries():
-            print e.filename()
-        off = h.end_offset()
+            try:
+                print entry_csv(e)
+            except UnicodeEncodeError:
+                print entry_csv(e, e.filename().encode("ascii", "replace") + " (error decoding filename)")
+        off = align(h.end_offset(), 4096)
 
-        if off % 4096 != 0:
-            off += 4096 - (off % 4096)
 
 
 
