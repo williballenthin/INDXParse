@@ -52,9 +52,9 @@ but I did use it to verify the file structure.
 
 Usage
 -----
-INDXParse.py accepts one command line parameter, which is the path  
-to an INDX file. The program will print output to STDOUT.  The output
-is CSV formatted, with the following columns:
+INDXParse.py accepts one required command line parameter, which is the path  
+to an INDX file. The program will print output to STDOUT.  By default
+the output is CSV formatted, with the following columns:
 
   - Filename
   - Physical size of file
@@ -69,6 +69,23 @@ the filename column will contain the best guess, and the comment
 "(error decoding filename)".  If the program encounters an error
 while parsing timestamps, a timestamp corresponding to the UNIX
 epoch will be printed instead.
+
+The full command line help looks something like:
+
+---------------------------------------------
+INDX $ python INDXParse.py --help
+usage: INDXParse.py [-h] [-c | -b] filename
+
+Parse NTFS INDX files.
+
+positional arguments:
+  filename    Input INDX file path
+
+optional arguments:
+  -h, --help  show this help message and exit
+  -c          Output CSV
+  -b          Output Bodyfile
+---------------------------------------------
 
 INDXTemplate.bt is a template file for the useful 010 Editor.
 Use it as you would any other template by applying it to INDX files.
