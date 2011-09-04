@@ -3,11 +3,6 @@ INDXParse
 
 Introduction
 ------------
-
-
-
-
-
 INDX files are features of the Windows NTFS file system. They can 
 be thought of as nodes in a B+ tree, where each directory has an 
 INDX file. The INDX files contain records for each file within a 
