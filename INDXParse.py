@@ -17,8 +17,12 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-import sys, struct, argparse, time
+import struct, argparse, time
 from datetime import datetime
+
+def is_recent_windows_timestamp(qword):
+    WINDOWS_TS_1990 = 1.22756436e+17
+    return float(qword) > WINDOWS_TS_1990
 
 def parse_windows_timestamp(qword):
     # see http://integriography.wordpress.com/2010/01/16/using-phython-to-parse-and-present-windows-64-bit-timestamps/
@@ -220,10 +224,30 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
             yield e
 
     def slack(self):
-        return self._buf[self.entry_size():self.entry_allocated_size()]
+        return self._buf[self.offset() + self.entry_size():self.offset() + self.entry_allocated_size()]
     
     def end_offset(self):
         return self.offset() + self.entry_allocated_size()
+
+    def deleted_entries(self):
+        """
+        A generator that returns INDX entries found in the slack space
+        associated with this header.
+        """
+        off = self.offset() + self.entry_size()
+
+        # NTATTR_STANDARD_INDEX_ENTRY is at least 0x52 bytes
+        # long, so don't overrun
+        while off < self.offset() + self.entry_allocated_size() - 0x52:
+            try:
+                e = NTATTR_STANDARD_INDEX_SLACK_ENTRY(self._buf, off, self)
+                if e.is_valid():
+                    off = e.end_offset()
+                    yield e
+                else:
+                    raise ParseException("Not a deleted entry")
+            except ParseException:
+                off += 1
 
 class NTATTR_STANDARD_INDEX_ENTRY(Block):
 # 0x0    LONGLONG mftReference;
@@ -363,6 +387,27 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
     def filename(self):
         return self.unpack_wstring(self._filename_offset, self.unpack_byte(self._filename_length_offset))
 
+class NTATTR_STANDARD_INDEX_SLACK_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
+    def __init__(self, buf, offset, parent):
+        """
+        Constructor.
+        Arguments:
+        - `buf`: Byte string containing NTFS INDX file
+        - `offset`: The offset into the buffer at which the block starts.
+        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, which links to this block.
+        """
+        super(NTATTR_STANDARD_INDEX_SLACK_ENTRY, self).__init__(buf, offset, parent)
+
+    def is_valid(self):
+        recent_date = datetime(1990, 1, 1, 0, 0, 0)
+        return self.modified_time_safe() > recent_date and \
+                self.accessed_time_safe() > recent_date and \
+                self.changed_time_safe() > recent_date and \
+                self.created_time_safe() > recent_date
+
+    def is_slack(self):
+        return True
+
 def entry_csv(entry, filename=False):
     if filename:
         fn = filename
@@ -390,6 +435,7 @@ if __name__ == '__main__':
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-c', action="store_true", dest="csv", default=False, help="Output CSV")
     group.add_argument('-b', action="store_true", dest="bodyfile", default=False, help="Output Bodyfile")
+    parser.add_argument('-d', action="store_true", dest="deleted", help="Find entries in slack space")
     parser.add_argument('filename', action="store", help="Input INDX file path")
     results = parser.parse_args()
 
@@ -416,6 +462,20 @@ if __name__ == '__main__':
                     print entry_bodyfile(e)
                 except UnicodeEncodeError:
                     print entry_bodyfile(e, e.filename().encode("ascii", "replace") + " (error decoding filename)")
+        if results.deleted:
+            for e in h.deleted_entries():
+                fn = e.filename() + " (slack at %s)" % (hex(e.offset()))
+                bad_fn = e.filename().encode("ascii", "replace") + " (slack at %s)(error decoding filename)" % (hex(e.offset()))
+                if do_csv:
+                    try:
+                        print entry_csv(e, fn)
+                    except UnicodeEncodeError:
+                        print entry_csv(e, bad_fn)
+                elif results.bodyfile:
+                    try:
+                        print entry_bodyfile(e, fn)
+                    except UnicodeEncodeError:
+                        print entry_bodyfile(e, bad_fn)
 
         off = align(h.end_offset(), 4096)
 
