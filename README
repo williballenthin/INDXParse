@@ -76,7 +76,6 @@ Use it as you would any other template by applying it to INDX files.
 TODO
 ----
   - Extract old entries from the INDX slack spaces
-  - Add output formats, specifically, the Bodyfile format
 
 License
 -------
