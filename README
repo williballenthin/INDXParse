@@ -1,0 +1,83 @@
+INDXParse
+===============
+
+Introduction
+------------
+INDX files are features of the Windows NTFS file system.  They can be
+thought of as nodes in a B+ tree, where each directory has an INDX 
+file.  The INDX files contain records for each file within a directory.
+Records contain the following information:
+
+  - Filename
+  - Physical size of file
+  - Logical size of file
+  - Modified timestamp
+  - Accessed timestamp
+  - Changed timestamp
+  - Created timestamp
+
+INDX files are also interesting to forensic investigators because
+these files have significant slack spaces.  With some careful 
+parsing, an investigator may recover deleted or old records from
+within these data chunks.  In other words, the investigator may 
+be able to show a file existed, even if it has been deleted.
+
+I'd like to add a quick shoutout to John McCash, who mentioned in a 
+SANS blog post that he wasn't aware of any non-EnCase tools that
+parsed INDX files.  That got my mental gears turning.
+
+Previous work & tools
+---------------------
+I started out with a document called "NTFS Forensics: A Programmers
+View of Raw Filesystem Data Extraction" by Jason Medeiros
+(http://grayscale-research.org/new/pdfs/NTFS%20forensics.pdf).
+Unfortunately, while this document describes parsing INDX files 
+in detail, a number of steps in the explanation were wrong.
+
+The second resource I used, and used extensively, was 
+"Forensic computing" by A. J. Sammes, Tony Sammes, and Brian Jenkinson.
+I found the relevent section was available for free via Google books
+(http://books.google.com/books?id=Ee9PF6Zv_tMC&pg=PA268&source=gbs_toc_r&cad=4#v=onepage&q&f=false).
+This was an excellent document, and I now plan on buying the full
+book.
+
+42 LLC provides the "INDX Extractor Enpack" as a compiled EnScript
+for EnCase (https://42llc.net/?p=336).  This was not useful to me, 
+because I was unable to get to the logic of the script.
+
+The Sleuthkit has INDX structures defined in the tsk_ntfs.h 
+header files.  I didn't do much  digging in the code to see if
+TSK does any parsing of the INDX files (I suspect it does), 
+but I did use it to verify the file structure.
+
+Usage
+-----
+INDXParse.py accepts one command line parameter, which is the path  
+to an INDX file. The program will print output to STDOUT.  The output
+is CSV formatted, with the following columns:
+
+  - Filename
+  - Physical size of file
+  - Logical size of file
+  - Modified timestamp
+  - Accessed timestamp
+  - Changed timestamp
+  - Created timestamp
+
+If the program encounters an error while parsing the filename, 
+the filename column will contain the best guess, and the comment
+"(error decoding filename)".  If the program encounters an error
+while parsing timestamps, a timestamp corresponding to the UNIX
+epoch will be printed instead.
+
+INDXTemplate.bt is a template file for the useful 010 Editor.
+Use it as you would any other template by applying it to INDX files.
+
+TODO
+----
+  - Extract old entries from the INDX slack spaces
+  - Add output formats, specifically, the Bodyfile format
+
+License
+-------
+INDXParse is released under the Apache 2.0 license.
