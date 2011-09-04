@@ -9,10 +9,10 @@
 typedef quad LONGLONG;
 
 typedef enum<BYTE> NTFS_FNAME_NSPACE_ENUM {
-    NTFS_FNAME_POSIX,       /* case sensitive  and any but NULL and \ */
-    NTFS_FNAME_WIN32,	       // insensitive and restricted  
-    NTFS_FNAME_DOS,		       // 8.3 format of 8-bit chars in uppercase
-    NTFS_FNAME_WINDOWS,	       // name in WIN32 space that is already DOS
+    NTFS_FNAME_POSIX,       // case sensitive  and any but NULL and \ 
+    NTFS_FNAME_WIN32,	    // insensitive and restricted  
+    NTFS_FNAME_DOS          // 8.3 format of 8-bit chars in uppercase
+    NTFS_FNAME_WINDOWS,	    // name in WIN32 space that is already DOS
 } NTFS_FNAME_NSPACE;
 
 typedef struct _NTATTR_INDEX_RECORD_ENTRY {
