@@ -364,16 +364,16 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         return self.unpack_wstring(self._filename_offset, self.unpack_byte(self._filename_length_offset))
 
 def entry_csv(entry, filename=False):
+    
     if filename:
-        return u"%s,\t%s,\t%s,\t%s,\t%s,\t%s,\t%s" % (filename, entry.physical_size(),
-                                                      entry.logical_size(), entry.modified_time_safe(),
-                                                      entry.accessed_time_safe(), entry.changed_time_safe(),
-                                                      entry.created_time_safe())
+        fn = filename
     else:
-        return u"%s,\t%s,\t%s,\t%s,\t%s,\t%s,\t%s" % (entry.filename(), entry.physical_size(),
-                                                      entry.logical_size(), entry.modified_time_safe(),
-                                                      entry.accessed_time_safe(), entry.changed_time_safe(),
-                                                      entry.created_time_safe())
+        fn = entry.filename()
+    return u"%s,\t%s,\t%s,\t%s,\t%s,\t%s,\t%s" % (fn, entry.physical_size(),
+                                                  entry.logical_size(), entry.modified_time_safe(),
+                                                  entry.accessed_time_safe(), entry.changed_time_safe(),
+                                                  entry.created_time_safe())
+
 
 if __name__ == '__main__':
     with open(sys.argv[1]) as f:
