@@ -1,0 +1,92 @@
+//--------------------------------------
+//--- 010 Editor v3.2 Binary Template
+//
+// File: INDXTemplate.bt
+// Author: William Ballenthin
+// Revision: 1
+// Purpose: Parse NTFS INDX files
+//--------------------------------------
+typedef quad LONGLONG;
+
+typedef enum<BYTE> NTFS_FNAME_NSPACE_ENUM {
+    NTFS_FNAME_POSIX,       /* case sensitive  and any but NULL and \ */
+    NTFS_FNAME_WIN32,	       // insensitive and restricted  
+    NTFS_FNAME_DOS,		       // 8.3 format of 8-bit chars in uppercase
+    NTFS_FNAME_WINDOWS,	       // name in WIN32 space that is already DOS
+} NTFS_FNAME_NSPACE;
+
+typedef struct _NTATTR_INDEX_RECORD_ENTRY {
+    LONGLONG mftReference;
+    unsigned short sizeOfIndexEntry;
+    unsigned short sizeOfStream;
+    
+    unsigned short flags;
+    BYTE padding[2];
+
+    LONGLONG refParentDirectory;
+    
+    FILETIME creationTime;
+    FILETIME lastModifiedTime;
+    FILETIME MFTRecordChangeTime;
+    FILETIME lastAccessTime;
+    LONGLONG physicalSizeOfFile;
+    LONGLONG logicalSizeOfFile;
+    DWORD    flags;
+    DWORD    extendedAttributes;
+    
+    unsigned BYTE filenameLength;
+    NTFS_FNAME_NSPACE filenameType;
+    if ( filenameType > 4 ) {
+		Warning("Invalid index record entry filename type");	
+		return 1;
+	}
+    wchar_t filename[filenameLength];
+    if ((FTell()) % 8 != 0) {
+        BYTE padding2[8 - (FTell() % 8)];
+    }
+} NTATTR_INDEX_RECORD_ENTRY;
+
+typedef struct _NTATTR_STANDARD_INDEX {
+    local LONGLONG _start = FTell();
+    struct _NTATTR_STANDARD_INDEX_HEADER {
+        char magicNumber[4];
+        if ( Memcmp(magicNumber, "INDX", 4) ) {
+		    Warning("Invalid file format");	
+		    return 1;
+	    }
+    
+        unsigned short updatedSequenceArrayOffset;
+        unsigned short sizeOfUpdatedSequenceNumberInWords;
+    
+        LONGLONG logFileSeqNum;
+        LONGLONG thisVirtualClusterNumber;
+    
+        DWORD indexEntryOffset;
+        DWORD sizeOfEntries;
+        DWORD sizeOfEntriesAlloc;
+    
+        BYTE flags;
+        BYTE padding[3];
+    
+        unsigned short updateSeq;
+        WORD updatedSequenceArray[sizeOfUpdatedSequenceNumberInWords];
+        if ((FTell()) % 8 != 0) {
+            BYTE padding2[8 - (FTell() % 8)];
+        }
+    } header;
+   
+    while ((FTell() - _start) < header.sizeOfEntries) {
+        NTATTR_INDEX_RECORD_ENTRY indx_entry;
+    }
+
+    BYTE slack[header.sizeOfEntriesAlloc - (FTell() - _start)];
+} NTATTR_STANDARD_INDEX;
+
+while (FTell() < FileSize()) {
+    NTATTR_STANDARD_INDEX indx;
+    if (FTell() % 0x1000 != 0) {
+        struct UNALLOCATED {
+            BYTE unallocated[4096 - (FTell() % 0x1000)];
+        } unallocated;
+    }
+}
