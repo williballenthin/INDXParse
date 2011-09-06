@@ -20,10 +20,6 @@
 import struct, argparse, time
 from datetime import datetime
 
-def is_recent_windows_timestamp(qword):
-    WINDOWS_TS_1990 = 1.22756436e+17
-    return float(qword) > WINDOWS_TS_1990
-
 def parse_windows_timestamp(qword):
     # see http://integriography.wordpress.com/2010/01/16/using-phython-to-parse-and-present-windows-64-bit-timestamps/
     return datetime.utcfromtimestamp(float(qword) * 1e-7 - 11644473600 )
@@ -238,16 +234,20 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
         # NTATTR_STANDARD_INDEX_ENTRY is at least 0x52 bytes
         # long, so don't overrun
-        while off < self.offset() + self.entry_allocated_size() - 0x52:
-            try:
-                e = NTATTR_STANDARD_INDEX_SLACK_ENTRY(self._buf, off, self)
-                if e.is_valid():
-                    off = e.end_offset()
-                    yield e
-                else:
-                    raise ParseException("Not a deleted entry")
-            except ParseException:
-                off += 1
+        # but if we do, then we're done
+        try:
+            while off < self.offset() + self.entry_allocated_size() - 0x52:
+                try:
+                    e = NTATTR_STANDARD_INDEX_SLACK_ENTRY(self._buf, off, self)
+                    if e.is_valid():
+                        off = e.end_offset()
+                        yield e
+                    else:
+                        raise ParseException("Not a deleted entry")
+                except ParseException:
+                    off += 1
+        except struct.error:
+            pass
 
 class NTATTR_STANDARD_INDEX_ENTRY(Block):
 # 0x0    LONGLONG mftReference;
