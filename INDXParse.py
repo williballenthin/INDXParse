@@ -32,8 +32,7 @@ def align(offset, alignment):
 class INDXException(Exception):
     """
     Base Exception class for INDX parsing.
-    """
-    
+    """    
     def __init__(self, value):
         """
         Constructor.
@@ -404,9 +403,6 @@ class NTATTR_STANDARD_INDEX_SLACK_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
                 self.accessed_time_safe() > recent_date and \
                 self.changed_time_safe() > recent_date and \
                 self.created_time_safe() > recent_date
-
-    def is_slack(self):
-        return True
 
 def entry_csv(entry, filename=False):
     if filename:
