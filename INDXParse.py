@@ -22,9 +22,15 @@ from datetime import datetime
 
 def parse_windows_timestamp(qword):
     # see http://integriography.wordpress.com/2010/01/16/using-phython-to-parse-and-present-windows-64-bit-timestamps/
-    return datetime.utcfromtimestamp(float(qword) * 1e-7 - 11644473600 )
+    return datetime.utcfromtimestamp(float(qword) * 1e-7 - 11644473600)
 
 def align(offset, alignment):
+    """
+    Return the offset aligned to the nearest greater given alignment
+    Arguments:
+    - `offset`: An integer
+    - `alignment`: An integer
+    """
     if offset % alignment == 0:
         return offset
     return offset + (alignment - (offset % alignment))
@@ -91,6 +97,8 @@ class Block(object):
         Returns a little-endian unsigned byte from the relative offset.
         Arguments:
         - `offset`: The relative offset from the start of the block.
+        Throws:
+        - `OverrunBufferException`
         """
         o = self._offset + offset
         try:
@@ -103,6 +111,8 @@ class Block(object):
         Returns a little-endian WORD (2 bytes) from the relative offset.
         Arguments:
         - `offset`: The relative offset from the start of the block.
+        Throws:
+        - `OverrunBufferException`
         """
         o = self._offset + offset
         try:
@@ -115,6 +125,8 @@ class Block(object):
         Returns a little-endian DWORD (4 bytes) from the relative offset.
         Arguments:
         - `offset`: The relative offset from the start of the block.
+        Throws:
+        - `OverrunBufferException`
         """
         o = self._offset + offset
         try:
@@ -127,6 +139,8 @@ class Block(object):
         Returns a little-endian signed integer (4 bytes) from the relative offset.
         Arguments:
         - `offset`: The relative offset from the start of the block.
+        Throws:
+        - `OverrunBufferException`
         """
         o = self._offset + offset
         try:
@@ -139,6 +153,8 @@ class Block(object):
         Returns a little-endian QWORD (8 bytes) from the relative offset.
         Arguments:
         - `offset`: The relative offset from the start of the block.
+        Throws:
+        - `OverrunBufferException`
         """
         o = self._offset + offset
         try:
@@ -146,13 +162,14 @@ class Block(object):
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
-
     def unpack_string(self, offset, length):
         """
         Returns a string from the relative offset with the given length.
         Arguments:
         - `offset`: The relative offset from the start of the block.
         - `length`: The length of the string.
+        Throws:
+        - `OverrunBufferException`
         """
         o = self._offset + offset
         try:
@@ -192,7 +209,6 @@ class Block(object):
         """
         return self._offset
 
-
 class NTATTR_STANDARD_INDEX_HEADER(Block):
 # 0x0         char magicNumber[4]; // == "INDX"
     
@@ -221,7 +237,6 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         - `parent`: The parent block, which links to this block.
         """
         super(NTATTR_STANDARD_INDEX_HEADER, self).__init__(buf, offset, parent)
-
 
         _magic = self.unpack_string(0, 4)
         if _magic != "INDX":
@@ -259,7 +274,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
     def deleted_entries(self):
         """
-        A generator that returns INDX entries found in the slack space
+        A generator that yields INDX entries found in the slack space
         associated with this header.
         """
         off = self.offset() + self.entry_size()
@@ -453,11 +468,27 @@ def entry_bodyfile(entry, filename=False):
     else:
         fn = entry.filename()
 
-    return u"0|%s|0|0|0|0|%s|%s|%s|%s|%s" % (fn, entry.logical_size(), 
-                                         int(time.mktime(entry.modified_time_safe().timetuple())),
-                                         int(time.mktime(entry.accessed_time_safe().timetuple())), 
-                                         int(time.mktime(entry.changed_time_safe().timetuple())),
-                                         int(time.mktime(entry.created_time_safe().timetuple())))
+    try:
+        modified = int(time.mktime(entry.modified_time_safe().timetuple()))    
+    except ValueError:
+        modified = int(time.mktime(datetime.min.timetuple()))
+
+    try:
+        accessed = int(time.mktime(entry.accessed_time_safe().timetuple()))
+    except ValueError:
+        accessed = int(time.mktime(datetime.min.timetuple()))
+
+    try:
+        changed  = int(time.mktime(entry.changed_time_safe().timetuple()))
+    except ValueError:
+        changed = int(time.mktime(datetime.min.timetuple()))
+
+    try:
+        created  = int(time.mktime(entry.created_time_safe().timetuple()))
+    except ValueError:
+        created = int(time.mktime(datetime.min.timetuple()))
+
+    return u"0|%s|0|0|0|0|%s|%s|%s|%s|%s" % (fn, entry.logical_size(), modified, accessed, changed, created)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Parse NTFS INDX files.')
