@@ -61,6 +61,14 @@ class ParseException(INDXException):
     def __str__(self):
         return "INDX Parse Exception(%s)" % (self._value)
 
+class OverrunBufferException(ParseException):
+    def __init__(self, readOffs, bufLen):
+        tvalue = "read: %s, buffer length: %s" % (hex(readOffs), hex(bufLen))
+        super(ParseException, self).__init__(tvalue)
+
+    def __str__(self):
+        return "Tried to parse beyond the end of the file (%s)" % (self._value)
+
 class Block(object):
     """ 
     Base class for structure blocks in the NTFS INDX format.
@@ -84,7 +92,11 @@ class Block(object):
         Arguments:
         - `offset`: The relative offset from the start of the block.
         """
-        return struct.unpack_from("<B", self._buf, self._offset + offset)[0]
+        o = self._offset + offset
+        try:
+            return struct.unpack_from("<B", self._buf, o)[0]
+        except struct.error:
+            raise OverrunBufferException(o, len(self._buf))
 
     def unpack_word(self, offset):
         """
@@ -92,7 +104,11 @@ class Block(object):
         Arguments:
         - `offset`: The relative offset from the start of the block.
         """
-        return struct.unpack_from("<H", self._buf, self._offset + offset)[0]
+        o = self._offset + offset
+        try:
+            return struct.unpack_from("<H", self._buf, o)[0]
+        except struct.error:
+            raise OverrunBufferException(o, len(self._buf))
 
     def unpack_dword(self, offset):
         """
@@ -100,7 +116,11 @@ class Block(object):
         Arguments:
         - `offset`: The relative offset from the start of the block.
         """
-        return struct.unpack_from("<I", self._buf, self._offset + offset)[0]
+        o = self._offset + offset
+        try:
+            return struct.unpack_from("<I", self._buf, o)[0]
+        except struct.error:
+            raise OverrunBufferException(o, len(self._buf))
 
     def unpack_int(self, offset):
         """
@@ -108,7 +128,11 @@ class Block(object):
         Arguments:
         - `offset`: The relative offset from the start of the block.
         """
-        return struct.unpack_from("<i", self._buf, self._offset + offset)[0]
+        o = self._offset + offset
+        try:
+            return struct.unpack_from("<i", self._buf, o)[0]
+        except struct.error:
+            raise OverrunBufferException(o, len(self._buf))
 
     def unpack_qword(self, offset):
         """
@@ -116,7 +140,12 @@ class Block(object):
         Arguments:
         - `offset`: The relative offset from the start of the block.
         """
-        return struct.unpack_from("<Q", self._buf, self._offset + offset)[0]
+        o = self._offset + offset
+        try:
+            return struct.unpack_from("<Q", self._buf, o)[0]
+        except struct.error:
+            raise OverrunBufferException(o, len(self._buf))
+
 
     def unpack_string(self, offset, length):
         """
@@ -125,7 +154,11 @@ class Block(object):
         - `offset`: The relative offset from the start of the block.
         - `length`: The length of the string.
         """
-        return struct.unpack_from("<%ds" % (length), self._buf, self._offset + offset)[0]
+        o = self._offset + offset
+        try:
+            return struct.unpack_from("<%ds" % (length), self._buf, o)[0]
+        except struct.error:
+            raise OverrunBufferException(o, len(self._buf))
 
     def unpack_wstring(self, offset, length):
         """
