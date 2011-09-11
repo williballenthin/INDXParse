@@ -20,6 +20,8 @@
 import struct, argparse, time
 from datetime import datetime
 
+global verbose
+
 def parse_windows_timestamp(qword):
     # see http://integriography.wordpress.com/2010/01/16/using-phython-to-parse-and-present-windows-64-bit-timestamps/
     return datetime.utcfromtimestamp(float(qword) * 1e-7 - 11644473600)
@@ -34,6 +36,12 @@ def align(offset, alignment):
     if offset % alignment == 0:
         return offset
     return offset + (alignment - (offset % alignment))
+
+def debug(message):
+    global verbose
+    
+    if verbose:
+        print "# [d] %s" % (message)
 
 class INDXException(Exception):
     """
@@ -236,6 +244,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         - `offset`: The offset into the buffer at which the block starts.
         - `parent`: The parent block, which links to this block.
         """
+        debug("HEADER @ %s." % (hex(offset)))
         super(NTATTR_STANDARD_INDEX_HEADER, self).__init__(buf, offset, parent)
 
         _magic = self.unpack_string(0, 4)
@@ -260,14 +269,17 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         A generator that returns each INDX entry associated with this header.
         """
         if self.entry_offset() - self.offset()  >= self.entry_size():
+            debug("No entries in this allocation block.")
             return 
 
         e = NTATTR_STANDARD_INDEX_ENTRY(self._buf, self.entry_offset(), self)
         yield e
 
         while e.has_next():
+            debug("Entry has another entry after it.")
             e = e.next()
             yield e
+        debug("No more entries.")
 
     def slack(self):
         return self._buf[self.offset() + self.entry_size():self.offset() + self.entry_allocated_size()]
@@ -288,15 +300,20 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         try:
             while off < self.offset() + self.entry_allocated_size() - 0x52:
                 try:
+                    debug("Trying to find slack entry at %s." % (hex(off)))
                     e = NTATTR_STANDARD_INDEX_SLACK_ENTRY(self._buf, off, self)
                     if e.is_valid():
+                        debug("Slack entry is valid.")
                         off = e.end_offset()
                         yield e
                     else:
+                        debug("Slack entry is invalid.")
                         raise ParseException("Not a deleted entry")
                 except ParseException:
+                    debug("Scanning one byte forward.")
                     off += 1
         except struct.error:
+            debug("Slack entry parsing overran buffer.")
             pass
 
 class NTATTR_STANDARD_INDEX_ENTRY(Block):
@@ -333,6 +350,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         - `offset`: The offset into the buffer at which the block starts.
         - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, which links to this block.
         """
+        debug("ENTRY at %s." % (hex(offset)))
         super(NTATTR_STANDARD_INDEX_ENTRY, self).__init__(buf, offset, parent)
 
         self._created_time_offset = 0x18
@@ -394,6 +412,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         try:
             return self.parse_time(offset)
         except ValueError:
+            debug("Timestamp is invalid, using a default.")
             return datetime(1970, 1, 1, 0, 0, 0)
 
     def created_time_safe(self):
@@ -474,17 +493,17 @@ def entry_bodyfile(entry, filename=False):
     try:
         modified = int(time.mktime(entry.modified_time_safe().timetuple()))    
     except ValueError:
-        modified = int(time.mktime(datetime.min.timetuple()))
+        modified = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
 
     try:
         accessed = int(time.mktime(entry.accessed_time_safe().timetuple()))
     except ValueError:
-        accessed = int(time.mktime(datetime.min.timetuple()))
+        accessed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
 
     try:
         changed  = int(time.mktime(entry.changed_time_safe().timetuple()))
     except ValueError:
-        changed = int(time.mktime(datetime.min.timetuple()))
+        changed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
 
     try:
         created  = int(time.mktime(entry.created_time_safe().timetuple()))
@@ -499,8 +518,12 @@ if __name__ == '__main__':
     group.add_argument('-c', action="store_true", dest="csv", default=False, help="Output CSV")
     group.add_argument('-b', action="store_true", dest="bodyfile", default=False, help="Output Bodyfile")
     parser.add_argument('-d', action="store_true", dest="deleted", help="Find entries in slack space")
+    parser.add_argument('-v', action="store_true", dest="verbose", help="Print debugging information")
     parser.add_argument('filename', action="store", help="Input INDX file path")
     results = parser.parse_args()
+
+    global verbose
+    verbose = results.verbose
 
     do_csv = results.csv or \
         (not results.csv and not results.bodyfile)
@@ -508,7 +531,7 @@ if __name__ == '__main__':
     if do_csv:
         print "FILENAME,\tPHYSICAL SIZE,\tLOGICAL SIZE,\tMODIFIED TIME,\tACCESSED TIME,\tCHANGED TIME,\tCREATED TIME"
 
-    with open(results.filename) as f:
+    with open(results.filename, "rb") as f:
         b = f.read()
 
     off = 0
