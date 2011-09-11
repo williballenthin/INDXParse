@@ -17,8 +17,11 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-import struct, argparse, time
+import struct, time, array
 from datetime import datetime
+
+import argparse
+
 
 global verbose
 
@@ -42,6 +45,9 @@ def debug(message):
     
     if verbose:
         print "# [d] %s" % (message)
+
+def warning(message):
+    print "# [w] %s" % (message)
 
 class INDXException(Exception):
     """
@@ -128,6 +134,16 @@ class Block(object):
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
+    def pack_word(self, offset, word):
+        """
+        Applies the little-endian WORD (2 bytes) to the relative offset.
+        Arguments:
+        - `offset`: The relative offset from the start of the block.
+        - `word`: The data to apply.
+        """
+        o = self._offset + offset
+        return struct.pack_into("<H", self._buf, o, word)
+
     def unpack_dword(self, offset):
         """
         Returns a little-endian DWORD (4 bytes) from the relative offset.
@@ -195,7 +211,7 @@ class Block(object):
         Throws:
         - `UnicodeDecodeError`
         """
-        return self._buf[self._offset + offset:self._offset + offset + 2 * length].decode("utf16")
+        return self._buf[self._offset + offset:self._offset + offset + 2 * length].tostring().decode("utf16")
 
     def absolute_offset(self, offset):
         """
@@ -253,6 +269,28 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
         self._entry_size_offset = 0x1C
         self._entry_allocated_size_offset = 0x20
+
+        self._num_fixups_offset  = 0x06
+        self._fixup_value_offset = 0x28
+        self._fixup_array_offset = 0x2A
+
+        num_fixups = self.unpack_word(self._num_fixups_offset)
+        fixup_value = self.unpack_word(self._fixup_value_offset)
+
+        for i in range(0, num_fixups - 1):
+            fixup_offset = 512 * (i + 1) - 2
+            check_value = self.unpack_word(fixup_offset)
+
+            if check_value != fixup_value:
+                warning("Bad fixup at %s" % (hex(self.offset() + fixup_offset)))
+                continue
+
+            new_value = self.unpack_word(self._fixup_array_offset + 2 * i)
+            self.pack_word(fixup_offset, new_value)
+
+            check_value = self.unpack_word(fixup_offset)            
+            debug("Fixup verified at %s and patched from %s to %s." % (hex(self.offset() + fixup_offset),
+                  hex(fixup_value), hex(check_value)))
 
     def entry_offset(self):
         string_end = self.offset() + 0x2A + 2 * self.unpack_word(0x6)
@@ -531,8 +569,9 @@ if __name__ == '__main__':
     if do_csv:
         print "FILENAME,\tPHYSICAL SIZE,\tLOGICAL SIZE,\tMODIFIED TIME,\tACCESSED TIME,\tCHANGED TIME,\tCREATED TIME"
 
+    
     with open(results.filename, "rb") as f:
-        b = f.read()
+        b = array.array("B", f.read())
 
     off = 0
     while off < len(b):
