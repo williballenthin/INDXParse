@@ -259,6 +259,9 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         """
         A generator that returns each INDX entry associated with this header.
         """
+        if self.entry_offset() - self.offset()  >= self.entry_size():
+            return 
+
         e = NTATTR_STANDARD_INDEX_ENTRY(self._buf, self.entry_offset(), self)
         yield e
 
@@ -357,7 +360,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         return align(string_end, 8)
 
     def has_next(self):
-        return self.end_offset() - self.parent().offset() < self.parent().entry_size()
+        return self.end_offset() - self.parent().offset() <= self.parent().entry_size()
         
     def next(self):
         """
