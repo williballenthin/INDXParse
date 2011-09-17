@@ -404,7 +404,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         self._filename_offset = 0x52
 
         if self.unpack_byte(self._filename_type_offset) > 4:
-            raise ParseException("Invalid INDX record entry filename type")
+            warning("Invalid INDX record entry filename type at 0x%s" % (hex(self.offset() + self._filename_type_offset)))
 
     def end_offset(self):
         """
