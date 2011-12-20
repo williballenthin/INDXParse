@@ -21,8 +21,6 @@ import struct, time, array
 from datetime import datetime
 
 import argparse
-
-
 global verbose
 
 def parse_windows_timestamp(qword):
@@ -42,7 +40,6 @@ def align(offset, alignment):
 
 def debug(message):
     global verbose
-    
     if verbose:
         print "# [d] %s" % (message)
 
