@@ -135,30 +135,11 @@ class Block(object):
     def __str__(self):
         return str(unicode(self))
 
-    def _prepare_fields(self, fields=False):
-        """
-        Declaratively add fields to this block.
-        self._fields should contain a list of tuples ("type", "name", offset).
-        This method will dynamically add corresponding offset and unpacker methods
-        to this block.
-        Arguments:
-        - `fields`: (Optional) A list of tuples to add. Otherwise, 
-        self._fields is used.
-        """
-        for field in fields:
-            def handler():
-                f = getattr(self, "unpack_" + field[0])
-                return f(*(field[2:]))
-            setattr(self, field[1], handler)
-            debug("(%s) %s\t@ %s\t: %s" % (field[0].upper(), 
-                                           field[1], 
-                                           hex(self.absolute_offset(field[2])),
-                                           str(handler())[:0x20]))
-            setattr(self, "_off_" + field[1], field[2])
-
     def declare_field(self, type, name, offset=False, length=False):
         """
-        A shortcut to add a field.
+        Declaratively add fields to this block.
+        This method will dynamically add corresponding offset and unpacker methods
+        to this block.
         Arguments:
         - `type`: A string. Should be one of the unpack_* types.
         - `name`: A string. 
@@ -167,10 +148,24 @@ class Block(object):
         """
         if not offset:
             offset = self._implicit_offset
-        if length:
-            self._prepare_fields([(type, name, offset, length)])
+            def handler():
+                f = getattr(self, "unpack_" + type)
+                return f(offset)
+        elif not length:
+            def handler():
+                f = getattr(self, "unpack_" + type)
+                return f(offset)
         else:
-            self._prepare_fields([(type, name, offset)])
+            def handler():
+                f = getattr(self, "unpack_" + type)
+                return f(offset, length)
+
+        setattr(self, name, handler)
+        debug("(%s) %s\t@ %s\t: %s" % (type.upper(), 
+                                       name, 
+                                       hex(self.absolute_offset(offset)),
+                                       str(handler())[:0x20]))
+        setattr(self, "_off_" + name, offset)
 
         if type == "byte":
             self._implicit_offset = offset + 1
@@ -604,6 +599,8 @@ def record_generator(filename):
             record = array.array("B", f.read(1024))
 
 def mft_get_record_buf(filename, number):
+    # consider memoizing: 
+    # https://code.activestate.com/recipes/498110-memoize-decorator-with-o1-length-limited-lru-cache/
     with open(filename, "rb") as f:
         f.seek(number * 1024)
         return array.array("B", f.read(1024))
@@ -612,18 +609,17 @@ def doit(filename, directory):
     buf = mft_get_record_buf(filename, 5)
     m = MFTRecord(buf, 0, False)
     indx = m.attribute(ATTR_TYPE.INDEX_ROOT)
+
     root = IndexRootHeader(indx.value(), 0, False)
+
+
     root.node_header()
+
     for e in root.node_header().entries():
         print e.filename_information().filename()
+
     for e in root.node_header().slack_entries():
         print e.filename_information().filename()
-
-    # buf = mft_get_record_buf(filename, 1)
-    # m = MFTRecord(buf, 0, False)
-
-    # buf = mft_get_record_buf(filename, 2)
-    # m = MFTRecord(buf, 0, False)
 
 if __name__ == '__main__':
     global verbose
