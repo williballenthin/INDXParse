@@ -153,7 +153,7 @@ class Block(object):
             debug("(%s) %s\t@ %s\t: %s" % (field[0].upper(), 
                                            field[1], 
                                            hex(self.absolute_offset(field[2])),
-                                           str(handler())))
+                                           str(handler())[:0x20]))
             setattr(self, "_off_" + field[1], field[2])
 
     def declare_field(self, type, name, offset=False, length=False):
@@ -316,7 +316,12 @@ class Block(object):
         Throws:
         - `UnicodeDecodeError`
         """
-        return self._buf[self._offset + offset:self._offset + offset + 2 * length].tostring().decode("utf16")
+        try:
+            return self._buf[self._offset + offset:self._offset + offset + \
+                             2 * length].tostring().decode("utf16")
+        except AttributeError: # already a 'str' ?
+            return self._buf[self._offset + offset:self._offset + offset + \
+                             2 * length].decode("utf16")
 
     def unpack_dosdate(self, offset):
         """
@@ -383,8 +388,9 @@ class FixupBlock(Block):
             self.pack_word(fixup_offset, new_value)
         
             check_value = self.unpack_word(fixup_offset)
-            debug("Fixup verified at %s and patched from %s to %s." % (hex(self.offset() + fixup_offset),
-                                                                       hex(fixup_value), hex(check_value)))
+            debug("Fixup verified at %s and patched from %s to %s." % \
+                  (hex(self.offset() + fixup_offset),
+                   hex(fixup_value), hex(check_value)))
 
 class IndexRootHeader(Block):
     def __init__(self, buf, offset, parent):
@@ -394,7 +400,13 @@ class IndexRootHeader(Block):
         self.declare_field("dword", "collation_rule")
         self.declare_field("dword", "index_record_size_bytes")
         self.declare_field("byte",  "index_record_size_clusters")
-        self.declare_field("dword", "unused")
+        self.declare_field("byte", "unused1")
+        self.declare_field("byte", "unused2")
+        self.declare_field("byte", "unused3")
+        self._node_header_offset = self.current_field_offset()
+    
+    def node_header(self):
+        return IndexNodeHeader(self._buf, self.offset() + self._node_header_offset, self)
 
 class IndexNodeHeader(Block):
     def __init__(self, buf, offset, parent):
@@ -404,101 +416,89 @@ class IndexNodeHeader(Block):
         self.declare_field("dword", "entry_list_end")
         self.declare_field("dword", "entry_list_allocation_end")
         self.declare_field("dword", "flags")
-        self.declare_field("binary", "list_buffer", self.entry_list_start(), self.entry_list_allocation_end() - self.entry_list_start())
+        self.declare_field("binary", "list_buffer", \
+                           self.entry_list_start(), 
+                           self.entry_list_allocation_end() - self.entry_list_start())
 
-class IndexEntry2(Block):
-    def __init__(self, buf, offset, parent):
-        debug("INDEX ENTRY at %s." % (hex(offset)))
-        super(IndexEntry2, self).__init__(buf, offset, parent)
-        self.declare_field("qword", "mft_reference", 0x0)
-        self.declare_field("word", "length")
-        self.declare_field("word", "filename_information_length")
-        self.declare_field("dword", "flags")
-        if self.filename_information_length() > 0:
-            self.declare_field("binary", "filename_information_buffer", self.current_field_offset(), self.filename_information_length())
-        self.declare_field("qword", "child_vcn", align(self.current_field_offset(), 0x8))
+    def entries(self):
+        """
+        A generator that returns each INDX entry associated with this node.
+        """
+        offset = self.entry_list_start()
+        if offset == 0:
+            debug("No entries in this allocation block.")
+            return 
+        while offset <= self.entry_list_end() - self.offset() - 0x52:
+            debug("Entry has another entry after it.")
+            e = IndexEntry(self._buf, self.offset() + offset, self)
+            offset += e.length()
+            yield e
+        debug("No more entries.")
 
-class FilenameAttribute(Block):
-    def __init__(self, buf, offset, parent):
-        debug("Filename attribute at %s." % (hex(offset)))
-        super(FilenameAttribute, self).__init__(buf, offset, parent)
-        self.declare_field("qword", "mft_reference", 0x0)
-        self.declare_field("word", "length")
-        self.declare_field("word", "filename_information_length")
-        self.declare_field("dword", "flags")
-        if self.filename_information_length() > 0:
-            self.declare_field("binary", "filename_information_buffer", self.current_field_offset(), self.filename_information_length())
-            self.declare_field("qword", "child_vcn", align(self.current_field_offset(), 0x8))
-    
+    def slack_entries(self):
+        """
+        A generator that yields INDX entries found in the slack space
+        associated with this header.
+        """
+        offset = self.entry_list_end()
+        try:
+            while offset <= self.entry_list_allocation_end() - self.offset() - 0x52:
+                try:
+                    debug("Trying to find slack entry at %s." % (hex(offset)))
+                    e = SlackIndexEntry(self._buf, offset, self)
+                    if e.is_valid():
+                        debug("Slack entry is valid.")
+                        offset += e.length()
+                        yield e
+                    else:
+                        debug("Slack entry is invalid.")
+                        raise ParseException("Not a deleted entry")
+                except ParseException:
+                    debug("Scanning one byte forward.")
+                    offset += 1
+        except struct.error:
+            debug("Slack entry parsing overran buffer.")
+            pass
 
 class IndexEntry(Block):
     def __init__(self, buf, offset, parent):
-        """
-        Constructor.
-        Arguments:
-        - `buf`: Byte string containing NTFS INDX file
-        - `offset`: The offset into the buffer at which the block starts.
-        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, which links to this block.
-        """
         debug("INDEX ENTRY at %s." % (hex(offset)))
         super(IndexEntry, self).__init__(buf, offset, parent)
+        self.declare_field("qword", "mft_reference", 0x0)
+        self.declare_field("word", "length")
+        self.declare_field("word", "filename_information_length")
+        self.declare_field("dword", "flags")
+        if self.filename_information_length() > 0:
+            self.declare_field("binary", "filename_information_buffer", \
+                               self.current_field_offset(), self.filename_information_length())
+        self.declare_field("qword", "child_vcn", align(self.current_field_offset(), 0x8))
 
-        self.declare_field("windows_timestamp", "created_time", 0x18)
+    def filename_information(self):
+        return FilenameAttribute(self._buf, 
+                                 self.offset() + self._off_filename_information_buffer, 
+                                 self)
+
+class FilenameAttribute(Block):
+    def __init__(self, buf, offset, parent):
+        debug("FILENAME ATTRIBUTE at %s." % (hex(offset)))
+        super(FilenameAttribute, self).__init__(buf, offset, parent)
+        self.declare_field("qword", "mft_parent_reference", 0x0)
+        self.declare_field("windows_timestamp", "created_time")
         self.declare_field("windows_timestamp", "modified_time")
         self.declare_field("windows_timestamp", "changed_time")
         self.declare_field("windows_timestamp", "accessed_time")
         self.declare_field("qword", "physical_size")
         self.declare_field("qword", "logical_size")
-
-        self.declare_field("byte", "filename_length", 0x50)
+        self.declare_field("dword", "flags")
+        self.declare_field("dword", "reparse_value")
+        self.declare_field("byte", "filename_length")
         self.declare_field("byte", "filename_type")
-        self.declare_field("wstring", "filename", 0x52, self.filename_length()) #TODO check this
+        self.declare_field("wstring", "filename", 0x42, self.filename_length())
 
         if self.filename_type() > 4:
-            warning("Invalid INDX record entry filename type at 0x%s" % (hex(self.offset() + self._filename_type_offset)))
-
-    def end_offset(self):
-        """
-        return the first address not a part of this block
-        """
-        string_end = self.offset() + self._filename_offset + 2 * self.filename_length()
-        return align(string_end, 8)
-
-    def has_next(self):
-        return self.end_offset() - self.parent().offset() <= self.parent().entry_size()
-        
-    def next(self):
-        """
-        return the next entry after this one.
-        warning, this does not check to see if another exists, but blindly creates one
-        from the next data in the buffer. check NTATTR_STANDARD_INDEX_ENTRY.has_next() first
-        """
-        return IndexEntry(self._buf, self.end_offset(), self.parent())
-
-    def parse_time_safe(self, offset):
-        """
-        The *_safe time methods return the date of the
-        UNIX epoch if there is an exception parsing the 
-        date
-        """
-        try:
-            return self.parse_time(offset)
-        except ValueError:
-            debug("Timestamp is invalid, using a default.")
-            return datetime(1970, 1, 1, 0, 0, 0)
-
-    def created_time_safe(self):
-        return self.parse_time_safe(self._created_time_offset)
-
-    def modified_time_safe(self):
-        return self.parse_time_safe(self._modified_time_offset)
-        
-    def changed_time_safe(self):
-        return self.parse_time_safe(self._changed_time_offset)
-
-    def accessed_time_safe(self):
-        return self.parse_time_safe(self._accessed_time_offset)
-
+            warning("Invalid INDX record entry filename type at 0x%s" % \
+                    (hex(self.offset() + self._filename_type_offset)))
+    
 class SlackIndexEntry(IndexEntry):
     def __init__(self, buf, offset, parent):
         """
@@ -516,80 +516,6 @@ class SlackIndexEntry(IndexEntry):
             self.accessed_time_safe() > recent_date and \
             self.changed_time_safe() > recent_date and \
             self.created_time_safe() > recent_date
-
-class IndexEntryHeader(FixupBlock):
-    def __init__(self, buf, offset, parent):
-        """
-        Constructor.
-        Arguments:
-        - `buf`: Byte string containing NTFS INDX file
-        - `offset`: The offset into the buffer at which the block starts.
-        - `parent`: The parent block, which links to this block.
-        """
-        debug("INDX HEADER @ %s." % (hex(offset)))
-        super(IndexEntryHeader, self).__init__(buf, offset, parent)
-
-        _magic = self.unpack_string(0, 4)
-        if _magic != "INDX":
-            raise ParseException("Invalid INDX ID")
-
-        self.declare_field("dword", "entry_size", 0x1C)
-        self.declare_field("dword", "allocated_size")
-
-        self.fixup(self.unpack_word(0x6), 0x28)
-
-    def entry_offset(self):
-        string_end = self.offset() + 0x2A + 2 * self.unpack_word(0x6)
-        return align(string_end, 8)
-
-    def entries(self):
-        """
-        A generator that returns each INDX entry associated with this header.
-        """
-        if self.entry_offset() - self.offset()  >= self.entry_size():
-            debug("No entries in this allocation block.")
-            return 
-
-        e = IndexEntry(self._buf, self.entry_offset(), self)
-        yield e
-
-        while e.has_next():
-            debug("Entry has another entry after it.")
-            e = e.next()
-            yield e
-            debug("No more entries.")
-
-    def slack(self):
-        return self._buf[self.offset() + self.entry_size():self.offset() + self.entry_allocated_size()]
-        
-    def end_offset(self):
-        return self.offset() + self.entry_allocated_size()
-
-    def deleted_entries(self):
-        """
-        A generator that yields INDX entries found in the slack space
-        associated with this header.
-        """
-        off = self.offset() + self.entry_size()
-
-        try:
-            while off < self.offset() + self.entry_allocated_size() - 0x52:
-                try:
-                    debug("Trying to find slack entry at %s." % (hex(off)))
-                    e = SlackIndexEntry(self._buf, off, self)
-                    if e.is_valid():
-                        debug("Slack entry is valid.")
-                        off = e.end_offset()
-                        yield e
-                    else:
-                        debug("Slack entry is invalid.")
-                        raise ParseException("Not a deleted entry")
-                except ParseException:
-                    debug("Scanning one byte forward.")
-                    off += 1
-        except struct.error:
-            debug("Slack entry parsing overran buffer.")
-            pass
 
 class ATTR_TYPE:
     STANDARD_INFORMATION = 0x10
@@ -686,10 +612,12 @@ def doit(filename, directory):
     buf = mft_get_record_buf(filename, 5)
     m = MFTRecord(buf, 0, False)
     indx = m.attribute(ATTR_TYPE.INDEX_ROOT)
-    h = IndexEntryHeader(indx._buf, indx.absolute_offset(0x0), False)
-    for e in h.entries():
-        print e.filename()
-
+    root = IndexRootHeader(indx.value(), 0, False)
+    root.node_header()
+    for e in root.node_header().entries():
+        print e.filename_information().filename()
+    for e in root.node_header().slack_entries():
+        print e.filename_information().filename()
 
     # buf = mft_get_record_buf(filename, 1)
     # m = MFTRecord(buf, 0, False)
