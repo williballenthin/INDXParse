@@ -17,7 +17,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-import struct, time, array, sys
+import struct, time, array, sys, cPickle
 from datetime import datetime
 
 import argparse
@@ -30,6 +30,96 @@ def debug(message):
 
 def warning(message):
     print "# [w] %s" % (message)
+
+class decoratorargs(object):
+    def __new__(typ, *attr_args, **attr_kwargs):
+        def decorator(orig_func):
+            self = object.__new__(typ)
+            self.__init__(orig_func, *attr_args, **attr_kwargs)
+            return self
+        return decorator
+
+class memoize(decoratorargs):
+    class Node:
+        __slots__ = ['key', 'value', 'older', 'newer']
+        def __init__(self, key, value, older=None, newer=None):
+            self.key = key
+            self.value = value
+            self.older = older
+            self.newer = newer
+            
+    def __init__(self, func, capacity, 
+                 keyfunc=lambda *args, **kwargs: cPickle.dumps((args, kwargs))):
+        self.func = func
+        self.capacity = capacity
+        self.keyfunc = keyfunc
+        self.reset()
+    
+    def reset(self):
+        self.mru = self.Node(None, None)
+        self.mru.older = self.mru.newer = self.mru
+        self.nodes = {self.mru.key: self.mru}
+        self.count = 1
+        self.hits = 0
+        self.misses = 0
+        
+    def __call__(self, *args, **kwargs):
+        key = self.keyfunc(*args, **kwargs)
+        try:
+            node = self.nodes[key]
+        except KeyError:
+            # We have an entry not in the cache
+            self.misses += 1
+            value = self.func(*args, **kwargs)
+            lru = self.mru.newer  # Always true
+            # If we haven't reached capacity
+            if self.count < self.capacity:
+                # Put it between the MRU and LRU - it'll be the new MRU
+                node = self.Node(key, value, self.mru, lru)
+                self.mru.newer = node
+                
+                lru.older = node
+                self.mru = node
+                self.count += 1
+            else:
+                # It's FULL! We'll make the LRU be the new MRU, but replace its
+                # value first
+                del self.nodes[lru.key]  # This mapping is now invalid
+                lru.key = key
+                lru.value = value
+                self.mru = lru
+                
+            # Add the new mapping
+            self.nodes[key] = self.mru
+            return value
+                                
+        # We have an entry in the cache
+        self.hits += 1
+                                
+        # If it's already the MRU, do nothing
+        if node is self.mru:
+            return node.value
+            
+        lru = self.mru.newer  # Always true
+                
+        # If it's the LRU, update the MRU to be it
+        if node is lru:
+            self.mru = lru
+            return node.value
+            
+        # Remove the node from the list
+        node.older.newer = node.newer
+        node.newer.older = node.older
+                    
+        # Put it between MRU and LRU
+        node.older = self.mru
+        self.mru.newer = node
+                    
+        node.newer = lru
+        lru.older = node
+                
+        self.mru = node
+        return node.value
 
 def align(offset, alignment):
     """
@@ -161,11 +251,11 @@ class Block(object):
                 return f(offset, length)
 
         setattr(self, name, handler)
+        setattr(self, "_off_" + name, offset)
         debug("(%s) %s\t@ %s\t: %s" % (type.upper(), 
                                        name, 
                                        hex(self.absolute_offset(offset)),
                                        str(handler())[:0x20]))
-        setattr(self, "_off_" + name, offset)
 
         if type == "byte":
             self._implicit_offset = offset + 1
@@ -181,7 +271,7 @@ class Block(object):
             self._implicit_offset = offset + 4
         elif type == "windows_timestamp":
             self._implicit_offset = offset + 8
-        elif type == "binary" and length:
+        elif type == "binary":
             self._implicit_offset = offset + length
         elif type == "string" and length:
             self._implicit_offset = offset + length
@@ -275,15 +365,18 @@ class Block(object):
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
-    def unpack_binary(self, offset, length):
+    def unpack_binary(self, offset, length=False):
         """
         Returns raw binary data from the relative offset with the given length.
         Arguments:
         - `offset`: The relative offset from the start of the block.
-        - `length`: The length of the binary blob.
+        - `length`: The length of the binary blob. If zero, the empty string
+            zero length is returned.
         Throws:
         - `OverrunBufferException`
         """
+        if not length:
+            return ""
         o = self._offset + offset
         try:
             return struct.unpack_from("<%ds" % (length), self._buf, o)[0]
@@ -473,6 +566,18 @@ class IndexEntry(Block):
                                  self.offset() + self._off_filename_information_buffer, 
                                  self)
 
+class StandardInformation(Block):
+    def __init__(self, buf, offset, parent):
+        debug("STANDARD INFORMATION ATTRIBUTE at %s." % (hex(offset)))
+        super(StandardInformation, self).__init__(buf, offset, parent)
+        self.declare_field("windows_timestamp", "created_time", 0x0)
+        self.declare_field("windows_timestamp", "modified_time")
+        self.declare_field("windows_timestamp", "changed_time")
+        self.declare_field("windows_timestamp", "accessed_time")
+        self.declare_field("dword", "attributes")
+        self.declare_field("binary", "reserved", self.current_field_offset(), 12)
+        # there may be more after this if its a new NTFS
+
 class FilenameAttribute(Block):
     def __init__(self, buf, offset, parent):
         debug("FILENAME ATTRIBUTE at %s." % (hex(offset)))
@@ -591,13 +696,23 @@ class MFTRecord(FixupBlock):
             if a.type() == attr_type:
                 return a
 
+    def is_directory(self):
+        return self.flags() & 0x0002
+
+    def is_active(self):
+        return self.flags() & 0x0001
+
 def record_generator(filename):
     with open(filename, "rb") as f:
         record = f.read(1024)
         while record:
             yield record
-            record = array.array("B", f.read(1024))
+            buf = array.array("B", f.read(1024))
+            if not buf:
+                return
+            record = MFTRecord(buf, 0, False)
 
+@memoize(100)
 def mft_get_record_buf(filename, number):
     # consider memoizing: 
     # https://code.activestate.com/recipes/498110-memoize-decorator-with-o1-length-limited-lru-cache/
@@ -605,26 +720,117 @@ def mft_get_record_buf(filename, number):
         f.seek(number * 1024)
         return array.array("B", f.read(1024))
 
+@memoize(100)
+def _record_build_path_rec(filename, parent_ref):
+    if parent_ref & 0xFFFFFFFFFFFF == 0x0005:
+        return "\\."
+    parent_buf = mft_get_record_buf(filename, parent_ref & 0xFFFFFFFFFFFF)
+    if parent_buf == "":
+        return "\\??"
+    parent = MFTRecord(parent_buf, 0, False)
+    attr = parent.attribute(ATTR_TYPE.FILENAME_INFORMATION)
+    attr_value = attr.value()
+    if attr_value != "":
+        pfn = FilenameAttribute(attr_value, 0, parent)
+        return _record_build_path_rec(filename, pfn.mft_parent_reference()) + "\\" + pfn.filename()
+    else:
+        return "\\"
+
+def record_build_path(filename, record):
+    attr = record.attribute(ATTR_TYPE.FILENAME_INFORMATION)
+    if not attr:
+        return "??"
+    attr_value = record.attribute(ATTR_TYPE.FILENAME_INFORMATION).value()
+    if attr_value == "":
+        return "??"
+    fn = FilenameAttribute(attr_value, 0, record)
+    return _record_build_path_rec(filename, fn.mft_parent_reference()) + "\\" + fn.filename()
+
+class InvalidAttributeException(INDXException):
+    def __init__(self, value):
+        super(InvalidAttributeException, self).__init__(value)
+
+    def __str__(self):
+        return "Invalid attribute Exception(%s)" % (self._value)
+
+def record_bodyfile(filename, record):
+    path = record_build_path(filename, record)
+    attr = record.attribute(ATTR_TYPE.FILENAME_INFORMATION)
+    if not attr:
+        raise InvalidAttributeException("Unable to parse attribute")
+    attr_value = record.attribute(ATTR_TYPE.STANDARD_INFORMATION).value()
+    if attr_value == "":
+        raise InvalidAttributeException("Unable to parse attribute value")
+    si = StandardInformation(attr_value, 0, record)
+    attr = record.attribute(ATTR_TYPE.FILENAME_INFORMATION)
+    if not attr:
+        raise InvalidAttributeException("Unable to parse attribute")
+    attr_value = record.attribute(ATTR_TYPE.FILENAME_INFORMATION).value()
+    if attr_value == "":
+        raise InvalidAttributeException("Unable to parse attribute value")
+    fn = FilenameAttribute(attr_value, 0, record)
+    try:
+        si_modified = int(time.mktime(si.modified_time().timetuple()))    
+    except ValueError:
+        si_modified = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
+    try:
+        si_accessed = int(time.mktime(si.accessed_time().timetuple()))
+    except ValueError:
+        si_accessed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
+    try:
+        si_changed  = int(time.mktime(si.changed_time().timetuple()))
+    except ValueError:
+        si_changed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
+    try:
+        si_created  = int(time.mktime(si.created_time().timetuple()))
+    except ValueError:
+        si_created = int(time.mktime(datetime.min.timetuple()))
+    si_half = u"0|%s|0|0|0|0|%s|%s|%s|%s|%s" % (path, fn.logical_size(), si_modified, 
+                                             si_accessed, si_changed, si_created)
+    try:
+        fn_modified = int(time.mktime(fn.modified_time().timetuple()))    
+    except ValueError:
+        fn_modified = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
+    try:
+        fn_accessed = int(time.mktime(fn.accessed_time().timetuple()))
+    except ValueError:
+        fn_accessed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
+    try:
+        fn_changed  = int(time.mktime(fn.changed_time().timetuple()))
+    except ValueError:
+        fn_changed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
+    try:
+        fn_created  = int(time.mktime(fn.created_time().timetuple()))
+    except ValueError:
+        fn_created = int(time.mktime(datetime.min.timetuple()))
+    fn_half = u"0|%s (filename)|0|0|0|0|%s|%s|%s|%s|%s" % (path, fn.logical_size(), \
+                                                           fn_modified, fn_accessed, \
+                                                           fn_changed, fn_created)
+    return "%s\n%s" % (si_half, fn_half)
+
 def doit(filename, directory):
-    buf = mft_get_record_buf(filename, 5)
-    m = MFTRecord(buf, 0, False)
-    indx = m.attribute(ATTR_TYPE.INDEX_ROOT)
+    count = 0
+    for record in record_generator(filename):
+        count += 1
+        if count < 16:
+            continue
+        if record.is_active():
+            try:
+                print record_bodyfile(filename, record)
+            except InvalidAttributeException:
+                pass
 
-    root = IndexRootHeader(indx.value(), 0, False)
-
-
-    root.node_header()
-
-    for e in root.node_header().entries():
-        print e.filename_information().filename()
-
-    for e in root.node_header().slack_entries():
-        print e.filename_information().filename()
+    # buf = mft_get_record_buf(filename, 5)
+    # m = MFTRecord(buf, 0, False)
+    # indx = m.attribute(ATTR_TYPE.INDEX_ROOT)
+    # root = IndexRootHeader(indx.value(), 0, False)
+    # for e in root.node_header().entries():
+    #     print e.filename_information().filename()
+    # for e in root.node_header().slack_entries():
+    #     print e.filename_information().filename()
 
 if __name__ == '__main__':
     global verbose
-    verbose = True
+    verbose = False
 
     doit(sys.argv[1], sys.argv[2])
-
-
