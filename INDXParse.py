@@ -359,8 +359,8 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
 # 0xC    unsigned short flags;
 # 0xE    BYTE padding[2];
 
+# FILENAME_INFORMATION
 # 0x10    LONGLONG refParentDirectory;
-    
 # 0x18    FILETIME creationTime;
 # 0x20    FILETIME lastModifiedTime;
 # 0x28    FILETIME MFTRecordChangeTime;
