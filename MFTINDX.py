@@ -702,6 +702,35 @@ class MFTRecord(FixupBlock):
     def is_active(self):
         return self.flags() & 0x0001
 
+    # this a required resident attribute
+    def filename_information(self):
+        """
+        MFT Records may have more than one FN info attribute, 
+        each with a different type of filename (8.3, POSIX, etc.)
+        This one tends towards WIN32.
+        """
+        fn = False
+        for a in self.attributes():
+            if a.type() == ATTR_TYPE.FILENAME_INFORMATION: # TODO optimize to self._buf here
+                try:
+                    value = a.value()
+                    check = FilenameAttribute(value, 0, self)
+                    if check.filename_type() == 0x0001 or \
+                       check.filename_type() == 0x0003:
+                        return check
+                    fn = check
+                except:
+                    pass
+        return fn
+
+    # this a required resident attribute
+    def standard_information(self):
+        try:
+            attr = self.attribute(ATTR_TYPE.STANDARD_INFORMATION)
+            return StandardInformation(attr.value(), 0, self)
+        except:
+            return False
+
 def record_generator(filename):
     with open(filename, "rb") as f:
         record = f.read(1024)
@@ -714,37 +743,33 @@ def record_generator(filename):
 
 @memoize(100)
 def mft_get_record_buf(filename, number):
-    # consider memoizing: 
-    # https://code.activestate.com/recipes/498110-memoize-decorator-with-o1-length-limited-lru-cache/
     with open(filename, "rb") as f:
         f.seek(number * 1024)
         return array.array("B", f.read(1024))
 
+# This would be a local function to record_build_path,
+# but we can't pickle a local function, and 
+# memoization is key here.
+# TODO merge this back into record_build_path
 @memoize(100)
-def _record_build_path_rec(filename, parent_ref):
+def _record_build_path_rec(mftfilename, parent_ref):
+    # TODO check sequence number and orphan status
     if parent_ref & 0xFFFFFFFFFFFF == 0x0005:
         return "\\."
-    parent_buf = mft_get_record_buf(filename, parent_ref & 0xFFFFFFFFFFFF)
+    parent_buf = mft_get_record_buf(mftfilename, parent_ref & 0xFFFFFFFFFFFF)
     if parent_buf == "":
         return "\\??"
     parent = MFTRecord(parent_buf, 0, False)
-    attr = parent.attribute(ATTR_TYPE.FILENAME_INFORMATION)
-    attr_value = attr.value()
-    if attr_value != "":
-        pfn = FilenameAttribute(attr_value, 0, parent)
-        return _record_build_path_rec(filename, pfn.mft_parent_reference()) + "\\" + pfn.filename()
-    else:
-        return "\\"
+    pfn = parent.filename_information()
+    if not pfn:
+        return "\\??"
+    return _record_build_path_rec(mftfilename, pfn.mft_parent_reference()) + "\\" + pfn.filename()
 
-def record_build_path(filename, record):
-    attr = record.attribute(ATTR_TYPE.FILENAME_INFORMATION)
-    if not attr:
+def record_build_path(mftfilename, record):
+    fn = record.filename_information()
+    if not fn:
         return "??"
-    attr_value = record.attribute(ATTR_TYPE.FILENAME_INFORMATION).value()
-    if attr_value == "":
-        return "??"
-    fn = FilenameAttribute(attr_value, 0, record)
-    return _record_build_path_rec(filename, fn.mft_parent_reference()) + "\\" + fn.filename()
+    return _record_build_path_rec(mftfilename, fn.mft_parent_reference()) + "\\" + fn.filename()
 
 class InvalidAttributeException(INDXException):
     def __init__(self, value):
@@ -753,22 +778,14 @@ class InvalidAttributeException(INDXException):
     def __str__(self):
         return "Invalid attribute Exception(%s)" % (self._value)
 
-def record_bodyfile(filename, record):
+def record_bodyfile(filename, record, attributes=[]):
     path = record_build_path(filename, record)
-    attr = record.attribute(ATTR_TYPE.FILENAME_INFORMATION)
-    if not attr:
+    si = record.standard_information()
+    if not si:
         raise InvalidAttributeException("Unable to parse attribute")
-    attr_value = record.attribute(ATTR_TYPE.STANDARD_INFORMATION).value()
-    if attr_value == "":
-        raise InvalidAttributeException("Unable to parse attribute value")
-    si = StandardInformation(attr_value, 0, record)
-    attr = record.attribute(ATTR_TYPE.FILENAME_INFORMATION)
-    if not attr:
+    fn = record.filename_information()
+    if not fn:
         raise InvalidAttributeException("Unable to parse attribute")
-    attr_value = record.attribute(ATTR_TYPE.FILENAME_INFORMATION).value()
-    if attr_value == "":
-        raise InvalidAttributeException("Unable to parse attribute value")
-    fn = FilenameAttribute(attr_value, 0, record)
     try:
         si_modified = int(time.mktime(si.modified_time().timetuple()))    
     except ValueError:
@@ -785,8 +802,13 @@ def record_bodyfile(filename, record):
         si_created  = int(time.mktime(si.created_time().timetuple()))
     except ValueError:
         si_created = int(time.mktime(datetime.min.timetuple()))
-    si_half = u"0|%s|0|0|0|0|%s|%s|%s|%s|%s" % (path, fn.logical_size(), si_modified, 
-                                             si_accessed, si_changed, si_created)
+    attributes_text = ""
+    if len(attributes) > 0:
+        attributes_text = " (%s)" % (", ".join(attributes))
+    si_half = u"0|%s|%s|0|0|0|%s|%s|%s|%s|%s" % (path + attributes_text, \
+                                                 record.mft_record_number(), \
+                                                 fn.logical_size(), si_modified, 
+                                                 si_accessed, si_changed, si_created)
     try:
         fn_modified = int(time.mktime(fn.modified_time().timetuple()))    
     except ValueError:
@@ -803,9 +825,14 @@ def record_bodyfile(filename, record):
         fn_created  = int(time.mktime(fn.created_time().timetuple()))
     except ValueError:
         fn_created = int(time.mktime(datetime.min.timetuple()))
-    fn_half = u"0|%s (filename)|0|0|0|0|%s|%s|%s|%s|%s" % (path, fn.logical_size(), \
-                                                           fn_modified, fn_accessed, \
-                                                           fn_changed, fn_created)
+    attributes_text = " (filename)"
+    if len(attributes) > 0:
+        attributes_text = " (filename, %s)" % (", ".join(attributes))
+    fn_half = u"0|%s|%s|0|0|0|%s|%s|%s|%s|%s" % (path + attributes_text, \
+                                                 record.mft_record_number(), \
+                                                 fn.logical_size(), \
+                                                 fn_modified, fn_accessed, \
+                                                 fn_changed, fn_created)
     return "%s\n%s" % (si_half, fn_half)
 
 def doit(filename, directory):
@@ -818,6 +845,15 @@ def doit(filename, directory):
             try:
                 print record_bodyfile(filename, record)
             except InvalidAttributeException:
+                pass
+        else:
+            try:
+                lines = record_bodyfile(filename, record).split("\n")
+                for line in lines:
+                    fields = line.split("|")
+                    fields[1] += "(deleted)"
+                    print "|".join(fields)
+            except:
                 pass
 
     # buf = mft_get_record_buf(filename, 5)
