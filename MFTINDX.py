@@ -753,13 +753,14 @@ def mft_get_record_buf(filename, number):
 # TODO merge this back into record_build_path
 @memoize(100)
 def _record_build_path_rec(mftfilename, parent_ref):
-    # TODO check sequence number and orphan status
     if parent_ref & 0xFFFFFFFFFFFF == 0x0005:
         return "\\."
     parent_buf = mft_get_record_buf(mftfilename, parent_ref & 0xFFFFFFFFFFFF)
     if parent_buf == "":
         return "\\??"
     parent = MFTRecord(parent_buf, 0, False)
+    if parent.sequence_number() != parent_ref >> 48:
+        return "\\$OrphanFiles"
     pfn = parent.filename_information()
     if not pfn:
         return "\\??"
@@ -841,29 +842,14 @@ def doit(filename, directory):
         count += 1
         if count < 16:
             continue
-        if record.is_active():
-            try:
-                print record_bodyfile(filename, record)
-            except InvalidAttributeException:
-                pass
-        else:
-            try:
-                lines = record_bodyfile(filename, record).split("\n")
-                for line in lines:
-                    fields = line.split("|")
-                    fields[1] += "(deleted)"
-                    print "|".join(fields)
-            except:
-                pass
-
-    # buf = mft_get_record_buf(filename, 5)
-    # m = MFTRecord(buf, 0, False)
-    # indx = m.attribute(ATTR_TYPE.INDEX_ROOT)
-    # root = IndexRootHeader(indx.value(), 0, False)
-    # for e in root.node_header().entries():
-    #     print e.filename_information().filename()
-    # for e in root.node_header().slack_entries():
-    #     print e.filename_information().filename()
+        # TODO check signature
+        try:
+            if record.is_active():
+                print record_bodyfile(filename, record)                
+            else:
+                print record_bodyfile(filename, record, ["deleted"])                
+        except InvalidAttributeException:
+            pass
 
 if __name__ == '__main__':
     global verbose
