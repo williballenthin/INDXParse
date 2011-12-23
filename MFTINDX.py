@@ -617,6 +617,48 @@ class SlackIndexEntry(IndexEntry):
             self.changed_time_safe() > recent_date and \
             self.created_time_safe() > recent_date
 
+class Runentry(Block):
+    def __init__(self, buf, offset, parent):
+        super(Runentry, self).__init__(buf, offset, parent)
+        debug("RUNENTRY @ %s." % (hex(offset)))
+        self.declare_field("byte", "header")
+        offset_length = self.header() >> 4
+        length_length = self.header() & 0xF
+        self.declare_field("binary", "offset_binary", self.current_field_offset(), offset_length)
+        self.declare_field("binary", "length_binary", self.current_field_offset(), length_length)
+
+    def lsb2num(self, binary):
+        count = 0
+        ret = 0
+        for b in binary:
+            ret += ord(b) << (8 * count)
+            count += 1
+        return ret
+
+    def offset(self):
+        return self.lsb2num(self.offset_binary())
+
+    def length(self):
+        return self.lsb2num(self.length_binary())
+
+    def size(self):
+        return self.current_field_offset()
+
+class Runlist(Block):
+    def __init__(self, buf, offset, parent):
+        super(Runlist, self).__init__(buf, offset, parent)
+        debug("RUNLIST @ %s." % (hex(offset)))
+
+    def entries(self):
+        ret = []
+        offset = self.offset()
+        entry = Runentry(self._buf, offset, self)
+        while entry.header() != 0:
+            ret.append(entry)
+            offset += entry.size()
+            entry = Runentry(self._buf, offset, self)
+        return ret
+
 class ATTR_TYPE:
     STANDARD_INFORMATION = 0x10
     FILENAME_INFORMATION = 0x30
@@ -657,7 +699,7 @@ class Attribute(Block):
             self.declare_field("binary", "value", self.value_offset(), self.value_length())
             
     def runlist(self):
-        return Runlist(buf, self.runlist_offset(), self)
+        return Runlist(self._buf, self.offset() + self.runlist_offset(), self)
 
     def size(self):
         s = self.unpack_dword(self._size_offset) 
@@ -733,13 +775,13 @@ class MFTRecord(FixupBlock):
 
 def record_generator(filename):
     with open(filename, "rb") as f:
-        record = f.read(1024)
+        record = True
         while record:
-            yield record
             buf = array.array("B", f.read(1024))
             if not buf:
                 return
             record = MFTRecord(buf, 0, False)
+            yield record
 
 @memoize(100)
 def mft_get_record_buf(filename, number):
@@ -836,14 +878,15 @@ def record_bodyfile(filename, record, attributes=[]):
                                                  fn_changed, fn_created)
     return "%s\n%s" % (si_half, fn_half)
 
-def doit(filename, directory):
+def print_bodyfile(filename):
     count = 0
     for record in record_generator(filename):
         count += 1
         if count < 16:
             continue
-        # TODO check signature
         try:
+            if record.magic() != 0x454C4946:
+                continue
             if record.is_active():
                 print record_bodyfile(filename, record)                
             else:
@@ -851,8 +894,61 @@ def doit(filename, directory):
         except InvalidAttributeException:
             pass
 
+def print_indx_info(filename, directory):
+    for record in record_generator(filename):
+        try:
+            if record.magic() != 0x454C4946:
+                continue
+            if not record.is_active():
+                continue
+            path = record_build_path(filename, record)
+            if path.lower() != directory.lower():
+                continue
+            print "Found directory entry for: " + directory
+            print "MFT Record: " + str(record.mft_record_number())
+
+            indxroot = record.attribute(ATTR_TYPE.INDEX_ROOT)
+            if not indxroot:
+                print "No INDX_ROOT attribute"
+                return 
+            print "Found INDX_ROOT attribute"
+            if indxroot.non_resident() != 0:
+                print "INDX_ROOT attribute is non-resident"
+            else:
+                print "INDX_ROOT attribute is resident"
+                irh = IndexRootHeader(indxroot.value(), 0, False)
+                print "INDX_ROOT entries:"
+                for e in irh.node_header().entries():
+                    print "  " + e.filename_information().filename()
+                print "INDX_ROOT slack entries:"
+                for e in irh.node_header().slack_entries():
+                    print "  " + e.filename_information().filename()
+            for attr in record.attributes():
+                if attr.type() != ATTR_TYPE.INDEX_ALLOCATION:
+                    continue
+                print "Found INDX_ALLOCATION attribute"
+                if attr.non_resident() != 0:
+                    print "INDX_ALLOCATION is non-resident"
+                    for e in attr.runlist().entries():
+                        print "Cluster %s, length %s" % (hex(e.offset()), hex(e.length()))
+
+                else:
+                    print "INDX_ALLOCATION is resident"
+            return 
+        except ZeroDivisionError:
+#        except InvalidAttributeException:
+            pass
+    
 if __name__ == '__main__':
     global verbose
     verbose = False
 
-    doit(sys.argv[1], sys.argv[2])
+    if len(sys.argv) == 3:
+        print_indx_info(sys.argv[1], sys.argv[2])
+        pass
+    elif len(sys.argv) == 2:
+        print_bodyfile(sys.argv[1])
+    else:
+        print "use the right options, please"
+
+
