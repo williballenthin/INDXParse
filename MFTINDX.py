@@ -19,6 +19,7 @@
 
 import struct, time, array, sys, cPickle
 from datetime import datetime
+import types
 
 import argparse
 global verbose
@@ -30,6 +31,13 @@ def debug(message):
 
 def warning(message):
     print "# [w] %s" % (message)
+
+def info(message):
+    print "# [i] %s" % (message)
+
+def error(message):
+    print "# [e] %s" % (message)
+    sys.exit(-1)
 
 class decoratorargs(object):
     def __new__(typ, *attr_args, **attr_kwargs):
@@ -50,7 +58,14 @@ class memoize(decoratorargs):
             
     def __init__(self, func, capacity, 
                  keyfunc=lambda *args, **kwargs: cPickle.dumps((args, kwargs))):
-        self.func = func
+        if not isinstance(func, property):
+            self.func = func
+            self.name = func.__name__
+            self.is_property = False
+        else:
+            self.func = func.fget
+            self.name = func.fget.__name__
+            self.is_property = True
         self.capacity = capacity
         self.keyfunc = keyfunc
         self.reset()
@@ -62,6 +77,13 @@ class memoize(decoratorargs):
         self.count = 1
         self.hits = 0
         self.misses = 0
+
+    def __get__(self, inst, clas):
+        self.obj = inst
+        if self.is_property:
+            return self.__call__()
+        else:
+            return self
         
     def __call__(self, *args, **kwargs):
         key = self.keyfunc(*args, **kwargs)
@@ -70,7 +92,11 @@ class memoize(decoratorargs):
         except KeyError:
             # We have an entry not in the cache
             self.misses += 1
-            value = self.func(*args, **kwargs)
+ #           try:
+            func = types.MethodType(self.func, self.obj, self.name)
+            value = func(*args, **kwargs)
+#            except:
+#                value = self.func(*args, **kwargs)                
             lru = self.mru.newer  # Always true
             # If we haven't reached capacity
             if self.count < self.capacity:
@@ -773,22 +799,6 @@ class MFTRecord(FixupBlock):
         except:
             return False
 
-def record_generator(filename):
-    with open(filename, "rb") as f:
-        record = True
-        while record:
-            buf = array.array("B", f.read(1024))
-            if not buf:
-                return
-            record = MFTRecord(buf, 0, False)
-            yield record
-
-@memoize(100)
-def mft_get_record_buf(filename, number):
-    with open(filename, "rb") as f:
-        f.seek(number * 1024)
-        return array.array("B", f.read(1024))
-
 # This would be a local function to record_build_path,
 # but we can't pickle a local function, and 
 # memoization is key here.
@@ -894,61 +904,232 @@ def print_bodyfile(filename):
         except InvalidAttributeException:
             pass
 
-def print_indx_info(filename, directory):
-    for record in record_generator(filename):
-        try:
+class NTFSFile():
+    def __init__(self, options):
+        self.filename  = options.filename
+        self.filetype  = options.filetype
+        self.offset    = options.offset
+        self.clustersize = options.clustersize
+        self.mftoffset = False
+
+    def _calculate_mftoffset(self):
+        with open(self.filename, "rb") as f:
+            f.seek(self.offset)
+            f.seek(0x30, 1) # relative
+            buf = f.read(8)
+            relmftoffset = struct.unpack_from("<Q", buf, 0)[0]
+            self.mftoffset = self.offset + relmftoffset * self.clustersize
+            debug("MFT offset is %s" % (hex(self.mftoffset)))
+
+    def record_generator(self):
+        if self.filetype == "indx":
+            return
+        if self.filetype == "mft":
+            with open(self.filename, "rb") as f:
+                record = True
+                while record:
+                    buf = array.array("B", f.read(1024))
+                    if not buf:
+                        return
+                    record = MFTRecord(buf, 0, False)
+                    yield record
+        if self.filetype == "image":
+            with open(self.filename, "rb") as f:
+                if not self.mftoffset:
+                    self._calculate_mftoffset()
+                f.seek(self.mftoffset)
+                record = True
+                while record:
+                    buf = array.array("B", f.read(1024))
+                    if not buf:
+                        return
+                    record = MFTRecord(buf, 0, False)
+                    yield record
+            
+    def mft_get_record_buf(self, number):
+        if self.filetype == "indx":
+            return ""
+        if self.filetype == "mft":
+            with open(self.filename, "rb") as f:
+                f.seek(number * 1024)
+                return array.array("B", f.read(1024))
+        if self.filetype == "image":
+            with open(self.filename, "rb") as f:
+                f.seek(number * 1024)
+                if not self.mftoffset:
+                    self._calculate_mftoffset()
+                f.seek(self.mftoffset)
+                f.seek(number * 1024, 1)
+                return array.array("B", f.read(1024))
+
+    # memoization is key here.
+    @memoize(100, keyfunc=lambda r: 
+             str(r.magic()) + str(r.mft_record_number()) + str(r.flags()))
+    def mft_record_build_path(self, record):
+        if record.mft_record_number() & 0xFFFFFFFFFFFF == 0x0005:
+            return "\\."
+        fn = record.filename_information()
+        if not fn:
+            return "\\??" 
+        parent_record_num = fn.mft_parent_reference() & 0xFFFFFFFFFFFF
+        parent_buf = self.mft_get_record_buf(parent_record_num)
+        if parent_buf == "":
+            return "\\??\\" + fn.filename()
+        parent = MFTRecord(parent_buf, 0, False)
+        if parent.sequence_number() != fn.mft_parent_reference() >> 48:
+            return "\\$OrphanFiles\\" + fn.filename()
+        return self.mft_record_build_path(parent) + "\\" + fn.filename()
+
+    def mft_get_record_by_path(self, path):
+        # TODO could optimize here by trying to use INDX buffers
+        # and actually walk through the FS
+        for record in self.record_generator():
             if record.magic() != 0x454C4946:
                 continue
             if not record.is_active():
                 continue
-            path = record_build_path(filename, record)
-            if path.lower() != directory.lower():
+            record_path = self.mft_record_build_path(record)
+            if record_path.lower() != path.lower():
                 continue
-            print "Found directory entry for: " + directory
-            print "MFT Record: " + str(record.mft_record_number())
+            return record
+        return False
 
-            indxroot = record.attribute(ATTR_TYPE.INDEX_ROOT)
-            if not indxroot:
-                print "No INDX_ROOT attribute"
-                return 
-            print "Found INDX_ROOT attribute"
-            if indxroot.non_resident() != 0:
-                print "INDX_ROOT attribute is non-resident"
+def print_indx_info(options):
+    f = NTFSFile(options)
+    record = f.mft_get_record_by_path(options.infomode)
+    if not record:
+        print "Did not find directory entry for " + options.infomode
+        return
+    print "Found directory entry for: " + options.infomode
+    print "MFT Record: " + str(record.mft_record_number())
+    indxroot = record.attribute(ATTR_TYPE.INDEX_ROOT)
+    if not indxroot:
+        print "No INDX_ROOT attribute"
+        return 
+    print "Found INDX_ROOT attribute"
+    if indxroot.non_resident() != 0:
+        print "INDX_ROOT attribute is non-resident"
+        # TODO
+    else:
+        print "INDX_ROOT attribute is resident"
+        irh = IndexRootHeader(indxroot.value(), 0, False)
+        print "INDX_ROOT entries:"
+        for e in irh.node_header().entries():
+            print "  " + e.filename_information().filename()
+        print "INDX_ROOT slack entries:"
+        for e in irh.node_header().slack_entries():
+            print "  " + e.filename_information().filename()
+        for attr in record.attributes():
+            if attr.type() != ATTR_TYPE.INDEX_ALLOCATION:
+                continue
+            print "Found INDX_ALLOCATION attribute"
+            if attr.non_resident() != 0:
+                print "INDX_ALLOCATION is non-resident"
+                for e in attr.runlist().entries():
+                    print "Cluster %s, length %s" % (hex(e.offset()), hex(e.length()))
             else:
-                print "INDX_ROOT attribute is resident"
-                irh = IndexRootHeader(indxroot.value(), 0, False)
-                print "INDX_ROOT entries:"
-                for e in irh.node_header().entries():
-                    print "  " + e.filename_information().filename()
-                print "INDX_ROOT slack entries:"
-                for e in irh.node_header().slack_entries():
-                    print "  " + e.filename_information().filename()
-            for attr in record.attributes():
-                if attr.type() != ATTR_TYPE.INDEX_ALLOCATION:
-                    continue
-                print "Found INDX_ALLOCATION attribute"
-                if attr.non_resident() != 0:
-                    print "INDX_ALLOCATION is non-resident"
-                    for e in attr.runlist().entries():
-                        print "Cluster %s, length %s" % (hex(e.offset()), hex(e.length()))
-
-                else:
-                    print "INDX_ALLOCATION is resident"
-            return 
-        except ZeroDivisionError:
-#        except InvalidAttributeException:
-            pass
+                print "INDX_ALLOCATION is resident"
+                # TODO
+    return 
     
 if __name__ == '__main__':
-    global verbose
-    verbose = False
+    parser = argparse.ArgumentParser(description='Parse NTFS filesystem structures.')
+    parser.add_argument('-t', action="store", metavar="type", nargs=1, dest="filetype", help="Type of input file. One of 'image', 'MFT', or 'INDX'")
+    parser.add_argument('-c', action="store", metavar="size", nargs=1, type=int, dest="clustersize", help="Use this cluster size in bytes (default 4096 bytes)")
+    parser.add_argument('-o', action="store", metavar="offset", nargs=1, type=int, dest="offset", help="Offset in bytes to volume in image (default 32256 bytes)")
+    parser.add_argument('-l', action="store_true", dest="indxlist", help="List file entries in INDX records")
+    parser.add_argument('-s', action="store_true", dest="slack", help="List file entries in INDX slack space")
+    parser.add_argument('-m', action="store_true", dest="mftlist", help="List file entries for active MFT records")
+    parser.add_argument('-d', action="store_true", dest="deleted", help="List file entries for MFT records marked as deleted")
+    parser.add_argument('-i', action="store", metavar="path", nargs=1, dest="infomode", help="Print information about a path's INDX records")
+    parser.add_argument('-v', action="store_true", dest="verbose", help="Print debugging information")
+    parser.add_argument('filename', action="store", help="Input INDX file path")
+    parser.add_argument('filter', action="store", nargs="?", help="Only consider entries whose path matches this regular expression")
+    results = parser.parse_args()
 
-    if len(sys.argv) == 3:
-        print_indx_info(sys.argv[1], sys.argv[2])
-        pass
-    elif len(sys.argv) == 2:
-        print_bodyfile(sys.argv[1])
+    global verbose
+    verbose = results.verbose
+
+    if results.filetype:
+        info("Asked to process a file with type: " + results.filetype)
+        results.filetype = results.filetype[0].lower()
     else:
-        print "use the right options, please"
+        with open(results.filename, "rb") as f:
+            b = array.array("B", f.read(1024))
+            if b[0:4] == "FILE": 
+                results.filetype = "mft"
+            if b[0:4] == "INDX":
+                results.filetype = "indx"
+            else:
+                results.filetype = "image"
+        info("Auto-detected input file type: " + results.filetype)
+    
+    if results.clustersize:
+        results.clustersize = results.clustersize[0]
+        info("Using explicit file system cluster size %s (%s) bytes" % (str(results.clustersize), hex(results.clustersize)))
+    else:
+        results.clustersize = 4096
+        info("Assuming file system cluster size %s (%s) bytes" % (str(results.clustersize), hex(results.clustersize)))        
+
+    if results.offset:
+        results.offset = results.offset[0]
+        info("Using explicit volume offset %s (%s) bytes" % (str(results.offset), hex(results.offset)))
+        if results.filetype != "image":
+            warning("This option doesn't make any sense for an input file that is not an image")
+    else:
+        results.offset = 32256
+        info("Assuming volume offset %s (%s) bytes" % (str(results.offset), hex(results.offset)))        
+
+    if results.indxlist:
+        info("Asked to list entries in INDX records")
+        if results.filetype == "mft":
+            info("  Note, only resident INDX records can be processed with an MFT input file")
+            info("  If you find an interesting record, use -i to identify the relevant INDX record clusters")
+        if results.filetype == "indx":
+            info("  Note, only records in this INDX record will be listed")
+        if results.filetype == "image":
+            pass
+            
+    if results.slack:
+        info("Asked to list slack entries in INDX records")
+        info("  Note, this uses a scanning heuristic to identify records. These records may be corrupt or out-of-date.")
+    
+    if results.mftlist:
+        info("Asked to list active file entries in the MFT")
+        if results.filetype == "indx":
+            error("Cannot list MFT entries of an INDX record")
+
+    if results.deleted:
+        info("Asked to list deleted file entries in the MFT")
+        if results.filetype == "indx":
+            error("Cannot list MFT entries of an INDX record")
+
+    if results.infomode:
+        results.infomode = results.infomode[0]
+        info("Asked to list information about path: " + results.infomode)
+        if results.indxlist or \
+           results.slack or \
+           results.mftlist or \
+           results.deleted:
+            error("Information mode (-i) cannot be run with file entry list modes (-l/-s/-m/-d)")
+
+    if not (results.indxlist or \
+            results.slack or \
+            results.mftlist or \
+            results.deleted or \
+            results.infomode):
+        error("You must choose a mode (-i/-l/-s/-m/-d)")
+            
+    if results.filter:
+        results.filter = results.filter[0]
+        info("Asked to only list file entry information for paths matching the regular expression: " + results.filter)
+        if results.infomode:
+            warning("This filter has no meaning with information mode (-i)")
+
+    if results.infomode:
+        print_indx_info(results)
+    else:
+        error("not implemented yet")
+    
 
 
