@@ -17,7 +17,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-import struct, time, array, sys, cPickle
+import struct, time, array, sys, cPickle, re
 from datetime import datetime
 import types
 
@@ -797,6 +797,7 @@ class MFTRecord(FixupBlock):
         return self.flags() & 0x0002
 
     def is_active(self):
+        # TODO what about link count == 0?
         return self.flags() & 0x0001
 
     # this a required resident attribute
@@ -825,7 +826,7 @@ class MFTRecord(FixupBlock):
         try:
             attr = self.attribute(ATTR_TYPE.STANDARD_INFORMATION)
             return StandardInformation(attr.value(), 0, self)
-        except:
+        except AttributeError:
             return False
 
 # This would be a local function to record_build_path,
@@ -867,6 +868,7 @@ class NTFSFile():
         self.offset    = options.offset
         self.clustersize = options.clustersize
         self.mftoffset = False
+        self.prefix    = options.prefix
 
     # TODO calculate cluster size
 
@@ -918,7 +920,7 @@ class NTFSFile():
             
     def mft_get_record_buf(self, number):
         if self.filetype == "indx":
-            return ""
+            return array.array("B", "")
         if self.filetype == "mft":
             with open(self.filename, "rb") as f:
                 f.seek(number * 1024)
@@ -937,13 +939,16 @@ class NTFSFile():
              str(r.magic()) + str(r.mft_record_number()) + str(r.flags()))
     def mft_record_build_path(self, record):
         if record.mft_record_number() & 0xFFFFFFFFFFFF == 0x0005:
-            return "\\."
+            if self.prefix:
+                return self.prefix
+            else:
+                return "\\."
         fn = record.filename_information()
         if not fn:
             return "\\??" 
         parent_record_num = fn.mft_parent_reference() & 0xFFFFFFFFFFFF
         parent_buf = self.mft_get_record_buf(parent_record_num)
-        if parent_buf == "":
+        if parent_buf == array.array("B", ""):
             return "\\??\\" + fn.filename()
         parent = MFTRecord(parent_buf, 0, False)
         if parent.sequence_number() != fn.mft_parent_reference() >> 48:
@@ -971,7 +976,9 @@ class NTFSFile():
                 return array.array("B", f.read(length))
         return array.array("B", "")
 
-def information_bodyfile(path, size, inode, info, attributes=[]):
+def information_bodyfile(path, size, inode, info, attributes=None):
+    if not attributes:
+        attributes = []
     try:
         modified = int(time.mktime(info.modified_time().timetuple()))    
     except (ValueError, AttributeError):
@@ -995,18 +1002,22 @@ def information_bodyfile(path, size, inode, info, attributes=[]):
                                               size, modified, accessed, changed, 
                                               created)
 
-def record_bodyfile(ntfsfile, record, attributes=[]):
+def record_bodyfile(ntfsfile, record, attributes=None):
+    if not attributes:
+        attributes = []
     path = ntfsfile.mft_record_build_path(record)
     si = record.standard_information()
-    if not si:
-        raise InvalidAttributeException("Unable to parse attribute")
     fn = record.filename_information()
     if not fn:
         raise InvalidAttributeException("Unable to parse attribute")
     inode = record.mft_record_number()
     size = fn.logical_size()
-    si_half = information_bodyfile(path, size, inode, si)
-    fn_half = information_bodyfile(path, size, inode, fn, attributes=["filename"])
+    if not si:
+        si_half = ""
+    else:
+        si_half = information_bodyfile(path, size, inode, si, attributes)
+    attributes.append("filename")
+    fn_half = information_bodyfile(path, size, inode, fn, attributes=attributes)
     return "%s%s" % (si_half, fn_half)
 
 def node_header_bodyfile(options, node_header, basepath):
@@ -1084,27 +1095,39 @@ def try_write(s):
 
 def print_bodyfile(options):
     f = NTFSFile(options)
+    if options.filter:
+        refilter = re.compile(options.filter)
     for record in f.record_generator():
         try:
             if record.magic() != 0x454C4946:
                 continue
+            if options.filter:
+                path = f.mft_record_build_path(record)
+                if not refilter.search(path):
+                    debug("Skipping listing path due to regex filter: " + path)
+                    continue
             if record.is_active() and options.mftlist:
                 try_write(record_bodyfile(f, record))
                 if options.indxlist:
                     try_write(record_indx_entries_bodyfile(options, f, record))
-            elif not record.is_active() and options.deleted:
-                # TODO this is broken
-                try_write(record_bodyfile(f, record, ["deleted"]))
+            elif (not record.is_active()) and options.deleted:
+                try_write(record_bodyfile(f, record, attributes=["deleted"]))
         except InvalidAttributeException:
             pass
 
 def print_indx_info(options):
     f = NTFSFile(options)
-    record = f.mft_get_record_by_path(options.infomode)
+    try:
+        record_num = int(options.infomode)
+        record_buf = f.mft_get_record_buf(record_num)
+        record = MFTRecord(record_buf, 0, False)
+    except ValueError:
+        record = f.mft_get_record_by_path(options.infomode)
     if not record:
         print "Did not find directory entry for " + options.infomode
         return
     print "Found directory entry for: " + options.infomode
+    print "Path: " + f.mft_record_build_path(record)
     print "MFT Record: " + str(record.mft_record_number())
     indxroot = record.attribute(ATTR_TYPE.INDEX_ROOT)
     if not indxroot:
@@ -1169,9 +1192,11 @@ if __name__ == '__main__':
     parser.add_argument('-d', action="store_true", dest="deleted", help="List file entries for MFT records marked as deleted")
     parser.add_argument('-i', action="store", metavar="path", nargs=1, dest="infomode", help="Print information about a path's INDX records")
     parser.add_argument('-e', action="store", metavar="i30", nargs=1, dest="extract", help="Used with -i, extract INDX_ALLOCATION attribute to a file")
+    parser.add_argument('-f', action="store", metavar="regex", nargs=1, dest="filter", help="Only consider entries whose path matches this regular expression")
+    parser.add_argument('-p', action="store", metavar="prefix", nargs=1, dest="prefix", help="Prefix paths with `prefix` rather than \\.\\")
     parser.add_argument('-v', action="store_true", dest="verbose", help="Print debugging information")
     parser.add_argument('filename', action="store", help="Input INDX file path")
-    parser.add_argument('filter', action="store", nargs="?", help="Only consider entries whose path matches this regular expression")
+
     results = parser.parse_args()
 
     global verbose
@@ -1206,6 +1231,10 @@ if __name__ == '__main__':
     else:
         results.offset = 32256
         info("Assuming volume offset %s (%s) bytes" % (str(results.offset), hex(results.offset)))        
+
+    if results.prefix:
+        results.prefix = results.prefix[0]
+        info("Using path prefix " + results.prefix)
 
     if results.indxlist:
         info("Asked to list entries in INDX records")
