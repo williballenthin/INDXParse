@@ -251,7 +251,7 @@ class Block(object):
     def __str__(self):
         return str(unicode(self))
 
-    def declare_field(self, type, name, offset=False, length=False):
+    def declare_field(self, type, name, offset=None, length=None):
         """
         Declaratively add fields to this block.
         This method will dynamically add corresponding offset and unpacker methods
@@ -262,12 +262,12 @@ class Block(object):
         - `offset`: A number.
         - `length`: (Optional) A number.
         """
-        if not offset:
+        if offset == None:
             offset = self._implicit_offset
             def handler():
                 f = getattr(self, "unpack_" + type)
                 return f(offset)
-        elif not length:
+        elif length == None:
             def handler():
                 f = getattr(self, "unpack_" + type)
                 return f(offset)
@@ -278,11 +278,16 @@ class Block(object):
 
         setattr(self, name, handler)
         setattr(self, "_off_" + name, offset)
-        debug("(%s) %s\t@ %s\t: %s" % (type.upper(), 
-                                       name, 
-                                       hex(self.absolute_offset(offset)),
-                                       str(handler())[:0x20]))
-
+        try:
+            debug("(%s) %s\t@ %s\t: %s" % (type.upper(), 
+                                           name, 
+                                           hex(self.absolute_offset(offset)),
+                                           str(handler())[:0x20]))
+        except ValueError: # invalid Windows timestamp
+            debug("(%s) %s\t@ %s\t: %s" % (type.upper(), 
+                                           name, 
+                                           hex(self.absolute_offset(offset)),
+                                           "<<error>>"))
         if type == "byte":
             self._implicit_offset = offset + 1
         elif type == "word":
@@ -299,11 +304,11 @@ class Block(object):
             self._implicit_offset = offset + 8
         elif type == "binary":
             self._implicit_offset = offset + length
-        elif type == "string" and length:
+        elif type == "string" and length != None:
             self._implicit_offset = offset + length
-        elif type == "wstring" and length:
+        elif type == "wstring" and length != None:
             self._implicit_offset = offset + (2 * length)
-        elif "string" in type and not length:
+        elif "string" in type and length == None:
             raise INDXException("Implicit offset not supported for dynamic length strings")
         else:
             raise INDXException("Implicit offset not supported for type: " + type)            
@@ -522,6 +527,21 @@ class IndexRootHeader(Block):
     def node_header(self):
         return IndexNodeHeader(self._buf, self.offset() + self._node_header_offset, self)
 
+class IndexRecordHeader(FixupBlock):
+    def __init__(self, buf, offset, parent):
+        debug("INDEX RECORD HEADER at %s." % (hex(offset)))
+        super(IndexRecordHeader, self).__init__(buf, offset, parent)
+        self.declare_field("dword", "magic", 0x0)
+        self.declare_field("word",  "usa_offset")
+        self.declare_field("word",  "usa_count")
+        self.declare_field("qword", "lsn")
+        self.declare_field("qword", "vcn")
+        self._node_header_offset = self.current_field_offset()
+        self.fixup(self.usa_count(), self.usa_offset())
+        
+    def node_header(self):
+        return IndexNodeHeader(self._buf, self.offset() + self._node_header_offset, self)    
+
 class IndexNodeHeader(Block):
     def __init__(self, buf, offset, parent):
         debug("INDEX NODE HEADER at %s." % (hex(offset)))
@@ -650,8 +670,8 @@ class Runentry(Block):
         self.declare_field("byte", "header")
         offset_length = self.header() >> 4
         length_length = self.header() & 0xF
-        self.declare_field("binary", "offset_binary", self.current_field_offset(), offset_length)
         self.declare_field("binary", "length_binary", self.current_field_offset(), length_length)
+        self.declare_field("binary", "offset_binary", self.current_field_offset(), offset_length)
 
     def lsb2num(self, binary):
         count = 0
@@ -662,6 +682,7 @@ class Runentry(Block):
         return ret
 
     def offset(self):
+        # TODO this is signed
         return self.lsb2num(self.offset_binary())
 
     def length(self):
@@ -684,6 +705,14 @@ class Runlist(Block):
             offset += entry.size()
             entry = Runentry(self._buf, offset, self)
         return ret
+
+    def runs(self):
+        """
+        Return tuples (volume offset, length).
+        Recall that the entries are relative to one another
+        TODO
+        """
+        pass
 
 class ATTR_TYPE:
     STANDARD_INFORMATION = 0x10
@@ -831,79 +860,6 @@ class InvalidAttributeException(INDXException):
     def __str__(self):
         return "Invalid attribute Exception(%s)" % (self._value)
 
-def record_bodyfile(filename, record, attributes=[]):
-    path = record_build_path(filename, record)
-    si = record.standard_information()
-    if not si:
-        raise InvalidAttributeException("Unable to parse attribute")
-    fn = record.filename_information()
-    if not fn:
-        raise InvalidAttributeException("Unable to parse attribute")
-    try:
-        si_modified = int(time.mktime(si.modified_time().timetuple()))    
-    except ValueError:
-        si_modified = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
-    try:
-        si_accessed = int(time.mktime(si.accessed_time().timetuple()))
-    except ValueError:
-        si_accessed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
-    try:
-        si_changed  = int(time.mktime(si.changed_time().timetuple()))
-    except ValueError:
-        si_changed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
-    try:
-        si_created  = int(time.mktime(si.created_time().timetuple()))
-    except ValueError:
-        si_created = int(time.mktime(datetime.min.timetuple()))
-    attributes_text = ""
-    if len(attributes) > 0:
-        attributes_text = " (%s)" % (", ".join(attributes))
-    si_half = u"0|%s|%s|0|0|0|%s|%s|%s|%s|%s" % (path + attributes_text, \
-                                                 record.mft_record_number(), \
-                                                 fn.logical_size(), si_modified, 
-                                                 si_accessed, si_changed, si_created)
-    try:
-        fn_modified = int(time.mktime(fn.modified_time().timetuple()))    
-    except ValueError:
-        fn_modified = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
-    try:
-        fn_accessed = int(time.mktime(fn.accessed_time().timetuple()))
-    except ValueError:
-        fn_accessed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
-    try:
-        fn_changed  = int(time.mktime(fn.changed_time().timetuple()))
-    except ValueError:
-        fn_changed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
-    try:
-        fn_created  = int(time.mktime(fn.created_time().timetuple()))
-    except ValueError:
-        fn_created = int(time.mktime(datetime.min.timetuple()))
-    attributes_text = " (filename)"
-    if len(attributes) > 0:
-        attributes_text = " (filename, %s)" % (", ".join(attributes))
-    fn_half = u"0|%s|%s|0|0|0|%s|%s|%s|%s|%s" % (path + attributes_text, \
-                                                 record.mft_record_number(), \
-                                                 fn.logical_size(), \
-                                                 fn_modified, fn_accessed, \
-                                                 fn_changed, fn_created)
-    return "%s\n%s" % (si_half, fn_half)
-
-def print_bodyfile(filename):
-    count = 0
-    for record in record_generator(filename):
-        count += 1
-        if count < 16:
-            continue
-        try:
-            if record.magic() != 0x454C4946:
-                continue
-            if record.is_active():
-                print record_bodyfile(filename, record)                
-            else:
-                print record_bodyfile(filename, record, ["deleted"])                
-        except InvalidAttributeException:
-            pass
-
 class NTFSFile():
     def __init__(self, options):
         self.filename  = options.filename
@@ -911,6 +867,8 @@ class NTFSFile():
         self.offset    = options.offset
         self.clustersize = options.clustersize
         self.mftoffset = False
+
+    # TODO calculate cluster size
 
     def _calculate_mftoffset(self):
         with open(self.filename, "rb") as f:
@@ -927,11 +885,17 @@ class NTFSFile():
         if self.filetype == "mft":
             with open(self.filename, "rb") as f:
                 record = True
+                count = -1
                 while record:
+                    count += 1
                     buf = array.array("B", f.read(1024))
                     if not buf:
                         return
-                    record = MFTRecord(buf, 0, False)
+                    try:
+                        record = MFTRecord(buf, 0, False)
+                    except OverrunBufferException:
+                        debug("Failed to parse MFT record %s" % (str(count)))
+                        continue
                     yield record
         if self.filetype == "image":
             with open(self.filename, "rb") as f:
@@ -939,11 +903,17 @@ class NTFSFile():
                     self._calculate_mftoffset()
                 f.seek(self.mftoffset)
                 record = True
+                count = -1
                 while record:
+                    count += 1
                     buf = array.array("B", f.read(1024))
                     if not buf:
                         return
-                    record = MFTRecord(buf, 0, False)
+                    try:
+                        record = MFTRecord(buf, 0, False)
+                    except OverrunBufferException:
+                        debug("Failed to parse MFT record %s" % (str(count)))
+                        continue
                     yield record
             
     def mft_get_record_buf(self, number):
@@ -994,6 +964,140 @@ class NTFSFile():
             return record
         return False
 
+    def read(self, offset, length):
+        if self.filetype == "image":
+            with open(self.filename, "rb") as f:
+                f.seek(offset)
+                return array.array("B", f.read(length))
+        return array.array("B", "")
+
+def information_bodyfile(path, size, inode, info, attributes=[]):
+    try:
+        modified = int(time.mktime(info.modified_time().timetuple()))    
+    except (ValueError, AttributeError):
+        modified = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
+    try:
+        accessed = int(time.mktime(info.accessed_time().timetuple()))
+    except (ValueError, AttributeError):
+        accessed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
+    try:
+        changed  = int(time.mktime(info.changed_time().timetuple()))
+    except (ValueError, AttributeError):
+        changed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
+    try:
+        created  = int(time.mktime(info.created_time().timetuple()))
+    except (ValueError, AttributeError):
+        created = int(time.mktime(datetime.min.timetuple()))
+    attributes_text = ""
+    if len(attributes) > 0:
+        attributes_text = " (%s)" % (", ".join(attributes))
+    return u"0|%s|%s|0|0|0|%s|%s|%s|%s|%s\n" % (path + attributes_text, inode,
+                                              size, modified, accessed, changed, 
+                                              created)
+
+def record_bodyfile(ntfsfile, record, attributes=[]):
+    path = ntfsfile.mft_record_build_path(record)
+    si = record.standard_information()
+    if not si:
+        raise InvalidAttributeException("Unable to parse attribute")
+    fn = record.filename_information()
+    if not fn:
+        raise InvalidAttributeException("Unable to parse attribute")
+    inode = record.mft_record_number()
+    size = fn.logical_size()
+    si_half = information_bodyfile(path, size, inode, si)
+    fn_half = information_bodyfile(path, size, inode, fn, attributes=["filename"])
+    return "%s%s" % (si_half, fn_half)
+
+def node_header_bodyfile(options, node_header, basepath):
+    ret = ""
+    attrs = ["filename", "INDX"]
+    if options.indxlist:
+        for e in node_header.entries():
+            path = basepath + "\\" + e.filename_information().filename()
+            size = e.filename_information().logical_size()
+            inode = 0
+            ret += information_bodyfile(path, size, inode, 
+                                        e.filename_information(), attributes=attrs)
+    attrs.append("slack")
+    if options.slack:
+        for e in irh.node_header().slack_entries():
+            path = basepath + "\\" + e.filename_information().filename()
+            size = e.filename_information().logical_size()
+            inode = 0
+            ret += information_bodyfile(path, size, inode, 
+                                        e.filename_information(), attributes=attrs)
+    return ret
+
+def record_indx_entries_bodyfile(options, ntfsfile, record):
+    # TODO handle all possible errors here
+    f = ntfsfile
+    ret = ""
+    if not record:
+        return ret
+    basepath = f.mft_record_build_path(record)
+    indxroot = record.attribute(ATTR_TYPE.INDEX_ROOT)
+    if indxroot:
+        if indxroot.non_resident() != 0:
+            # TODO this shouldn't happen.
+            pass
+        else:
+            irh = IndexRootHeader(indxroot.value(), 0, False)
+            nh = irh.node_header()
+            ret += node_header_bodyfile(options, nh, basepath)
+    extractbuf = array.array("B")
+    for attr in record.attributes():
+        if attr.type() != ATTR_TYPE.INDEX_ALLOCATION:
+            continue
+        if attr.non_resident() != 0:
+            for e in attr.runlist().entries():
+                # TODO fix relative offsets
+                extractbuf += f.read(e.offset() * options.clustersize + options.offset,
+                                     e.length() * options.clustersize)
+        else:
+            extractbuf += array.array("B", attr.value())
+    if len(extractbuf) < 4096: # TODO make this INDX record size
+        return ret
+    offset = 0
+    try:
+        irh = IndexRecordHeader(extractbuf, offset, False)
+    except OverrunBufferException: 
+        return ret
+    while irh.magic == 0x58444E49: # TODO could miss something if there is an empty, valid record at the end
+        nh = irh.node_header()
+        ret += node_header_bodyfile(options, nh, basepath)
+        # TODO get this from the boot record
+        offset += options.clustersize
+        if offset + 4096 > len(extractbuf): # TODO make this INDX record size
+            return ret
+        try:
+            irh = IndexRecordHeader(extractbuf, offset, False)
+        except OverrunBufferException: 
+            return ret
+    return ret
+
+def try_write(s):
+    try:
+        sys.stdout.write(s)
+    except UnicodeEncodeError:
+        warning("Failed to write string due to encoding issue: " + str(list(s)))
+
+def print_bodyfile(options):
+    f = NTFSFile(options)
+    for record in f.record_generator():
+        try:
+            if record.magic() != 0x454C4946:
+                continue
+            if record.is_active() and options.mftlist:
+                try_write(record_bodyfile(f, record))
+                if options.indxlist:
+                    try_write(record_indx_entries_bodyfile(options, f, record))
+            elif not record.is_active() and options.deleted:
+                # TODO this is broken
+                try_write(record_bodyfile(f, record, ["deleted"]))
+        except InvalidAttributeException:
+            pass
+
 def print_indx_info(options):
     f = NTFSFile(options)
     record = f.mft_get_record_by_path(options.infomode)
@@ -1008,17 +1112,30 @@ def print_indx_info(options):
         return 
     print "Found INDX_ROOT attribute"
     if indxroot.non_resident() != 0:
+        # This shouldn't happen.
         print "INDX_ROOT attribute is non-resident"
-        # TODO
+        for e in indxroot.runlist().entries():
+            print "Cluster %s, length %s" % (hex(e.offset()), hex(e.length()))            
     else:
         print "INDX_ROOT attribute is resident"
         irh = IndexRootHeader(indxroot.value(), 0, False)
-        print "INDX_ROOT entries:"
+        someentries = False
         for e in irh.node_header().entries():
+            if not someentries:
+                print "INDX_ROOT entries:"
+            someentries = True
             print "  " + e.filename_information().filename()
-        print "INDX_ROOT slack entries:"
+        if not someentries:
+            print "INDX_ROOT entries: (none)"
+        someentries = False
         for e in irh.node_header().slack_entries():
+            if not someentries:
+                print "INDX_ROOT slack entries:"
+            someentries = True
             print "  " + e.filename_information().filename()
+        if not someentries:
+            print "INDX_ROOT slack entries: (none)"
+        extractbuf = array.array("B")
         for attr in record.attributes():
             if attr.type() != ATTR_TYPE.INDEX_ALLOCATION:
                 continue
@@ -1027,9 +1144,18 @@ def print_indx_info(options):
                 print "INDX_ALLOCATION is non-resident"
                 for e in attr.runlist().entries():
                     print "Cluster %s, length %s" % (hex(e.offset()), hex(e.length()))
+                    print "  Using clustersize %s (%s) bytes and volume offset %s (%s) bytes: \n  %s (%s) bytes for %s (%s) bytes" % \
+                        (options.clustersize, hex(options.clustersize),
+                         options.offset, hex(options.offset),
+                         e.offset() * options.clustersize + options.offset, hex(e.offset() * options.clustersize + options.offset),
+                         e.length() * options.clustersize, hex(e.length() * options.clustersize))
+                    extractbuf += f.read(e.offset() * options.clustersize + options.offset, e.length() * options.clustersize)
             else:
+                # This shouldn't happen.
                 print "INDX_ALLOCATION is resident"
-                # TODO
+        if options.extract:
+            with open(options.extract, "wb") as g:
+                g.write(extractbuf)
     return 
     
 if __name__ == '__main__':
@@ -1042,6 +1168,7 @@ if __name__ == '__main__':
     parser.add_argument('-m', action="store_true", dest="mftlist", help="List file entries for active MFT records")
     parser.add_argument('-d', action="store_true", dest="deleted", help="List file entries for MFT records marked as deleted")
     parser.add_argument('-i', action="store", metavar="path", nargs=1, dest="infomode", help="Print information about a path's INDX records")
+    parser.add_argument('-e', action="store", metavar="i30", nargs=1, dest="extract", help="Used with -i, extract INDX_ALLOCATION attribute to a file")
     parser.add_argument('-v', action="store_true", dest="verbose", help="Print debugging information")
     parser.add_argument('filename', action="store", help="Input INDX file path")
     parser.add_argument('filter', action="store", nargs="?", help="Only consider entries whose path matches this regular expression")
@@ -1051,14 +1178,14 @@ if __name__ == '__main__':
     verbose = results.verbose
 
     if results.filetype:
-        info("Asked to process a file with type: " + results.filetype)
         results.filetype = results.filetype[0].lower()
+        info("Asked to process a file with type: " + results.filetype)
     else:
         with open(results.filename, "rb") as f:
-            b = array.array("B", f.read(1024))
+            b = f.read(1024)
             if b[0:4] == "FILE": 
                 results.filetype = "mft"
-            if b[0:4] == "INDX":
+            elif b[0:4] == "INDX":
                 results.filetype = "indx"
             else:
                 results.filetype = "image"
@@ -1085,9 +1212,11 @@ if __name__ == '__main__':
         if results.filetype == "mft":
             info("  Note, only resident INDX records can be processed with an MFT input file")
             info("  If you find an interesting record, use -i to identify the relevant INDX record clusters")
-        if results.filetype == "indx":
+        elif results.filetype == "indx":
             info("  Note, only records in this INDX record will be listed")
-        if results.filetype == "image":
+        elif results.filetype == "image":
+            pass
+        else:
             pass
             
     if results.slack:
@@ -1106,12 +1235,22 @@ if __name__ == '__main__':
 
     if results.infomode:
         results.infomode = results.infomode[0]
-        info("Asked to list information about path: " + results.infomode)
+        info("Asked to list information about path " + results.infomode)
         if results.indxlist or \
            results.slack or \
            results.mftlist or \
            results.deleted:
             error("Information mode (-i) cannot be run with file entry list modes (-l/-s/-m/-d)")
+
+        if results.extract:
+            results.extract = results.extract[0]
+            info("Asked to extract INDX_ALLOCATION attribute for the path " + results.infomode)
+
+    if results.extract and not results.infomode:
+        warning("Extract (-e) doesn't make sense without information mode (-i)")
+
+    if results.extract and not results.filetype == "image":
+        error("Cannot extract non-resident attributes from anything but an image")
 
     if not (results.indxlist or \
             results.slack or \
@@ -1128,8 +1267,11 @@ if __name__ == '__main__':
 
     if results.infomode:
         print_indx_info(results)
-    else:
-        error("not implemented yet")
+    elif results.indxlist or \
+         results.slack or \
+         results.mftlist or \
+         results.deleted:
+        print_bodyfile(results)
     
 
 
