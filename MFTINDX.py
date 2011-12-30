@@ -817,7 +817,7 @@ class MFTRecord(FixupBlock):
                        check.filename_type() == 0x0003:
                         return check
                     fn = check
-                except:
+                except Exception as e:
                     pass
         return fn
 
@@ -1098,8 +1098,10 @@ def print_bodyfile(options):
     if options.filter:
         refilter = re.compile(options.filter)
     for record in f.record_generator():
+        debug("Considering MFT record %s" % (record.mft_record_number()))
         try:
             if record.magic() != 0x454C4946:
+                debug("Record has a bad magic value")
                 continue
             if options.filter:
                 path = f.mft_record_build_path(record)
