@@ -17,7 +17,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-import struct, time, array, sys, cPickle, re
+import struct, time, array, sys, cPickle, re, os
 from datetime import datetime
 import types
 
@@ -869,6 +869,7 @@ class NTFSFile():
         self.clustersize = options.clustersize
         self.mftoffset = False
         self.prefix    = options.prefix
+        self.progress  = options.progress
 
     # TODO calculate cluster size
 
@@ -885,10 +886,17 @@ class NTFSFile():
         if self.filetype == "indx":
             return
         if self.filetype == "mft":
+            size = os.path.getsize(self.filename)
+            is_redirected = os.fstat(0) != os.fstat(1)
+            should_progress = is_redirected and self.progress
             with open(self.filename, "rb") as f:
                 record = True
                 count = -1
                 while record:
+                    if count % 100 == 0 and should_progress: 
+                        n = (count * 1024 * 100) / float(size)
+                        sys.stderr.write("\rCompleted: %0.4f%%" % (n))
+                        sys.stderr.flush()
                     count += 1
                     buf = array.array("B", f.read(1024))
                     if not buf:
@@ -899,7 +907,11 @@ class NTFSFile():
                         debug("Failed to parse MFT record %s" % (str(count)))
                         continue
                     yield record
+            if should_progress:
+                sys.stderr.write("\n")
         if self.filetype == "image":
+            # TODO this overruns the MFT...
+            # TODO this doesnt account for a fragmented MFT
             with open(self.filename, "rb") as f:
                 if not self.mftoffset:
                     self._calculate_mftoffset()
@@ -1032,7 +1044,7 @@ def node_header_bodyfile(options, node_header, basepath):
                                         e.filename_information(), attributes=attrs)
     attrs.append("slack")
     if options.slack:
-        for e in irh.node_header().slack_entries():
+        for e in node_header.slack_entries():
             path = basepath + "\\" + e.filename_information().filename()
             size = e.filename_information().logical_size()
             inode = 0
@@ -1196,6 +1208,7 @@ if __name__ == '__main__':
     parser.add_argument('-e', action="store", metavar="i30", nargs=1, dest="extract", help="Used with -i, extract INDX_ALLOCATION attribute to a file")
     parser.add_argument('-f', action="store", metavar="regex", nargs=1, dest="filter", help="Only consider entries whose path matches this regular expression")
     parser.add_argument('-p', action="store", metavar="prefix", nargs=1, dest="prefix", help="Prefix paths with `prefix` rather than \\.\\")
+    parser.add_argument('--progress', action="store_true", dest="progress", help="Update a status indicator on STDERR if STDOUT is redirected")
     parser.add_argument('-v', action="store_true", dest="verbose", help="Print debugging information")
     parser.add_argument('filename', action="store", help="Input INDX file path")
 
