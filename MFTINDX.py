@@ -582,7 +582,7 @@ class IndexNodeHeader(Block):
                     e = SlackIndexEntry(self._buf, offset, self)
                     if e.is_valid():
                         debug("Slack entry is valid.")
-                        offset += e.length()
+                        offset += e.length() or 1
                         yield e
                     else:
                         debug("Slack entry is invalid.")
@@ -602,9 +602,8 @@ class IndexEntry(Block):
         self.declare_field("word", "length")
         self.declare_field("word", "filename_information_length")
         self.declare_field("dword", "flags")
-        if self.filename_information_length() > 0:
-            self.declare_field("binary", "filename_information_buffer", \
-                               self.current_field_offset(), self.filename_information_length())
+        self.declare_field("binary", "filename_information_buffer", \
+                           self.current_field_offset(), self.filename_information_length())
         self.declare_field("qword", "child_vcn", align(self.current_field_offset(), 0x8))
 
     def filename_information(self):
@@ -657,11 +656,21 @@ class SlackIndexEntry(IndexEntry):
         super(SlackIndexEntry, self).__init__(buf, offset, parent)
 
     def is_valid(self):
+        # this is a bit of a mess, but it should work
         recent_date = datetime(1990, 1, 1, 0, 0, 0)
-        return self.modified_time_safe() > recent_date and \
-            self.accessed_time_safe() > recent_date and \
-            self.changed_time_safe() > recent_date and \
-            self.created_time_safe() > recent_date
+        try:
+            fn = self.filename_information()
+        except:
+            return False
+        if not fn:
+            return False
+        try:
+            return fn.modified_time() > recent_date and \
+                   fn.accessed_time() > recent_date and \
+                   fn.changed_time() > recent_date and \
+                   fn.created_time() > recent_date
+        except ValueError:
+            return False
 
 class Runentry(Block):
     def __init__(self, buf, offset, parent):
@@ -1107,7 +1116,7 @@ def record_indx_entries_bodyfile(options, ntfsfile, record):
         irh = IndexRecordHeader(extractbuf, offset, False)
     except OverrunBufferException: 
         return ret
-    while irh.magic == 0x58444E49: # TODO could miss something if there is an empty, valid record at the end
+    while irh.magic() == 0x58444E49: # TODO could miss something if there is an empty, valid record at the end
         nh = irh.node_header()
         ret += node_header_bodyfile(options, nh, basepath)
         # TODO get this from the boot record
@@ -1127,28 +1136,48 @@ def try_write(s):
         warning("Failed to write string due to encoding issue: " + str(list(s)))
 
 def print_bodyfile(options):
-    f = NTFSFile(options)
-    if options.filter:
-        refilter = re.compile(options.filter)
-    for record in f.record_generator():
-        debug("Considering MFT record %s" % (record.mft_record_number()))
-        try:
-            if record.magic() != 0x454C4946:
-                debug("Record has a bad magic value")
-                continue
-            if options.filter:
-                path = f.mft_record_build_path(record)
-                if not refilter.search(path):
-                    debug("Skipping listing path due to regex filter: " + path)
+    if options.filetype == "mft":
+        f = NTFSFile(options)
+        if options.filter:
+            refilter = re.compile(options.filter)
+        for record in f.record_generator():
+            debug("Considering MFT record %s" % (record.mft_record_number()))
+            try:
+                if record.magic() != 0x454C4946:
+                    debug("Record has a bad magic value")
                     continue
-            if record.is_active() and options.mftlist:
-                try_write(record_bodyfile(f, record))
-                if options.indxlist:
-                    try_write(record_indx_entries_bodyfile(options, f, record))
-            elif (not record.is_active()) and options.deleted:
-                try_write(record_bodyfile(f, record, attributes=["deleted"]))
-        except InvalidAttributeException:
-            pass
+                if options.filter:
+                    path = f.mft_record_build_path(record)
+                    if not refilter.search(path):
+                        debug("Skipping listing path due to regex filter: " + path)
+                        continue
+                if record.is_active() and options.mftlist:
+                    try_write(record_bodyfile(f, record))
+                    if options.indxlist:
+                        try_write(record_indx_entries_bodyfile(options, f, record))
+                elif (not record.is_active()) and options.deleted:
+                    try_write(record_bodyfile(f, record, attributes=["deleted"]))
+            except InvalidAttributeException:
+                pass
+    elif options.filetype == "indx":
+        with open(options.filename) as f:
+            buf = array.array("B", f.read())
+        offset = 0
+        try:
+            irh = IndexRecordHeader(buf, offset, False)
+        except OverrunBufferException: 
+            return 
+        while irh.magic() == 0x58444E49: # TODO could miss something if there is an empty, valid record at the end
+            nh = irh.node_header()
+            try_write(node_header_bodyfile(options, nh, ""))
+            offset += options.clustersize
+            if offset + 4096 > len(buf): # TODO make this INDX record size
+                return 
+            try:
+                irh = IndexRecordHeader(buf, offset, False)
+            except OverrunBufferException: 
+                return
+        return
 
 def print_indx_info(options):
     f = NTFSFile(options)
