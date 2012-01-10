@@ -1254,7 +1254,7 @@ if __name__ == '__main__':
     parser.add_argument('-s', action="store_true", dest="slack", help="List file entries in INDX slack space")
     parser.add_argument('-m', action="store_true", dest="mftlist", help="List file entries for active MFT records")
     parser.add_argument('-d', action="store_true", dest="deleted", help="List file entries for MFT records marked as deleted")
-    parser.add_argument('-i', action="store", metavar="path", nargs=1, dest="infomode", help="Print information about a path's INDX records")
+    parser.add_argument('-i', action="store", metavar="path|inode", nargs=1, dest="infomode", help="Print information about a path's INDX records")
     parser.add_argument('-e', action="store", metavar="i30", nargs=1, dest="extract", help="Used with -i, extract INDX_ALLOCATION attribute to a file")
     parser.add_argument('-f', action="store", metavar="regex", nargs=1, dest="filter", help="Only consider entries whose path matches this regular expression")
     parser.add_argument('-p', action="store", metavar="prefix", nargs=1, dest="prefix", help="Prefix paths with `prefix` rather than \\.\\")
