@@ -681,9 +681,26 @@ class Runentry(Block):
             count += 1
         return ret
 
+    def lsb2signednum(self, binary):
+        count = 0
+        ret = 0
+        working = []
+
+        is_negative = (ord(binary[-1]) & (1 << 7) != 0)
+        if is_negative:
+            working = [ord(b) ^ 0xFF for b in binary]
+        else:
+            working = [ord(b) for b in binary]
+        for b in working:
+            ret += b << (8 * count)
+            count += 1
+        if is_negative:
+            ret += 1
+            ret *= -1
+        return ret
+
     def offset(self):
-        # TODO this is signed
-        return self.lsb2num(self.offset_binary())
+        return self.lsb2signednum(self.offset_binary())
 
     def length(self):
         return self.lsb2num(self.length_binary())
@@ -708,11 +725,15 @@ class Runlist(Block):
 
     def runs(self):
         """
-        Return tuples (volume offset, length).
+        Yields tuples (volume offset, length).
         Recall that the entries are relative to one another
-        TODO
         """
-        pass
+        last_offset = 0
+        for e in self.entries():
+            current_offset = last_offset + e.offset()
+            current_length = e.length()
+            last_offset = current_offset
+            yield (current_offset, current_length)
 
 class ATTR_TYPE:
     STANDARD_INFORMATION = 0x10
@@ -1179,14 +1200,14 @@ def print_indx_info(options):
             print "Found INDX_ALLOCATION attribute"
             if attr.non_resident() != 0:
                 print "INDX_ALLOCATION is non-resident"
-                for e in attr.runlist().entries():
-                    print "Cluster %s, length %s" % (hex(e.offset()), hex(e.length()))
+                for (offset, length) in attr.runlist().runs():
+                    print "Cluster %s, length %s" % (hex(offset), hex(length))
                     print "  Using clustersize %s (%s) bytes and volume offset %s (%s) bytes: \n  %s (%s) bytes for %s (%s) bytes" % \
                         (options.clustersize, hex(options.clustersize),
                          options.offset, hex(options.offset),
-                         e.offset() * options.clustersize + options.offset, hex(e.offset() * options.clustersize + options.offset),
-                         e.length() * options.clustersize, hex(e.length() * options.clustersize))
-                    extractbuf += f.read(e.offset() * options.clustersize + options.offset, e.length() * options.clustersize)
+                         offset * options.clustersize + options.offset, hex(offset * options.clustersize + options.offset),
+                         length * options.clustersize, hex(length * options.clustersize))
+                    extractbuf += f.read(offset * options.clustersize + options.offset, length * options.clustersize)
             else:
                 # This shouldn't happen.
                 print "INDX_ALLOCATION is resident"
