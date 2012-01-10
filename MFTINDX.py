@@ -658,6 +658,7 @@ class SlackIndexEntry(IndexEntry):
     def is_valid(self):
         # this is a bit of a mess, but it should work
         recent_date = datetime(1990, 1, 1, 0, 0, 0)
+        future_date = datetime(2025, 1, 1, 0, 0, 0)
         try:
             fn = self.filename_information()
         except:
@@ -668,7 +669,11 @@ class SlackIndexEntry(IndexEntry):
             return fn.modified_time() > recent_date and \
                    fn.accessed_time() > recent_date and \
                    fn.changed_time() > recent_date and \
-                   fn.created_time() > recent_date
+                   fn.created_time() > recent_date and \
+                   fn.modified_time() < future_date and \
+                   fn.accessed_time() < future_date and \
+                   fn.changed_time() < future_date and \
+                   fn.created_time() < future_date
         except ValueError:
             return False
 
