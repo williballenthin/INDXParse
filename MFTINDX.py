@@ -1228,9 +1228,11 @@ def print_indx_info(options):
         if not someentries:
             print "INDX_ROOT slack entries: (none)"
         extractbuf = array.array("B")
+        found_indxalloc = False
         for attr in record.attributes():
             if attr.type() != ATTR_TYPE.INDEX_ALLOCATION:
                 continue
+            found_indxalloc = True
             print "Found INDX_ALLOCATION attribute"
             if attr.non_resident() != 0:
                 print "INDX_ALLOCATION is non-resident"
@@ -1245,6 +1247,9 @@ def print_indx_info(options):
             else:
                 # This shouldn't happen.
                 print "INDX_ALLOCATION is resident"
+        if not found_indxalloc:
+            print "No INDX_ALLOCATION attribute found"
+            return
         if options.extract:
             with open(options.extract, "wb") as g:
                 g.write(extractbuf)
