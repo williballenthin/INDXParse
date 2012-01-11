@@ -642,7 +642,7 @@ class FilenameAttribute(Block):
 
         if self.filename_type() > 4:
             warning("Invalid INDX record entry filename type at 0x%s" % \
-                    (hex(self.offset() + self._filename_type_offset)))
+                    (hex(self.offset() + self._off_filename_type)))
     
 class SlackIndexEntry(IndexEntry):
     def __init__(self, buf, offset, parent):
@@ -792,7 +792,7 @@ class Attribute(Block):
         return Runlist(self._buf, self.offset() + self.runlist_offset(), self)
 
     def size(self):
-        s = self.unpack_dword(self._size_offset) 
+        s = self.unpack_dword(self._off_size) 
         return s + (8 - (s % 8))
 
 class MFTRecord(FixupBlock):
