@@ -639,10 +639,6 @@ class FilenameAttribute(Block):
         self.declare_field("byte", "filename_length")
         self.declare_field("byte", "filename_type")
         self.declare_field("wstring", "filename", 0x42, self.filename_length())
-
-        if self.filename_type() > 4:
-            warning("Invalid INDX record entry filename type at 0x%s" % \
-                    (hex(self.offset() + self._off_filename_type)))
     
 class SlackIndexEntry(IndexEntry):
     def __init__(self, buf, offset, parent):
@@ -1108,10 +1104,12 @@ def record_indx_entries_bodyfile(options, ntfsfile, record):
         if attr.type() != ATTR_TYPE.INDEX_ALLOCATION:
             continue
         if attr.non_resident() != 0:
-            for e in attr.runlist().entries():
-                # TODO fix relative offsets
-                extractbuf += f.read(e.offset() * options.clustersize + options.offset,
-                                     e.length() * options.clustersize)
+            for (offset, length) in attr.runlist().runs():
+                try:
+                    extractbuf += f.read(offset * options.clustersize + options.offset,
+                                         length * options.clustersize)
+                except IOError:
+                    pass
         else:
             extractbuf += array.array("B", attr.value())
     if len(extractbuf) < 4096: # TODO make this INDX record size
@@ -1137,11 +1135,29 @@ def record_indx_entries_bodyfile(options, ntfsfile, record):
 def try_write(s):
     try:
         sys.stdout.write(s)
-    except UnicodeEncodeError:
+    except UnicodeEncodeError, UnicodeDecodeError:
         warning("Failed to write string due to encoding issue: " + str(list(s)))
 
+def print_nonresident_indx_bodyfile(options, buf, basepath=""):
+    offset = 0
+    try:
+        irh = IndexRecordHeader(buf, offset, False)
+    except OverrunBufferException: 
+        return 
+    while irh.magic() == 0x58444E49: # TODO could miss something if there is an empty, valid record at the end
+        nh = irh.node_header()
+        try_write(node_header_bodyfile(options, nh, basepath))
+        offset += options.clustersize
+        if offset + 4096 > len(buf): # TODO make this INDX record size
+            return 
+        try:
+            irh = IndexRecordHeader(buf, offset, False)
+        except OverrunBufferException: 
+            return
+    return    
+
 def print_bodyfile(options):
-    if options.filetype == "mft":
+    if options.filetype == "mft" or options.filetype == "image":
         f = NTFSFile(options)
         if options.filter:
             refilter = re.compile(options.filter)
@@ -1158,31 +1174,32 @@ def print_bodyfile(options):
                         continue
                 if record.is_active() and options.mftlist:
                     try_write(record_bodyfile(f, record))
-                    if options.indxlist:
-                        try_write(record_indx_entries_bodyfile(options, f, record))
+                if options.indxlist or options.slack:
+                    try_write(record_indx_entries_bodyfile(options, f, record))
                 elif (not record.is_active()) and options.deleted:
                     try_write(record_bodyfile(f, record, attributes=["deleted"]))
+                if options.filetype == "image" and \
+                   (options.indxlist or options.slack):
+                    extractbuf = array.array("B")
+                    found_indxalloc = False
+                    for attr in record.attributes():
+                        if attr.type() != ATTR_TYPE.INDEX_ALLOCATION:
+                            continue
+                        found_indxalloc = True
+                        if attr.non_resident() != 0:
+                            for (offset, length) in attr.runlist().runs():
+                                extractbuf += f.read(offset * options.clustersize + options.offset, length * options.clustersize)
+                        else:
+                            pass # This shouldn't happen.
+                    if found_indxalloc and len(extractbuf) > 0:
+                        path = f.mft_record_build_path(record)
+                        print_nonresident_indx_bodyfile(options, extractbuf, basepath=path)
             except InvalidAttributeException:
                 pass
     elif options.filetype == "indx":
         with open(options.filename) as f:
             buf = array.array("B", f.read())
-        offset = 0
-        try:
-            irh = IndexRecordHeader(buf, offset, False)
-        except OverrunBufferException: 
-            return 
-        while irh.magic() == 0x58444E49: # TODO could miss something if there is an empty, valid record at the end
-            nh = irh.node_header()
-            try_write(node_header_bodyfile(options, nh, ""))
-            offset += options.clustersize
-            if offset + 4096 > len(buf): # TODO make this INDX record size
-                return 
-            try:
-                irh = IndexRecordHeader(buf, offset, False)
-            except OverrunBufferException: 
-                return
-        return
+        print_nonresident_indx_bodyfile(options, buf)
 
 def print_indx_info(options):
     f = NTFSFile(options)
