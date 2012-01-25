@@ -1197,7 +1197,7 @@ def print_bodyfile(options):
             except InvalidAttributeException:
                 pass
     elif options.filetype == "indx":
-        with open(options.filename) as f:
+        with open(options.filename, "rb") as f:
             buf = array.array("B", f.read())
         print_nonresident_indx_bodyfile(options, buf)
 
@@ -1318,8 +1318,6 @@ if __name__ == '__main__':
     if results.offset:
         results.offset = results.offset[0]
         info("Using explicit volume offset %s (%s) bytes" % (str(results.offset), hex(results.offset)))
-        if results.filetype != "image":
-            warning("This option doesn't make any sense for an input file that is not an image")
     else:
         results.offset = 32256
         info("Assuming volume offset %s (%s) bytes" % (str(results.offset), hex(results.offset)))        
