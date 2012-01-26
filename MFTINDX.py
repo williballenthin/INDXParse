@@ -17,7 +17,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-import struct, time, array, sys, cPickle, re, os
+import struct, time, array, sys, cPickle, re, os, calendar
 from datetime import datetime
 import types
 
@@ -1023,21 +1023,21 @@ def information_bodyfile(path, size, inode, info, attributes=None):
     if not attributes:
         attributes = []
     try:
-        modified = int(time.mktime(info.modified_time().timetuple()))    
+        modified = int(calendar.timegm(info.modified_time().timetuple()))    
     except (ValueError, AttributeError):
-        modified = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
+        modified = int(calendar.timegm(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
     try:
-        accessed = int(time.mktime(info.accessed_time().timetuple()))
+        accessed = int(calendar.timegm(info.accessed_time().timetuple()))
     except (ValueError, AttributeError):
-        accessed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
+        accessed = int(calendar.timegm(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
     try:
-        changed  = int(time.mktime(info.changed_time().timetuple()))
+        changed  = int(calendar.timegm(info.changed_time().timetuple()))
     except (ValueError, AttributeError):
-        changed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
+        changed = int(calendar.timegm(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
     try:
-        created  = int(time.mktime(info.created_time().timetuple()))
+        created  = int(calendar.timegm(info.created_time().timetuple()))
     except (ValueError, AttributeError):
-        created = int(time.mktime(datetime.min.timetuple()))
+        created = int(calendar.timegm(datetime.min.timetuple()))
     attributes_text = ""
     if len(attributes) > 0:
         attributes_text = " (%s)" % (", ".join(attributes))
