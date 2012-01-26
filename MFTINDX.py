@@ -110,7 +110,10 @@ class memoize(decoratorargs):
             else:
                 # It's FULL! We'll make the LRU be the new MRU, but replace its
                 # value first
-                del self.nodes[lru.key]  # This mapping is now invalid
+                try:
+                    del self.nodes[lru.key]  # This mapping is now invalid
+                except KeyError: # HACK TODO: this may not work/leak
+                    pass
                 lru.key = key
                 lru.value = value
                 self.mru = lru
@@ -792,9 +795,10 @@ class Attribute(Block):
         return s + (8 - (s % 8))
 
 class MFTRecord(FixupBlock):
-    def __init__(self, buf, offset, parent):
+    def __init__(self, buf, offset, parent, inode=None):
         super(MFTRecord, self).__init__(buf, offset, parent)
         debug("MFTRECORD @ %s." % (hex(offset)))
+        self.inode = inode or 0
         self.declare_field("dword", "magic")
         self.declare_field("word",  "usa_offset")
         self.declare_field("word",  "usa_count")
@@ -933,10 +937,11 @@ class NTFSFile():
                     if not buf:
                         return
                     try:
-                        record = MFTRecord(buf, 0, False)
+                        record = MFTRecord(buf, 0, False, inode=count)
                     except OverrunBufferException:
                         debug("Failed to parse MFT record %s" % (str(count)))
                         continue
+                    debug("Yielding record " + str(count))
                     yield record
             if should_progress:
                 sys.stderr.write("\n")
@@ -955,10 +960,11 @@ class NTFSFile():
                     if not buf:
                         return
                     try:
-                        record = MFTRecord(buf, 0, False)
+                        record = MFTRecord(buf, 0, False, inode=count)
                     except OverrunBufferException:
                         debug("Failed to parse MFT record %s" % (str(count)))
                         continue
+                    debug("Yielding record " + str(count))
                     yield record
             
     def mft_get_record_buf(self, number):
@@ -978,9 +984,13 @@ class NTFSFile():
                 return array.array("B", f.read(1024))
 
     # memoization is key here.
-    @memoize(100, keyfunc=lambda r: 
-             str(r.magic()) + str(r.mft_record_number()) + str(r.flags()))
-    def mft_record_build_path(self, record):
+    @memoize(100, keyfunc=lambda r, _: 
+             str(r.magic()) + str(r.lsn()) + str(r.link_count()) + \
+             str(r.mft_record_number()) + str(r.flags()))
+    def mft_record_build_path(self, record, cycledetector=None):
+        if cycledetector == None:
+            cycledetector = {}
+        rec_num = record.mft_record_number() & 0xFFFFFFFFFFFF
         if record.mft_record_number() & 0xFFFFFFFFFFFF == 0x0005:
             if self.prefix:
                 return self.prefix
@@ -988,7 +998,7 @@ class NTFSFile():
                 return "\\."
         fn = record.filename_information()
         if not fn:
-            return "\\??" 
+            return "\\??"
         parent_record_num = fn.mft_parent_reference() & 0xFFFFFFFFFFFF
         parent_buf = self.mft_get_record_buf(parent_record_num)
         if parent_buf == array.array("B", ""):
@@ -996,17 +1006,26 @@ class NTFSFile():
         parent = MFTRecord(parent_buf, 0, False)
         if parent.sequence_number() != fn.mft_parent_reference() >> 48:
             return "\\$OrphanFiles\\" + fn.filename()
-        return self.mft_record_build_path(parent) + "\\" + fn.filename()
+        if rec_num in cycledetector:
+            debug("Cycle detected")
+            if self.prefix:
+                return self.prefix + "\\<CYCLE>"
+            else:
+                return "\\<CYCLE>"
+        cycledetector[rec_num] = True
+        return self.mft_record_build_path(parent, cycledetector) + "\\" + fn.filename()
 
     def mft_get_record_by_path(self, path):
         # TODO could optimize here by trying to use INDX buffers
         # and actually walk through the FS
+        count = -1
         for record in self.record_generator():
+            count += 1
             if record.magic() != 0x454C4946:
                 continue
             if not record.is_active():
                 continue
-            record_path = self.mft_record_build_path(record)
+            record_path = self.mft_record_build_path(record, {})
             if record_path.lower() != path.lower():
                 continue
             return record
@@ -1045,15 +1064,15 @@ def information_bodyfile(path, size, inode, info, attributes=None):
                                               size, modified, accessed, changed, 
                                               created)
 
-def record_bodyfile(ntfsfile, record, attributes=None):
+def record_bodyfile(ntfsfile, record, inode=None, attributes=None):
     if not attributes:
         attributes = []
-    path = ntfsfile.mft_record_build_path(record)
+    path = ntfsfile.mft_record_build_path(record, {})
     si = record.standard_information()
     fn = record.filename_information()
     if not fn:
         raise InvalidAttributeException("Unable to parse attribute")
-    inode = record.mft_record_number()
+    inode = record.inode or record.mft_record_number()
     size = fn.logical_size()
     if not si:
         si_half = ""
@@ -1089,7 +1108,7 @@ def record_indx_entries_bodyfile(options, ntfsfile, record):
     ret = ""
     if not record:
         return ret
-    basepath = f.mft_record_build_path(record)
+    basepath = f.mft_record_build_path(record, {})
     indxroot = record.attribute(ATTR_TYPE.INDEX_ROOT)
     if indxroot:
         if indxroot.non_resident() != 0:
@@ -1168,7 +1187,7 @@ def print_bodyfile(options):
                     debug("Record has a bad magic value")
                     continue
                 if options.filter:
-                    path = f.mft_record_build_path(record)
+                    path = f.mft_record_build_path(record, {})
                     if not refilter.search(path):
                         debug("Skipping listing path due to regex filter: " + path)
                         continue
@@ -1192,7 +1211,7 @@ def print_bodyfile(options):
                         else:
                             pass # This shouldn't happen.
                     if found_indxalloc and len(extractbuf) > 0:
-                        path = f.mft_record_build_path(record)
+                        path = f.mft_record_build_path(record, {})
                         print_nonresident_indx_bodyfile(options, extractbuf, basepath=path)
             except InvalidAttributeException:
                 pass
@@ -1213,7 +1232,7 @@ def print_indx_info(options):
         print "Did not find directory entry for " + options.infomode
         return
     print "Found directory entry for: " + options.infomode
-    print "Path: " + f.mft_record_build_path(record)
+    print "Path: " + f.mft_record_build_path(record, {})
     print "MFT Record: " + str(record.mft_record_number())
     indxroot = record.attribute(ATTR_TYPE.INDEX_ROOT)
     if not indxroot:
