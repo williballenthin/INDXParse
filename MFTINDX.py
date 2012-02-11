@@ -726,23 +726,23 @@ class Runlist(Block):
         super(Runlist, self).__init__(buf, offset, parent)
         debug("RUNLIST @ %s." % (hex(offset)))
 
-    def entries(self):
+    def _entries(self, length=None):
         ret = []
         offset = self.offset()
         entry = Runentry(self._buf, offset, self)
-        while entry.header() != 0:
+        while entry.header() != 0 and (not length or offset < self.offset() + length):
             ret.append(entry)
             offset += entry.size()
             entry = Runentry(self._buf, offset, self)
         return ret
 
-    def runs(self):
+    def runs(self, length=None):
         """
         Yields tuples (volume offset, length).
         Recall that the entries are relative to one another
         """
         last_offset = 0
-        for e in self.entries():
+        for e in self._entries(length=length):
             current_offset = last_offset + e.offset()
             current_length = e.length()
             last_offset = current_offset
@@ -1061,7 +1061,7 @@ def information_bodyfile(path, size, inode, info, attributes=None):
     if len(attributes) > 0:
         attributes_text = " (%s)" % (", ".join(attributes))
     return u"0|%s|%s|0|0|0|%s|%s|%s|%s|%s\n" % (path + attributes_text, inode,
-                                              size, modified, accessed, changed, 
+                                              size, accessed, modified, changed, 
                                               created)
 
 def record_bodyfile(ntfsfile, record, inode=None, attributes=None):
@@ -1277,7 +1277,7 @@ def print_indx_info(options):
                     print "  Using clustersize %s (%s) bytes and volume offset %s (%s) bytes: \n  %s (%s) bytes for %s (%s) bytes" % \
                         (options.clustersize, hex(options.clustersize),
                          options.offset, hex(options.offset),
-                         offset * options.clustersize + options.offset, hex(offset * options.clustersize + options.offset),
+                         (offset * options.clustersize) + options.offset, hex((offset * options.clustersize) + options.offset),
                          length * options.clustersize, hex(length * options.clustersize))
                     extractbuf += f.read(offset * options.clustersize + options.offset, length * options.clustersize)
             else:
