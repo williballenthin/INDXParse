@@ -565,7 +565,7 @@ class IndexNodeHeader(Block):
         if offset == 0:
             debug("No entries in this allocation block.")
             return 
-        while offset <= self.entry_list_end() - self.offset() - 0x52:
+        while offset <= self.entry_list_end() - 0x52:
             debug("Entry has another entry after it.")
             e = IndexEntry(self._buf, self.offset() + offset, self)
             offset += e.length()
@@ -579,7 +579,7 @@ class IndexNodeHeader(Block):
         """
         offset = self.entry_list_end()
         try:
-            while offset <= self.entry_list_allocation_end() - self.offset() - 0x52:
+            while offset <= self.entry_list_allocation_end() - 0x52:
                 try:
                     debug("Trying to find slack entry at %s." % (hex(offset)))
                     e = SlackIndexEntry(self._buf, offset, self)
