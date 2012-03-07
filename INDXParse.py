@@ -2,7 +2,7 @@
 
 #    This file is part of INDXParse.
 #
-#   Copyright 2011 Will Ballenthin <william.ballenthin@mandiant.com>
+#   Copyright 2011, 2012 Willi Ballenthin <william.ballenthin@mandiant.com>
 #                    while at Mandiant <http://www.mandiant.com>
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+#
+#   Version v.1.1.8
 
 import struct, time, array
 from datetime import datetime
@@ -550,7 +552,7 @@ def entry_bodyfile(entry, filename=False):
     except ValueError:
         created = int(time.mktime(datetime.min.timetuple()))
 
-    return u"0|%s|0|0|0|0|%s|%s|%s|%s|%s" % (fn, entry.logical_size(), modified, accessed, changed, created)
+    return u"0|%s|0|0|0|0|%s|%s|%s|%s|%s" % (fn, entry.logical_size(), accessed, modified, changed, created)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Parse NTFS INDX files.')
