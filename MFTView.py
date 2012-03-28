@@ -188,18 +188,24 @@ class MFTTreeCtrl(wx.TreeCtrl):
 
         rec_num = self.GetPyData(item)["rec_num"]
         node = self._model.get_node(rec_num)
-        for child_node in node.children:
+        for child_node in [c for c in node.children if c.is_directory]:
             child_item = self.AppendItem(item, child_node.get_name())
-            if child_node.is_directory:
-                self.SetItemImage(child_item, self._folder_icon)
-            else:
-                self.SetItemImage(child_item, self._file_icon)
+            self.SetItemImage(child_item, self._folder_icon)
             self.SetPyData(child_item, {
                 "rec_num": child_node._number,
                 "has_expanded": False,
             })
             if len(child_node.children) > 0:
                 self.SetItemHasChildren(child_item)
+
+        for child_node in [c for c in node.children if not c.is_directory]:
+            child_item = self.AppendItem(item, child_node.get_name())
+            self.SetItemImage(child_item, self._file_icon)
+            self.SetPyData(child_item, {
+                "rec_num": child_node._number,
+                "has_expanded": False,
+            })
+
         self.GetPyData(item)["has_expanded"] = True
 
     def OnExpandKey(self, event):
