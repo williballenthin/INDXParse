@@ -160,6 +160,14 @@ class MFTTreeCtrl(wx.TreeCtrl):
         self._file_icon = self.il.Add(wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE, wx.ART_OTHER, (16,16)))
         self.SetImageList(self.il)
 
+        dialog = wx.ProgressDialog('Loading MFT', '0.00% Complete', maximum=100.0)
+        def progress_update(count, total):
+            update_str = "%d / %d\n%0.2f%% Complete\n" % \
+                         ( count, total, 100 * count / float(total))
+            dialog.Update(100 * count / float(total), update_str)
+        self._model.fetch(progress_fn=progress_update)
+        dialog.Update(100.0)
+
         root = self._model.get_root()
         root_item = self.AddRoot(root.get_name(), self._folder_icon)
         self.SetPyData(root_item, {
