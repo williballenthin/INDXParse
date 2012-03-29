@@ -188,7 +188,7 @@ class MFTTreeCtrl(wx.TreeCtrl):
 
         rec_num = self.GetPyData(item)["rec_num"]
         node = self._model.get_node(rec_num)
-        for child_node in [c for c in node.children if c.is_directory]:
+        for child_node in sorted([c for c in node.children if c.is_directory], key=lambda x:x.get_name()):
             child_item = self.AppendItem(item, child_node.get_name())
             self.SetItemImage(child_item, self._folder_icon)
             self.SetPyData(child_item, {
@@ -197,7 +197,7 @@ class MFTTreeCtrl(wx.TreeCtrl):
             })
             if len(child_node.children) > 0:
                 self.SetItemHasChildren(child_item)
-        for child_node in [c for c in node.children if not c.is_directory]:
+        for child_node in sorted([c for c in node.children if not c.is_directory], key=lambda x:x.get_name()):
             child_item = self.AppendItem(item, child_node.get_name())
             self.SetItemImage(child_item, self._file_icon)
             self.SetPyData(child_item, {
