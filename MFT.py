@@ -682,10 +682,13 @@ class Runentry(Block):
         super(Runentry, self).__init__(buf, offset, parent)
         debug("RUNENTRY @ %s." % (hex(offset)))
         self.declare_field("byte", "header")
-        offset_length = self.header() >> 4
-        length_length = self.header() & 0xF
-        self.declare_field("binary", "length_binary", self.current_field_offset(), length_length)
-        self.declare_field("binary", "offset_binary", self.current_field_offset(), offset_length)
+        self._offset_length = self.header() >> 4
+        self._length_length = self.header() & 0xF
+        self.declare_field("binary", "length_binary", self.current_field_offset(), self._length_length)
+        self.declare_field("binary", "offset_binary", self.current_field_offset(), self._offset_length)
+
+    def is_valid(self):
+        return self._offset_length > 0 and self._length_length > 0
 
     def lsb2num(self, binary):
         count = 0
@@ -731,7 +734,9 @@ class Runlist(Block):
         ret = []
         offset = self.offset()
         entry = Runentry(self._buf, offset, self)
-        while entry.header() != 0 and (not length or offset < self.offset() + length):
+        while entry.header() != 0 and \
+              (not length or offset < self.offset() + length) and \
+              entry.is_valid():
             ret.append(entry)
             offset += entry.size()
             entry = Runentry(self._buf, offset, self)
@@ -795,6 +800,9 @@ class Attribute(Block):
         s = self.unpack_dword(self._off_size) 
         return s + (8 - (s % 8))
 
+    def name(self):
+        return self.unpack_wstring(self.name_offset(), self.name_length())
+
 class MFTRecord(FixupBlock):
     def __init__(self, buf, offset, parent, inode=None):
         super(MFTRecord, self).__init__(buf, offset, parent)
@@ -819,7 +827,10 @@ class MFTRecord(FixupBlock):
 
     def attributes(self):
         offset = self.attrs_offset()
-        while self.unpack_dword(offset) != 0 and self.unpack_dword(offset) != 0xFFFFFFFF:
+
+        while self.unpack_dword(offset) != 0 and \
+              self.unpack_dword(offset) != 0xFFFFFFFF and \
+              offset + self.unpack_dword(offset + 4) <= self.offset() + self.bytes_in_use():
             a = Attribute(self._buf, offset, self)
             offset += a.size()
             yield a

@@ -302,10 +302,48 @@ class MFTRecordView(wx.Panel):
                     meta_view_sizer.Add(fn_view_sizer, 0, wx.ALL|wx.EXPAND)
                 except Exception as e:
                     continue
-
         meta_view.SetAutoLayout(1)
         meta_view.SetupScrolling()
         nb.AddPage(meta_view, "Metadata")
+
+        has_data = False
+        data_view = wx.Panel(nb, -1)
+        data_view_sizer = wx.BoxSizer(wx.VERTICAL)
+        data_view.SetSizer(data_view_sizer)
+
+        for attr in record.attributes():
+            if attr.type() == ATTR_TYPE.DATA:
+                try:
+                    d_view = wx.StaticBox(data_view, -1, "Data " + attr.name())
+                    d_view_sizer = wx.StaticBoxSizer(d_view, wx.VERTICAL)
+
+                    if attr.non_resident():
+                        def make_runlistpanel(parent, offset, length):
+                            pane = wx.Panel(parent, -1)
+                            sizer = wx.BoxSizer(wx.HORIZONTAL)
+                            sizer.Add(wx.StaticText(pane, -1, "Offset (clusters)"), 1, wx.EXPAND)
+                            sizer.Add(wx.TextCtrl(pane, -1, str(offset), style=wx.TE_READONLY), 1, wx.EXPAND)
+                            sizer.Add(wx.StaticText(pane, -1, "Length (clusters)"), 1, wx.EXPAND)
+                            sizer.Add(wx.TextCtrl(pane, -1, str(length), style=wx.TE_READONLY), 1, wx.EXPAND)
+                            pane.SetSizer(sizer)
+                            return pane
+                        try:
+                            for (offset, length) in attr.runlist().runs():
+                                d_view_sizer.Add(make_runlistpanel(data_view, offset, length), 0, wx.EXPAND)
+                        except IndexError:
+                            sys.stderr.write("Error parsing runlist\n")
+                            continue
+                    else:
+                        value_view = wx.TextCtrl(data_view, style=wx.TE_MULTILINE)
+                        value_view.SetFont(fixed_font)
+                        value_view.SetValue(unicode(self._format_hex(attr.value())))
+                        d_view_sizer.Add(value_view, 1, wx.EXPAND)          
+                    data_view_sizer.Add(d_view_sizer, 1, wx.ALL|wx.EXPAND)
+                    has_data = True
+                except ZeroDivisionError as e:
+                    continue
+        if has_data:
+            nb.AddPage(data_view, "Data")
 
         self._sizer.Add(nb, 1, wx.EXPAND)
         self._sizer.Layout()
