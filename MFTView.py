@@ -20,7 +20,7 @@
 #   Version v.1.2.0
 from MFT import *
 import wx
-import wx.lib.mvctree as tree
+import wx.lib.scrolledpanel as scrolled
 import argparse
 
 verbose = False
@@ -197,7 +197,6 @@ class MFTTreeCtrl(wx.TreeCtrl):
             })
             if len(child_node.children) > 0:
                 self.SetItemHasChildren(child_item)
-
         for child_node in [c for c in node.children if not c.is_directory]:
             child_item = self.AppendItem(item, child_node.get_name())
             self.SetItemImage(child_item, self._file_icon)
@@ -205,7 +204,6 @@ class MFTTreeCtrl(wx.TreeCtrl):
                 "rec_num": child_node._number,
                 "has_expanded": False,
             })
-
         self.GetPyData(item)["has_expanded"] = True
 
     def OnExpandKey(self, event):
@@ -214,6 +212,14 @@ class MFTTreeCtrl(wx.TreeCtrl):
             item = self.GetSelection()
         if not self.GetPyData(item)["has_expanded"]:
             self._extend(item)
+
+def make_labelledline(parent, label, value):
+    pane = wx.Panel(parent, -1)
+    sizer = wx.BoxSizer(wx.HORIZONTAL)
+    sizer.Add(wx.StaticText(pane, -1, label), 1, wx.EXPAND)
+    sizer.Add(wx.TextCtrl(pane, -1, value, style=wx.TE_READONLY), 1, wx.EXPAND)
+    pane.SetSizer(sizer)
+    return pane
 
 class MFTRecordView(wx.Panel):
     def __init__(self, *args, **kwargs):
@@ -250,11 +256,58 @@ class MFTRecordView(wx.Panel):
 
     def display_record(self, record):
         self._sizer.Clear()
-        view = wx.TextCtrl(self, style=wx.TE_MULTILINE)
-        font = wx.Font(8, wx.SWISS, wx.NORMAL, wx.NORMAL, False, u'Courier')
-        view.SetFont(font)
-        view.SetValue(unicode(self._format_hex(record._buf.tostring())))
-        self._sizer.Add(view, 1, wx.EXPAND)
+        fixed_font = wx.Font(8, wx.SWISS, wx.NORMAL, wx.NORMAL, False, u'Courier')
+        nb = wx.Notebook(self)
+
+        hex_view = wx.TextCtrl(nb, style=wx.TE_MULTILINE)
+        hex_view.SetFont(fixed_font)
+        hex_view.SetValue(unicode(self._format_hex(record._buf.tostring())))
+        nb.AddPage(hex_view, "Hex Dump")
+
+        meta_view = scrolled.ScrolledPanel(nb, -1)
+        meta_view_sizer = wx.BoxSizer(wx.VERTICAL)
+        meta_view.SetSizer(meta_view_sizer)
+
+        r_view = wx.StaticBox(meta_view, -1, "MFT Record")
+        r_view_sizer = wx.StaticBoxSizer(r_view, wx.VERTICAL)
+        r_view_sizer.Add(make_labelledline(meta_view, "MFT Record Number", str(record.mft_record_number())), 0, wx.EXPAND)
+        r_view_sizer.Add(make_labelledline(meta_view, "Bytes Allocated", str(record.bytes_allocated())), 0, wx.EXPAND)
+        r_view_sizer.Add(make_labelledline(meta_view, "Bytes in Use", str(record.bytes_in_use())), 0, wx.EXPAND)
+        r_view_sizer.Add(make_labelledline(meta_view, "Sequence", str(record.sequence_number())), 0, wx.EXPAND)
+        meta_view_sizer.Add(r_view_sizer, 0, wx.ALL|wx.EXPAND)
+
+        si_view = wx.StaticBox(meta_view, -1, "Standard Information")
+        si_view_sizer = wx.StaticBoxSizer(si_view, wx.VERTICAL)
+        si_view_sizer.Add(make_labelledline(meta_view, "Created", str(record.standard_information().created_time())), 0, wx.EXPAND)
+        si_view_sizer.Add(make_labelledline(meta_view, "Modified", str(record.standard_information().modified_time())), 0, wx.EXPAND)
+        si_view_sizer.Add(make_labelledline(meta_view, "Changed", str(record.standard_information().changed_time())), 0, wx.EXPAND)
+        si_view_sizer.Add(make_labelledline(meta_view, "Accessed", str(record.standard_information().accessed_time())), 0, wx.EXPAND)
+        meta_view_sizer.Add(si_view_sizer, 0, wx.ALL|wx.EXPAND)
+
+        for a in record.attributes():
+            if a.type() == ATTR_TYPE.FILENAME_INFORMATION:
+                try:
+                    attr = FilenameAttribute(a.value(), 0, self)
+
+                    fn_view = wx.StaticBox(meta_view, -1, "Filename Information, type " + hex(attr.filename_type()))
+                    fn_view_sizer = wx.StaticBoxSizer(fn_view, wx.VERTICAL)
+
+                    fn_view_sizer.Add(make_labelledline(meta_view, "Filename", str(attr.filename())), 0, wx.EXPAND)
+                    fn_view_sizer.Add(make_labelledline(meta_view, "Allocated Size", str(attr.physical_size())), 0, wx.EXPAND)
+                    fn_view_sizer.Add(make_labelledline(meta_view, "Actual Size", str(attr.logical_size())), 0, wx.EXPAND)
+                    fn_view_sizer.Add(make_labelledline(meta_view, "Created", str(attr.created_time())), 0, wx.EXPAND)
+                    fn_view_sizer.Add(make_labelledline(meta_view, "Modified", str(attr.modified_time())), 0, wx.EXPAND)
+                    fn_view_sizer.Add(make_labelledline(meta_view, "Changed", str(attr.changed_time())), 0, wx.EXPAND)
+                    fn_view_sizer.Add(make_labelledline(meta_view, "Accessed", str(attr.accessed_time())), 0, wx.EXPAND)
+                    meta_view_sizer.Add(fn_view_sizer, 0, wx.ALL|wx.EXPAND)
+                except Exception as e:
+                    continue
+
+        meta_view.SetAutoLayout(1)
+        meta_view.SetupScrolling()
+        nb.AddPage(meta_view, "Metadata")
+
+        self._sizer.Add(nb, 1, wx.EXPAND)
         self._sizer.Layout()
 
     def clear_value(self):
