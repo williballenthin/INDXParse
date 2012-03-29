@@ -762,6 +762,24 @@ class ATTR_TYPE:
     INDEX_ALLOCATION = 0xA0
 
 class Attribute(Block):
+    TYPES = {
+      16: "$STANDARD INFORMATION",
+      32: "$ATTRIBUTE LIST",
+      48: "$FILENAME INFORMATION",
+      64: "$OBJECT ID/$VOLUME VERSION",
+      80: "$SECURITY DESCRIPTOR",
+      96: "$VOLUME NAME",
+      112: "$VOLUME INFORMATION",
+      128: "$DATA",
+      144: "$INDEX ROOT",
+      160: "$INDEX ALLOCATION",
+      176: "$BITMAP",
+      192: "$SYMBOLIC LINK",
+      208: "$REPARSE POINT/$EA INFORMATION",
+      224: "$EA",
+      256: "$LOGGED UTILITY STREAM"
+    }
+
     def __init__(self, buf, offset, parent):
         super(Attribute, self).__init__(buf, offset, parent)
         debug("ATTRIBUTE @ %s." % (hex(offset)))

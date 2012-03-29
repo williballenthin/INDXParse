@@ -345,6 +345,34 @@ class MFTRecordView(wx.Panel):
         if has_data:
             nb.AddPage(data_view, "Data")
 
+        attr_view = scrolled.ScrolledPanel(nb, -1)
+        attr_view_sizer = wx.BoxSizer(wx.VERTICAL)
+        attr_view.SetSizer(attr_view_sizer)
+
+        for attr in record.attributes():
+            try:
+                at_view = wx.StaticBox(attr_view, -1, "Attribute, type " + hex(attr.type()))
+                at_view_sizer = wx.StaticBoxSizer(at_view, wx.VERTICAL)
+
+                at_view_sizer.Add(make_labelledline(attr_view, "Type", str(attr.type())), 0, wx.EXPAND)
+                name = attr.name()
+                if name == "":
+                    name = attr.TYPES[attr.type()]
+                at_view_sizer.Add(make_labelledline(attr_view, "Name", str(name)), 0, wx.EXPAND)
+                at_view_sizer.Add(make_labelledline(attr_view, "Size", str(attr.size())), 0, wx.EXPAND)
+
+                atd_view = wx.TextCtrl(attr_view, style=wx.TE_MULTILINE)
+                atd_view.SetFont(fixed_font)
+                atd_view.SetValue(unicode(self._format_hex(attr._buf[attr.absolute_offset(0):attr.absolute_offset(0) + attr.size()].tostring())))
+                at_view_sizer.Add(atd_view, 1, wx.EXPAND)          
+
+                attr_view_sizer.Add(at_view_sizer, 1, wx.ALL|wx.EXPAND)
+            except ZeroDivisionError as e:
+                continue
+        attr_view.SetAutoLayout(1)
+        attr_view.SetupScrolling()
+        nb.AddPage(attr_view, "Attributes")
+
         self._sizer.Add(nb, 1, wx.EXPAND)
         self._sizer.Layout()
 
@@ -370,7 +398,7 @@ class MFTFileView(wx.Panel):
         _expand_into(panel_right, self._recordview)
 
         vsplitter.SplitVertically(panel_left, panel_right)
-        vsplitter.SetSashPosition(325, True)
+        vsplitter.SetSashPosition(275, True)
         _expand_into(self, vsplitter)
         self.Centre()
 
@@ -439,10 +467,5 @@ if __name__ == "__main__":
     frame = MFTFileViewer(None, filename)
     frame.Show()
     app.MainLoop()
-#    app = wx.PySimpleApp()
-#    dialog = wx.ProgressDialog('a', 'b', maximum=100.0)
-#    start(test, dialog)
-#    dialog.ShowModal()
-#    app.MainLoop()
 
 
