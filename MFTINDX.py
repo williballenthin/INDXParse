@@ -1,4 +1,4 @@
-#!/bin/python
+#!/usr/bin/python
 
 #    This file is part of INDXParse.
 #
@@ -276,7 +276,7 @@ def print_indx_info(options):
                 g.write(extractbuf)
     return 
     
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='Parse NTFS filesystem structures.')
     parser.add_argument('-t', action="store", metavar="type", nargs=1, dest="filetype", help="Type of input file. One of 'image', 'MFT', or 'INDX'")
     parser.add_argument('-c', action="store", metavar="size", nargs=1, type=int, dest="clustersize", help="Use this cluster size in bytes (default 4096 bytes)")
@@ -398,3 +398,5 @@ if __name__ == '__main__':
     
 
 
+if __name__ == '__main__':
+    main()
