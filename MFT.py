@@ -894,6 +894,14 @@ class MFTRecord(FixupBlock):
         except AttributeError:
             return False
 
+    def data_attribute(self):
+        """
+        Returns None if the default $DATA attribute does not exist
+        """
+        for attr in self.attributes():
+            if attr.type() == ATTR_TYPE.DATA and attr.name() == "":
+                return attr
+
 # This would be a local function to record_build_path,
 # but we can't pickle a local function, and 
 # memoization is key here.

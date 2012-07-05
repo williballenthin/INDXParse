@@ -50,6 +50,13 @@ def information_bodyfile(path, size, inode, info, attributes=None):
                                               created)
 
 def record_bodyfile(ntfsfile, record, inode=None, attributes=None):
+    """
+    Return a bodyfile formatted string for the given MFT record.
+    The string contains metadata for the one file described by the record.
+    The string may have multiple lines, which cover $SI and $FN timestamp entries,
+      and entries for each ADS.
+    """
+    ret = ""
     if not attributes:
         attributes = []
     path = ntfsfile.mft_record_build_path(record, {})
@@ -58,16 +65,45 @@ def record_bodyfile(ntfsfile, record, inode=None, attributes=None):
     if not fn:
         raise InvalidAttributeException("Unable to parse attribute")
     inode = record.inode or record.mft_record_number()
-    size = fn.logical_size()
-    if not si:
-        si_half = ""
+    if record.is_directory():
+        size = 0
     else:
-        si_half = information_bodyfile(path, size, inode, si, attributes)
+        data_attr = record.data_attribute()
+        if data_attr and data_attr.non_resident() > 0:
+            size = data_attr.data_size()
+        else:
+            size = fn.logical_size()
+
+    ADSs = []
+    for attr in record.attributes():
+        if attr.type() != ATTR_TYPE.DATA or len(attr.name()) == 0:
+            continue
+        if attr.non_resident() > 0: 
+            size = attr.data_size()
+        else:
+            size = attr.value_length()
+#        sys.stderr.write("|%s, %s|\n" % (attr.name(), len(attr.name())))
+        ADSs.append((attr.name(), size))
+
+    if si:
+        ret += "%s" % (information_bodyfile(path, size, inode, si, attributes))
+        for ads in ADSs:
+            ret += "%s" % (information_bodyfile(path + ":" + ads[0], ads[1], inode, si, attributes))
+    
+#    sys.stderr.write(str(ADSs) + "\n")
     attributes.append("filename")
-    fn_half = information_bodyfile(path, size, inode, fn, attributes=attributes)
-    return "%s%s" % (si_half, fn_half)
+    if si:
+        ret += "%s" % (information_bodyfile(path, size, inode, fn, attributes=attributes))
+        for ads in ADSs:
+            ret += "%s" % (information_bodyfile(path + ":" + ads[0], ads[1], inode, fn, attributes=attributes))
+
+    return ret
 
 def node_header_bodyfile(options, node_header, basepath):
+    """
+    Returns a bodyfile formatted string for all INDX entries following the
+    given INDX node header.
+    """
     ret = ""
     attrs = ["filename", "INDX"]
     if options.indxlist:
@@ -88,6 +124,10 @@ def node_header_bodyfile(options, node_header, basepath):
     return ret
 
 def record_indx_entries_bodyfile(options, ntfsfile, record):
+    """
+    Returns a bodyfile formatted string for all INDX entries associated with 
+    the given MFT record
+    """
     # TODO handle all possible errors here
     f = ntfsfile
     ret = ""
@@ -158,7 +198,7 @@ def print_nonresident_indx_bodyfile(options, buf, basepath=""):
             irh = IndexRecordHeader(buf, offset, False)
         except OverrunBufferException: 
             return
-    return    
+    return
 
 def print_bodyfile(options):
     if options.filetype == "mft" or options.filetype == "image":
@@ -238,6 +278,12 @@ def print_indx_info(options):
                 print "INDX_ROOT entries:"
             someentries = True
             print "  " + e.filename_information().filename()
+            print "    " + str(e.filename_information().logical_size()) + " bytes in size"
+            print "    b " + e.filename_information().created_time().isoformat("T") + "Z"
+            print "    m " + e.filename_information().modified_time().isoformat("T") + "Z"
+            print "    c " + e.filename_information().changed_time().isoformat("T") + "Z"
+            print "    a " + e.filename_information().accessed_time().isoformat("T") + "Z"
+
         if not someentries:
             print "INDX_ROOT entries: (none)"
         someentries = False
