@@ -131,6 +131,8 @@ class MFTModel():
                     self._nodes[rec_num] = node
                     return node
 
+                print rec_num, parent_record_num
+                
                 add_node(mftfile, parent)
 
             parent_node = self._nodes[parent_record_num]
@@ -145,7 +147,10 @@ class MFTModel():
             try:
                 add_node(f, record)
             except RecordConflict as e:
-                print "Record conflict with record number %s" % (e.value)
+                # this is expected.
+                # this record must be a directory, and a descendant has already
+                # been processed.
+                pass
             if count % 100 == 0:  progress_fn(count, total_count)    
             
 class MFTTreeCtrl(wx.TreeCtrl):
@@ -271,8 +276,16 @@ class MFTRecordView(wx.Panel):
         r_view = wx.StaticBox(meta_view, -1, "MFT Record")
         r_view_sizer = wx.StaticBoxSizer(r_view, wx.VERTICAL)
         r_view_sizer.Add(make_labelledline(meta_view, "MFT Record Number", str(record.mft_record_number())), 0, wx.EXPAND)
-        r_view_sizer.Add(make_labelledline(meta_view, "Bytes Allocated", str(record.bytes_allocated())), 0, wx.EXPAND)
-        r_view_sizer.Add(make_labelledline(meta_view, "Bytes in Use", str(record.bytes_in_use())), 0, wx.EXPAND)
+        if record.is_directory():
+            r_view_sizer.Add(make_labelledline(meta_view, "Size", str(0)), 0, wx.EXPAND)
+        else:
+            data_attr = record.data_attribute()
+            if data_attr and data_attr.non_resident() > 0:
+                size = data_attr.data_size()
+            else:
+                size = record.filename_information().logical_size()
+            r_view_sizer.Add(make_labelledline(meta_view, "Size", str(size)), 0, wx.EXPAND)
+
         r_view_sizer.Add(make_labelledline(meta_view, "Sequence", str(record.sequence_number())), 0, wx.EXPAND)
         meta_view_sizer.Add(r_view_sizer, 0, wx.ALL|wx.EXPAND)
 
@@ -293,6 +306,7 @@ class MFTRecordView(wx.Panel):
                     fn_view_sizer = wx.StaticBoxSizer(fn_view, wx.VERTICAL)
 
                     fn_view_sizer.Add(make_labelledline(meta_view, "Filename", str(attr.filename())), 0, wx.EXPAND)
+
                     fn_view_sizer.Add(make_labelledline(meta_view, "Allocated Size", str(attr.physical_size())), 0, wx.EXPAND)
                     fn_view_sizer.Add(make_labelledline(meta_view, "Actual Size", str(attr.logical_size())), 0, wx.EXPAND)
                     fn_view_sizer.Add(make_labelledline(meta_view, "Created", str(attr.created_time())), 0, wx.EXPAND)
