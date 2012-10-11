@@ -21,24 +21,26 @@
 from MFT import *
 import wx
 import wx.lib.scrolledpanel as scrolled
-import argparse
 
 verbose = False
 
+
 def nop(*args, **kwargs):
     pass
+
 
 def _expand_into(dest, src):
     vbox = wx.BoxSizer(wx.VERTICAL)
     vbox.Add(src, 1, wx.EXPAND | wx.ALL)
     dest.SetSizer(vbox)
 
+
 class Node():
     def __init__(self, number, name, parent, is_directory):
         self._number = number
-        self._name   = name
+        self._name = name
         self._parent = parent
-        self.children = [] # public
+        self.children = []  # public
         self.is_directory = is_directory
 
     def add_child(self, child):
@@ -46,6 +48,7 @@ class Node():
 
     def get_name(self):
         return self._name
+
 
 class MFTModel():
     def __init__(self, filename):
@@ -93,7 +96,7 @@ class MFTModel():
             @raises RecordConflict if the record already exists in nodes
             """
             rec_num = record.mft_record_number() & 0xFFFFFFFFFFFF
-            
+
             # node already exists by rec_num
             if rec_num in self._nodes:
                 raise RecordConflict(rec_num)
@@ -109,7 +112,8 @@ class MFTModel():
             # one level cycle
             parent_record_num = fn.mft_parent_reference() & 0xFFFFFFFFFFFF
             if parent_record_num == rec_num:
-                node = Node(rec_num, fn.filename(), None, record.is_directory())
+                node = Node(rec_num, fn.filename(),
+                            None, record.is_directory())
                 self._orphans.append(node)
                 self._nodes[rec_num] = node
                 return node
@@ -118,25 +122,27 @@ class MFTModel():
                 # no parent --> orphan with correct filename
                 parent_buf = mftfile.mft_get_record_buf(parent_record_num)
                 if parent_buf == array.array("B", ""):
-                    node = Node(rec_num, fn.filename(), None, record.is_directory())
+                    node = Node(rec_num, fn.filename(),
+                                None, record.is_directory())
                     self._orphans.append(node)
                     self._nodes[rec_num] = node
                     return node
 
-                # parent sequence num incorrect --> orphan with correct filename
+                # parent sequence num incorrect -->
+                #  orphan with correct filename
                 parent = MFTRecord(parent_buf, 0, False)
                 if parent.sequence_number() != fn.mft_parent_reference() >> 48:
-                    node = Node(rec_num, fn.filename(), None, record.is_directory())
+                    node = Node(rec_num, fn.filename(),
+                                None, record.is_directory())
                     self._orphans.append(node)
                     self._nodes[rec_num] = node
                     return node
 
-                print rec_num, parent_record_num
-                
                 add_node(mftfile, parent)
 
             parent_node = self._nodes[parent_record_num]
-            node = Node(rec_num, fn.filename(), parent_node, record.is_directory())
+            node = Node(rec_num, fn.filename(),
+                        parent_node, record.is_directory())
             self._nodes[rec_num] = node
             parent_node.add_child(node)
             return node
@@ -146,13 +152,15 @@ class MFTModel():
             count += 1
             try:
                 add_node(f, record)
-            except RecordConflict as e:
+            except RecordConflict:
                 # this is expected.
                 # this record must be a directory, and a descendant has already
                 # been processed.
                 pass
-            if count % 100 == 0:  progress_fn(count, total_count)    
-            
+            if count % 100 == 0:
+                progress_fn(count, total_count)
+
+
 class MFTTreeCtrl(wx.TreeCtrl):
     def __init__(self, *args, **kwargs):
         self._model = kwargs.get("model", None)
@@ -160,18 +168,24 @@ class MFTTreeCtrl(wx.TreeCtrl):
         super(MFTTreeCtrl, self).__init__(*args, **kwargs)
         self.Bind(wx.EVT_TREE_ITEM_EXPANDING, self.OnExpandKey)
 
-        self.il = wx.ImageList(16,16)
-        self._folder_icon = self.il.Add(wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_OTHER, (16,16)))
-        self._file_icon = self.il.Add(wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE, wx.ART_OTHER, (16,16)))
+        self.il = wx.ImageList(16, 16)
+        self._folder_icon = self.il.Add(wx.ArtProvider.GetBitmap(wx.ART_FOLDER,
+                                                                 wx.ART_OTHER,
+                                                                 (16, 16)))
+        self._file_icon = self.il.Add(wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE,
+                                                               wx.ART_OTHER,
+                                                               (16, 16)))
         self.SetImageList(self.il)
 
-        dialog = wx.ProgressDialog('Loading MFT', '0.00% Complete', 
+        dialog = wx.ProgressDialog('Loading MFT', '0.00% Complete',
                                    maximum=100.0,
                                    style=wx.PD_AUTO_HIDE|wx.PD_APP_MODAL|wx.PD_CAN_ABORT|wx.PD_ELAPSED_TIME|wx.PD_ESTIMATED_TIME|wx.PD_REMAINING_TIME)
+
         def progress_update(count, total):
             update_str = "%d / %d\n%0.2f%% Complete\n" % \
-                         ( count, total, 100 * count / float(total))
-            (cont, skip) = dialog.Update(100 * count / float(total), update_str)
+                         (count, total, 100 * count / float(total))
+            (cont, skip) = dialog.Update(100 * count / float(total),
+                                         update_str)
             if not cont:
                 sys.exit(0)
         self._model.fetch(progress_fn=progress_update)
@@ -181,11 +195,10 @@ class MFTTreeCtrl(wx.TreeCtrl):
         root_item = self.AddRoot(root.get_name(), self._folder_icon)
         self.SetPyData(root_item, {
             "rec_num": root._number,
-            "has_expanded": False
+            "has_expanded": False,
         })
         if len(root.children) > 0:
             self.SetItemHasChildren(root_item)
-
 
     def _extend(self, item):
         if self.GetPyData(item)["has_expanded"]:
@@ -193,7 +206,8 @@ class MFTTreeCtrl(wx.TreeCtrl):
 
         rec_num = self.GetPyData(item)["rec_num"]
         node = self._model.get_node(rec_num)
-        for child_node in sorted([c for c in node.children if c.is_directory], key=lambda x:x.get_name()):
+        for child_node in sorted([c for c in node.children if c.is_directory],
+                                 key=lambda x: x.get_name()):
             child_item = self.AppendItem(item, child_node.get_name())
             self.SetItemImage(child_item, self._folder_icon)
             self.SetPyData(child_item, {
@@ -202,7 +216,8 @@ class MFTTreeCtrl(wx.TreeCtrl):
             })
             if len(child_node.children) > 0:
                 self.SetItemHasChildren(child_item)
-        for child_node in sorted([c for c in node.children if not c.is_directory], key=lambda x:x.get_name()):
+        for child_node in sorted([c for c in node.children if not c.is_directory],
+                                 key=lambda x: x.get_name()):
             child_item = self.AppendItem(item, child_node.get_name())
             self.SetItemImage(child_item, self._file_icon)
             self.SetPyData(child_item, {
@@ -218,6 +233,7 @@ class MFTTreeCtrl(wx.TreeCtrl):
         if not self.GetPyData(item)["has_expanded"]:
             self._extend(item)
 
+
 def make_labelledline(parent, label, value):
     pane = wx.Panel(parent, -1)
     sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -225,6 +241,40 @@ def make_labelledline(parent, label, value):
     sizer.Add(wx.TextCtrl(pane, -1, value, style=wx.TE_READONLY), 1, wx.EXPAND)
     pane.SetSizer(sizer)
     return pane
+
+
+def make_runlistpanel(parent, offset, length):
+    pane = wx.Panel(parent, -1)
+    sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+    sb = wx.StaticBox(parent, -1, "Cluster Run")
+    sbs = wx.StaticBoxSizer(sb, wx.VERTICAL)
+
+    hbox1 = wx.BoxSizer(wx.HORIZONTAL)
+    hbox2 = wx.BoxSizer(wx.HORIZONTAL)
+    hbox3 = wx.BoxSizer(wx.HORIZONTAL)
+    hbox4 = wx.BoxSizer(wx.HORIZONTAL)
+    hbox5 = wx.BoxSizer(wx.HORIZONTAL)
+
+    hbox1.Add(wx.StaticText(pane, label="Offset (clusters)"), 1, wx.EXPAND)
+    hbox1.Add(wx.TextCtrl(pane, -1, str(offset), style=wx.TE_READONLY), 1, wx.EXPAND)
+    hbox2.Add(wx.StaticText(pane, label="Length (clusters)"), 1, wx.EXPAND)
+    hbox2.Add(wx.TextCtrl(pane, -1, str(length), style=wx.TE_READONLY), 1, wx.EXPAND)
+    hbox3.Add(wx.StaticText(pane, label="Offset (bytes)"), 1, wx.EXPAND)
+    hbox3.Add(wx.TextCtrl(pane, -1, str(32256 + offset * 4096), style=wx.TE_READONLY), 1, wx.EXPAND)
+    hbox4.Add(wx.StaticText(pane, label="Length (bytes)"), 1, wx.EXPAND)
+    hbox5.Add(wx.StaticLine(pane, -1, size=(200, 4), style=wx.LI_HORIZONTAL), 1, wx.EXPAND)
+    sbs.Add(hbox1, 1, wx.EXPAND)
+    sbs.Add(hbox2, 1, wx.EXPAND)
+    sbs.Add(hbox3, 1, wx.EXPAND)
+    sbs.Add(hbox4, 1, wx.EXPAND)
+    sbs.Add(hbox5, 1, wx.EXPAND)
+
+    sizer.Add(sbs, -1, wx.EXPAND)
+
+    pane.SetSizer(sizer)
+    return pane
+
 
 class MFTRecordView(wx.Panel):
     def __init__(self, *args, **kwargs):
@@ -239,16 +289,18 @@ class MFTRecordView(wx.Panel):
         """
         see http://code.activestate.com/recipes/142812/
         """
-        FILTER=''.join([(len(repr(chr(x)))==3) and chr(x) or '.' for x in range(256)])
+        FILTER = ''.join([(len(repr(chr(x))) == 3) and chr(x) or '.'
+                        for x in range(256)])
 
         def dump(src, length=16):
-            N=0; result=''
+            N = 0
+            result = ''
             while src:
-                s,src = src[:length],src[length:]
-                hexa = ' '.join(["%02X"%ord(x) for x in s])
+                s, src = src[:length], src[length:]
+                hexa = ' '.join(["%02X" % ord(x) for x in s])
                 s = s.translate(FILTER)
-                result += "%04X   %-*s   %s\n" % (N, length*3, hexa, s)
-                N+=length
+                result += "%04X   %-*s   %s\n" % (N, length * 3, hexa, s)
+                N += length
             return result
         return dump(data)
 
@@ -261,7 +313,8 @@ class MFTRecordView(wx.Panel):
 
     def display_record(self, record):
         self._sizer.Clear()
-        fixed_font = wx.Font(8, wx.SWISS, wx.NORMAL, wx.NORMAL, False, u'Courier')
+        fixed_font = wx.Font(8, wx.SWISS, wx.NORMAL,
+                             wx.NORMAL, False, u'Courier')
         nb = wx.Notebook(self)
 
         hex_view = wx.TextCtrl(nb, style=wx.TE_MULTILINE)
@@ -275,18 +328,22 @@ class MFTRecordView(wx.Panel):
 
         r_view = wx.StaticBox(meta_view, -1, "MFT Record")
         r_view_sizer = wx.StaticBoxSizer(r_view, wx.VERTICAL)
-        r_view_sizer.Add(make_labelledline(meta_view, "MFT Record Number", str(record.mft_record_number())), 0, wx.EXPAND)
+        r_view_sizer.Add(make_labelledline(meta_view, "MFT Record Number",
+                                           str(record.mft_record_number())), 0, wx.EXPAND)
         if record.is_directory():
-            r_view_sizer.Add(make_labelledline(meta_view, "Size", str(0)), 0, wx.EXPAND)
+            r_view_sizer.Add(make_labelledline(meta_view, "Size", str(0)),
+                             0, wx.EXPAND)
         else:
             data_attr = record.data_attribute()
             if data_attr and data_attr.non_resident() > 0:
                 size = data_attr.data_size()
             else:
                 size = record.filename_information().logical_size()
-            r_view_sizer.Add(make_labelledline(meta_view, "Size", str(size)), 0, wx.EXPAND)
+            r_view_sizer.Add(make_labelledline(meta_view, "Size",
+                                               str(size)), 0, wx.EXPAND)
 
-        r_view_sizer.Add(make_labelledline(meta_view, "Sequence", str(record.sequence_number())), 0, wx.EXPAND)
+        r_view_sizer.Add(make_labelledline(meta_view, "Sequence",
+                                           str(record.sequence_number())), 0, wx.EXPAND)
         meta_view_sizer.Add(r_view_sizer, 0, wx.ALL|wx.EXPAND)
 
         si_view = wx.StaticBox(meta_view, -1, "Standard Information")
@@ -328,22 +385,10 @@ class MFTRecordView(wx.Panel):
         for attr in record.attributes():
             if attr.type() == ATTR_TYPE.DATA:
                 try:
-                    d_view = wx.StaticBox(data_view, -1, "Data " + attr.name())
-                    d_view_sizer = wx.StaticBoxSizer(d_view, wx.VERTICAL)
-
                     if attr.non_resident():
-                        def make_runlistpanel(parent, offset, length):
-                            pane = wx.Panel(parent, -1)
-                            sizer = wx.BoxSizer(wx.HORIZONTAL)
-                            sizer.Add(wx.StaticText(pane, -1, "Offset (clusters)"), 1, wx.EXPAND)
-                            sizer.Add(wx.TextCtrl(pane, -1, str(offset), style=wx.TE_READONLY), 1, wx.EXPAND)
-                            sizer.Add(wx.StaticText(pane, -1, "Length (clusters)"), 1, wx.EXPAND)
-                            sizer.Add(wx.TextCtrl(pane, -1, str(length), style=wx.TE_READONLY), 1, wx.EXPAND)
-                            pane.SetSizer(sizer)
-                            return pane
                         try:
                             for (offset, length) in attr.runlist().runs():
-                                d_view_sizer.Add(make_runlistpanel(data_view, offset, length), 0, wx.EXPAND)
+                                data_view_sizer.Add(make_runlistpanel(data_view, offset, length), 0, wx.EXPAND)
                         except IndexError:
                             sys.stderr.write("Error parsing runlist\n")
                             continue
@@ -351,10 +396,9 @@ class MFTRecordView(wx.Panel):
                         value_view = wx.TextCtrl(data_view, style=wx.TE_MULTILINE)
                         value_view.SetFont(fixed_font)
                         value_view.SetValue(unicode(self._format_hex(attr.value())))
-                        d_view_sizer.Add(value_view, 1, wx.EXPAND)          
-                    data_view_sizer.Add(d_view_sizer, 1, wx.ALL|wx.EXPAND)
+                        data_view_sizer.Add(value_view, 1, wx.EXPAND)
                     has_data = True
-                except ZeroDivisionError as e:
+                except ZeroDivisionError:
                     continue
         if has_data:
             nb.AddPage(data_view, "Data")
@@ -365,7 +409,8 @@ class MFTRecordView(wx.Panel):
 
         for attr in record.attributes():
             try:
-                at_view = wx.StaticBox(attr_view, -1, "Attribute, type " + hex(attr.type()))
+                at_view = wx.StaticBox(attr_view, -1,
+                                       "Attribute, type " + hex(attr.type()))
                 at_view_sizer = wx.StaticBoxSizer(at_view, wx.VERTICAL)
 
                 at_view_sizer.Add(make_labelledline(attr_view, "Type", str(attr.type())), 0, wx.EXPAND)
@@ -378,14 +423,50 @@ class MFTRecordView(wx.Panel):
                 atd_view = wx.TextCtrl(attr_view, style=wx.TE_MULTILINE)
                 atd_view.SetFont(fixed_font)
                 atd_view.SetValue(unicode(self._format_hex(attr._buf[attr.absolute_offset(0):attr.absolute_offset(0) + attr.size()].tostring())))
-                at_view_sizer.Add(atd_view, 1, wx.EXPAND)          
+                at_view_sizer.Add(atd_view, 1, wx.EXPAND)
 
                 attr_view_sizer.Add(at_view_sizer, 1, wx.ALL|wx.EXPAND)
-            except ZeroDivisionError as e:
+            except ZeroDivisionError:
                 continue
         attr_view.SetAutoLayout(1)
         attr_view.SetupScrolling()
         nb.AddPage(attr_view, "Attributes")
+
+        if record.is_directory():
+            indx_panel = scrolled.ScrolledPanel(nb, -1)
+            indx_panel_sizer = wx.BoxSizer(wx.VERTICAL)
+            indx_panel.SetSizer(indx_panel_sizer)
+
+            indxroot = record.attribute(ATTR_TYPE.INDEX_ROOT)
+            if indxroot and indxroot.non_resident() == 0:
+                # resident indx root
+                irh = IndexRootHeader(indxroot.value(), 0, False)
+                for e in irh.node_header().entries():
+                    ir_view = wx.StaticBox(indx_panel, -1, "INDX Record Information")
+                    ir_view_sizer = wx.StaticBoxSizer(ir_view, wx.VERTICAL)
+                    ir_view_sizer.Add(make_labelledline(indx_panel, "Filename", e.filename_information().filename()), 0, wx.EXPAND)
+                    ir_view_sizer.Add(make_labelledline(indx_panel, "Size (bytes)", str(e.filename_information().logical_size())), 0, wx.EXPAND)
+                    ir_view_sizer.Add(make_labelledline(indx_panel, "Created", e.filename_information().created_time().isoformat("T") + "Z"), 0, wx.EXPAND)
+                    ir_view_sizer.Add(make_labelledline(indx_panel, "Modified", e.filename_information().modified_time().isoformat("T") + "Z"), 0, wx.EXPAND)
+                    ir_view_sizer.Add(make_labelledline(indx_panel, "Changed", e.filename_information().changed_time().isoformat("T") + "Z"), 0, wx.EXPAND)
+                    ir_view_sizer.Add(make_labelledline(indx_panel, "Accessed", e.filename_information().accessed_time().isoformat("T") + "Z"), 0, wx.EXPAND)
+                    indx_panel_sizer.Add(ir_view_sizer, 0, wx.ALL|wx.EXPAND)
+                for e in irh.node_header().slack_entries():
+                    ir_view = wx.StaticBox(indx_panel, -1, "Slack INDX Record Information")
+                    ir_view_sizer = wx.StaticBoxSizer(ir_view, wx.VERTICAL)
+                    ir_view_sizer.Add(make_labelledline(indx_panel, "Filename", e.filename_information().filename()), 0, wx.EXPAND)
+                    indx_panel_sizer.Add(ir_view_sizer, 0, wx.ALL|wx.EXPAND)
+            for attr in record.attributes():
+                if attr.type() != ATTR_TYPE.INDEX_ALLOCATION:
+                    continue
+                if attr.non_resident() != 0:
+                    # indx allocation is non-resident
+                    for (offset, length) in attr.runlist().runs():
+                        indx_panel_sizer.Add(make_runlistpanel(indx_panel, offset, length), 0, wx.EXPAND)
+
+            indx_panel.SetAutoLayout(1)
+            indx_panel.SetupScrolling()
+            nb.AddPage(indx_panel, "INDX")
 
         self._sizer.Add(nb, 1, wx.EXPAND)
         self._sizer.Layout()
@@ -394,6 +475,7 @@ class MFTRecordView(wx.Panel):
         self._sizer.Clear()
         self._sizer.Add(wx.Panel(self, -1), 1, wx.EXPAND)
         self._sizer.Layout()
+
 
 class MFTFileView(wx.Panel):
     def __init__(self, parent, filename):
@@ -412,7 +494,7 @@ class MFTFileView(wx.Panel):
         _expand_into(panel_right, self._recordview)
 
         vsplitter.SplitVertically(panel_left, panel_right)
-        vsplitter.SetSashPosition(275, True)
+        vsplitter.SetSashPosition(265, True)
         _expand_into(self, vsplitter)
         self.Centre()
 
@@ -430,7 +512,7 @@ class MFTFileView(wx.Panel):
             "offset": 0,
             "clustersize": 4096,
             "prefix": "C:",
-            "progress": False
+            "progress": False,
         })
 
         try:
@@ -441,9 +523,11 @@ class MFTFileView(wx.Panel):
 
         self._recordview.display_record(record)
 
+
 class MFTFileViewer(wx.Frame):
     def __init__(self, parent, filename):
-        super(MFTFileViewer, self).__init__(parent, -1, "MFT File Viewer", size=(800, 600))
+        super(MFTFileViewer, self).__init__(parent, -1, "MFT File Viewer",
+                                            size=(800, 600))
         self.CreateStatusBar()
 
         menu_bar = wx.MenuBar()
@@ -452,7 +536,7 @@ class MFTFileViewer(wx.Frame):
 
         p = wx.Panel(self)
         self._nb = wx.Notebook(p)
-        
+
         view = MFTFileView(self._nb, filename)
         self._nb.AddPage(view, filename)
 
@@ -460,16 +544,19 @@ class MFTFileViewer(wx.Frame):
         self.Layout()
 
 import threading
+
+
 def start(func, *args):
     thread = threading.Thread(target=func, args=args)
     thread.setDaemon(True)
     thread.start()
 
+
 def test(dialog):
     def foo(count, total):
         update_str = "%d / %d\n%0.2f%% Complete\n" % \
-                     ( count, total, 100 * count / float(total))
-        wx.CallAfter(dialog.Update, 
+                     (count, total, 100 * count / float(total))
+        wx.CallAfter(dialog.Update,
                      100 * count / float(total), update_str)
     m = MFTModel(sys.argv[1])
     m.fetch(progress_fn=foo)
