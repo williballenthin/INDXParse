@@ -276,6 +276,65 @@ class LabelledLine(wx.Panel):
     def update(self, value):
         self._text.SetValue(value)
 
+
+class RunlistPanel(wx.Panel):
+    def __init__(self, parent, offset, length):
+        super(RunlistPanel, self).__init__(parent, -1)
+
+        self._sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        sb = wx.StaticBox(parent, -1, "Cluster Run")
+        sbs = wx.StaticBoxSizer(sb, wx.VERTICAL)
+
+        hbox1 = wx.BoxSizer(wx.HORIZONTAL)
+        hbox2 = wx.BoxSizer(wx.HORIZONTAL)
+        hbox3 = wx.BoxSizer(wx.HORIZONTAL)
+        hbox4 = wx.BoxSizer(wx.HORIZONTAL)
+        hbox5 = wx.BoxSizer(wx.HORIZONTAL)
+
+        hbox1.Add(wx.StaticText(self, label="Offset (clusters)"), 1, wx.EXPAND)
+        self._base_offset_text = wx.TextCtrl(self, -1,
+                                             "", style=wx.TE_READONLY)
+        hbox1.Add(self._base_offset_text, 1, wx.EXPAND)
+
+        hbox2.Add(wx.StaticText(self, label="Length (clusters)"), 1, wx.EXPAND)
+        self._base_length_text = wx.TextCtrl(self, -1, "",
+                                             style=wx.TE_READONLY)
+        hbox2.Add(self._base_length_text, 1, wx.EXPAND)
+
+        hbox3.Add(wx.StaticText(self, label="Offset (bytes)"), 1, wx.EXPAND)
+        self._cluster_offset_text = wx.TextCtrl(self, -1, "",
+                                                style=wx.TE_READONLY)
+        hbox3.Add(self._cluster_offset_text, 1, wx.EXPAND)
+
+        hbox4.Add(wx.StaticText(self, label="Length (bytes)"), 1, wx.EXPAND)
+        self._cluster_length_text = wx.TextCtrl(self, -1, "",
+                                                style=wx.TE_READONLY)
+        hbox4.Add(self._cluster_length_text, 1, wx.EXPAND)
+
+        hbox5.Add(wx.StaticLine(self, -1, size=(200, 4),
+                                style=wx.LI_HORIZONTAL), 1, wx.EXPAND)
+        sbs.Add(hbox1, 1, wx.EXPAND)
+        sbs.Add(hbox2, 1, wx.EXPAND)
+        sbs.Add(hbox3, 1, wx.EXPAND)
+        sbs.Add(hbox4, 1, wx.EXPAND)
+        sbs.Add(hbox5, 1, wx.EXPAND)
+
+        self._sizer.Add(sbs, -1, wx.EXPAND)
+        self.SetSizer(self._sizer)
+
+        self.update(offset, length)
+
+    def update(self, offset, length):
+        self._base_offset_text.SetValue(str(offset))
+        self._base_length_text.SetValue(str(length))
+        self._cluster_offset_text.SetValue(str(32256 + offset * 4096))
+        self._cluster_length_text.SetValue(str(length * 4096))
+
+    def get_sizer(self):
+        return self._sizer
+
+
 def make_runlistpanel(parent, offset, length):
     pane = wx.Panel(parent, -1)
     sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -338,8 +397,12 @@ class RecordPane(scrolled.ScrolledPanel):
         self.EXPAND_VERTICALLY = 1
         self.NOT_EXPAND_VERTICALLY = 0
 
+        self.SetAutoLayout(1)
+        self.SetupScrolling()
+
     def update(self, record):
         self._record = record
+
 
 class RecordHexPane(RecordPane):
     """
@@ -359,9 +422,11 @@ class RecordHexPane(RecordPane):
         self._record = record
         self._text.SetValue(unicode(_format_hex((self._record._buf.tostring()))))
 
+
 class RecordMetadataPane(RecordPane):
     """
-
+    Display metadata from the MFT record header, $SI, and $FN attributes.
+    Warning, this has two pretty long methods...
     @param record (keyword) A record instance.
     """
     def __init__(self, *args, **kwargs):
@@ -371,10 +436,126 @@ class RecordMetadataPane(RecordPane):
         record_box = wx.StaticBox(self, -1, "MFT Record")
         record_box_sizer = wx.StaticBoxSizer(record_box, wx.VERTICAL)
         # note, the parent must be `self`, not the `record_box`
-        record_number = LabelledLine(self, "MFT Record Number",
-                                         str(self._record.mft_record_number()))
-        record_box_sizer.Add(record_number, self.NOT_EXPAND_VERTICALLY,
+        self._record_number = LabelledLine(self, "MFT Record Number", "")
+        record_box_sizer.Add(self._record_number,
+                             self.NOT_EXPAND_VERTICALLY,
                              wx.EXPAND)
+
+        self._record_attributes_line = LabelledLine(self, "Attributes", "")
+        record_box_sizer.Add(self._record_attributes_line,
+                             self.NOT_EXPAND_VERTICALLY,
+                             wx.EXPAND)
+
+        self._record_size_line = LabelledLine(self, "Size (bytes)", "")
+        record_box_sizer.Add(self._record_size_line,
+                             self.NOT_EXPAND_VERTICALLY,
+                             wx.EXPAND)
+
+        self._seq_line = LabelledLine(self, "Sequence Number", "")
+        record_box_sizer.Add(self._seq_line,
+                             self.NOT_EXPAND_VERTICALLY,
+                             wx.EXPAND)
+
+        # note, must add the sizer, not the `record_box`
+        self._sizer.Add(record_box_sizer, self.NOT_EXPAND_VERTICALLY,
+                        wx.EXPAND)
+
+        self._si_box = wx.StaticBox(self, -1, "Standard Information Attribute")
+        si_box_sizer = wx.StaticBoxSizer(self._si_box, wx.VERTICAL)
+
+        self._si_attributes_line = LabelledLine(self, "Attributes", "")
+        si_box_sizer.Add(self._si_attributes_line, self.NOT_EXPAND_VERTICALLY,
+                             wx.EXPAND)
+
+        self._si_created_line = LabelledLine(self, "Created", "")
+        si_box_sizer.Add(self._si_created_line,
+                         self.NOT_EXPAND_VERTICALLY,
+                         wx.EXPAND)
+
+        self._si_modified_line = LabelledLine(self, "Modified", "")
+        si_box_sizer.Add(self._si_modified_line,
+                         self.NOT_EXPAND_VERTICALLY,
+                         wx.EXPAND)
+
+        self._si_changed_line = LabelledLine(self, "Changed", "")
+        si_box_sizer.Add(self._si_changed_line,
+                         self.NOT_EXPAND_VERTICALLY,
+                         wx.EXPAND)
+
+        self._si_accessed_line = LabelledLine(self, "Accessed", "")
+        si_box_sizer.Add(self._si_accessed_line,
+                         self.NOT_EXPAND_VERTICALLY,
+                         wx.EXPAND)
+
+        self._sizer.Add(si_box_sizer, self.NOT_EXPAND_VERTICALLY,
+                        wx.EXPAND)
+
+        class SimpleObject(object):
+            def __init__(self, *args, **kwargs):
+                super(SimpleObject, self).__init__(*args, **kwargs)
+
+        self._fn = {}
+        for a in [3, 1, 2, 0]:  # order so that most common at top
+            self._fn[a] = SimpleObject()
+
+            filename_type = ["POSIX", "WIN32", "DOS 8.3", "WIN32 + DOS 8.3"][a]
+            self._fn[a].box = wx.StaticBox(self, -1,
+                                      "Filename Information Attribute (%s)" % \
+                                      (filename_type))
+            fn_box_sizer = wx.StaticBoxSizer(self._fn[a].box, wx.VERTICAL)
+            self._fn[a].name_line = LabelledLine(self, "Filename", "")
+            fn_box_sizer.Add(self._fn[a].name_line, self.NOT_EXPAND_VERTICALLY,
+                             wx.EXPAND)
+
+            self._fn[a].attributes_line = LabelledLine(self, "Attributes", "")
+            fn_box_sizer.Add(self._fn[a].attributes_line,
+                             self.NOT_EXPAND_VERTICALLY,
+                             wx.EXPAND)
+
+            self._fn[a].alloc_size_line = LabelledLine(self,
+                                                      "Allocated Size (bytes)",
+                                                      "")
+            fn_box_sizer.Add(self._fn[a].alloc_size_line,
+                             self.NOT_EXPAND_VERTICALLY,
+                             wx.EXPAND)
+
+            self._fn[a].log_size_line = LabelledLine(self,
+                                                     "Logical Size (bytes)",
+                                                     "")
+            fn_box_sizer.Add(self._fn[a].log_size_line,
+                             self.NOT_EXPAND_VERTICALLY,
+                             wx.EXPAND)
+
+            self._fn[a].created_line = LabelledLine(self, "Created", "")
+            fn_box_sizer.Add(self._fn[a].created_line,
+                             self.NOT_EXPAND_VERTICALLY,
+                             wx.EXPAND)
+
+            self._fn[a].modified_line = LabelledLine(self, "Modified", "")
+            fn_box_sizer.Add(self._fn[a].modified_line,
+                             self.NOT_EXPAND_VERTICALLY,
+                             wx.EXPAND)
+
+            self._fn[a].changed_line = LabelledLine(self, "Changed", "")
+            fn_box_sizer.Add(self._fn[a].changed_line,
+                             self.NOT_EXPAND_VERTICALLY,
+                             wx.EXPAND)
+
+            self._fn[a].accessed_line = LabelledLine(self, "Accessed", "")
+            fn_box_sizer.Add(self._fn[a].accessed_line,
+                             self.NOT_EXPAND_VERTICALLY,
+                             wx.EXPAND)
+
+            self._sizer.Add(fn_box_sizer, self.NOT_EXPAND_VERTICALLY,
+                            wx.EXPAND)
+
+        if self._record:
+            self.update(self._record)
+
+    def update(self, record):
+        self._record = record
+
+        self._record_number.update(str(self._record.mft_record_number()))
 
         attributes = []
         if self._record.is_directory():
@@ -385,11 +566,7 @@ class RecordMetadataPane(RecordPane):
             attributes.append("active")
         else:
             attributes.append("deleted")
-
-        attributes_line = LabelledLine(self, "Attributes",
-                                            ", ".join(attributes))
-        record_box_sizer.Add(attributes_line, self.NOT_EXPAND_VERTICALLY,
-                             wx.EXPAND)
+        self._record_attributes_line.update(", ".join(attributes))
 
         size = 0
         if not self._record.is_directory():
@@ -399,19 +576,8 @@ class RecordMetadataPane(RecordPane):
             else:
                 size = self._record.filename_information().logical_size()
 
-        size_line = LabelledLine(self, "Size (bytes)", str(size))
-        record_box_sizer.Add(size_line, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
-
-        seq_line = LabelledLine(self, "Sequence Number",
-                                     str(self._record.sequence_number()))
-        record_box_sizer.Add(seq_line, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
-
-        # note, must add the sizer, not the `record_box`
-        self._sizer.Add(record_box_sizer, self.NOT_EXPAND_VERTICALLY,
-                        wx.EXPAND)
-
-        si_box = wx.StaticBox(self, -1, "Standard Information Attribute")
-        si_box_sizer = wx.StaticBoxSizer(si_box, wx.VERTICAL)
+        self._record_size_line.update(str(size))
+        self._seq_line.update(str(self._record.sequence_number()))
 
         attributes = []
         if self._record.standard_information().attributes() & 0x01:
@@ -448,54 +614,38 @@ class RecordMetadataPane(RecordPane):
             attributes.append("has-indx")
         if self._record.standard_information().attributes() & 0x20000000:
             attributes.append("has-view-index")
-        attributes_line = LabelledLine(self, "Attributes",
-                                            ", ".join(attributes))
-        si_box_sizer.Add(attributes_line, self.NOT_EXPAND_VERTICALLY,
-                             wx.EXPAND)
+        self._si_attributes_line.update(", ".join(attributes))
 
-        crtime = self._record.standard_information().created_time()
-        created_line = LabelledLine(self, "Created", str(crtime))
-        si_box_sizer.Add(created_line, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
+        crtime = self._record.standard_information().created_time().isoformat("T")
+        self._si_created_line.update(crtime + "Z")
 
-        mtime = self._record.standard_information().modified_time()
-        modified_line = LabelledLine(self, "Modified", str(mtime))
-        si_box_sizer.Add(modified_line, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
+        mtime = self._record.standard_information().modified_time().isoformat("T")
+        self._si_modified_line.update(mtime + "Z")
 
-        chtime = self._record.standard_information().changed_time()
-        changed_line = LabelledLine(self, "Changed", str(chtime))
-        si_box_sizer.Add(changed_line, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
+        chtime = self._record.standard_information().changed_time().isoformat("T")
+        self._si_changed_line.update(chtime + "Z")
 
-        atime = self._record.standard_information().accessed_time()
-        accessed_line = LabelledLine(self, "Accessed", str(atime))
-        si_box_sizer.Add(accessed_line, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
+        atime = self._record.standard_information().accessed_time().isoformat("T")
+        self._si_accessed_line.update(atime + "Z")
 
-        self._sizer.Add(si_box_sizer, self.NOT_EXPAND_VERTICALLY,
-                        wx.EXPAND)
+        for i in self._fn:
+            self._fn[i].name_line.update("<not present>")
+            self._fn[i].attributes_line.update("")
+            self._fn[i].alloc_size_line.update("")
+            self._fn[i].log_size_line.update("")
+            self._fn[i].created_line.update("")
+            self._fn[i].modified_line.update("")
+            self._fn[i].changed_line.update("")
+            self._fn[i].accessed_line.update("")
 
-        for a in self._record.attributes():
-            if a.type() != ATTR_TYPE.FILENAME_INFORMATION:
+        for b in self._record.attributes():
+            if b.type() != ATTR_TYPE.FILENAME_INFORMATION:
                 continue
             try:
-                attr = FilenameAttribute(a.value(), 0, self)
-                filename_type = ""
-                if attr.filename_type() == 0x0:
-                    filename_type = "POSIX"
-                if attr.filename_type() == 0x1:
-                    filename_type = "WIN32"
-                if attr.filename_type() == 0x2:
-                    filename_type = "DOS 8.3"
-                if attr.filename_type() == 0x3:
-                    filename_type = "WIN32 + DOS"
+                attr = FilenameAttribute(b.value(), 0, self)
+                a = attr.filename_type()
 
-                fn_box = wx.StaticBox(self, -1,
-                                      "Filename Information Attribute (%s)" % \
-                                          (filename_type))
-                fn_box_sizer = wx.StaticBoxSizer(fn_box, wx.VERTICAL)
-
-                name_line = LabelledLine(self, "Filename",
-                                              str(attr.filename()))
-                fn_box_sizer.Add(name_line, self.NOT_EXPAND_VERTICALLY,
-                                 wx.EXPAND)
+                self._fn[a].name_line.update(str(attr.filename()))
 
                 attributes = []
                 if attr.flags() & 0x01:
@@ -532,56 +682,95 @@ class RecordMetadataPane(RecordPane):
                     attributes.append("has-indx")
                 if attr.flags() & 0x20000000:
                     attributes.append("has-view-index")
-                attributes_line = LabelledLine(self, "Attributes",
-                                                    ", ".join(attributes))
-                fn_box_sizer.Add(attributes_line, self.NOT_EXPAND_VERTICALLY,
-                                 wx.EXPAND)
+                self._fn[a].attributes_line.update(", ".join(attributes))
 
-                alloc_size_line = LabelledLine(self,
-                                                    "Allocated Size (bytes)",
-                                                    str(attr.physical_size()))
-                fn_box_sizer.Add(alloc_size_line,
-                                  self.NOT_EXPAND_VERTICALLY,
-                                  wx.EXPAND)
+                self._fn[a].alloc_size_line.update(str(attr.physical_size()))
+                self._fn[a].log_size_line.update(str(attr.logical_size()))
 
-                log_size_line = LabelledLine(self,
-                                                  "Logical Size (bytes)",
-                                                  str(attr.logical_size()))
-                fn_box_sizer.Add(log_size_line,
-                                  self.NOT_EXPAND_VERTICALLY,
-                                  wx.EXPAND)
+                crtime = attr.created_time().isoformat("T")
+                self._fn[a].created_line.update(crtime + "Z")
 
-                crtime = attr.created_time()
-                created_line = LabelledLine(self, "Created", str(crtime))
-                fn_box_sizer.Add(created_line, self.NOT_EXPAND_VERTICALLY,
-                                 wx.EXPAND)
+                mtime = attr.modified_time().isoformat("T")
+                self._fn[a].modified_line.update(mtime + "Z")
 
-                mtime = attr.modified_time()
-                modified_line = LabelledLine(self, "Modified", str(mtime))
-                fn_box_sizer.Add(modified_line, self.NOT_EXPAND_VERTICALLY,
-                                 wx.EXPAND)
+                chtime = attr.changed_time().isoformat("T")
+                self._fn[a].changed_line.update(chtime + "Z")
 
-                chtime = attr.changed_time()
-                changed_line = LabelledLine(self, "Changed", str(chtime))
-                fn_box_sizer.Add(changed_line, self.NOT_EXPAND_VERTICALLY,
-                                 wx.EXPAND)
+                atime = attr.accessed_time().isoformat("T")
+                self._fn[a].accessed_line.update(atime + "Z")
 
-                atime = attr.accessed_time()
-                accessed_line = LabelledLine(self, "Accessed", str(atime))
-                fn_box_sizer.Add(accessed_line, self.NOT_EXPAND_VERTICALLY,
-                                 wx.EXPAND)
-
-                self._sizer.Add(fn_box_sizer, self.NOT_EXPAND_VERTICALLY,
-                                wx.EXPAND)
-            except Exception:
+            except ZeroDivisionError:
                 continue
+        self.Layout()
 
+
+class DynamicPane(RecordPane):
+    """
+    @param record (keyword) A record instance.
+    """
+    def __init__(self, *args, **kwargs):
+        super(DynamicPane, self).__init__(*args, **kwargs)
+        self._child = None
+        self._text = wx.TextCtrl(self, -1, style=wx.TE_MULTILINE)
+        self._text.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
+                          wx.NORMAL, False, u'Courier'))
+        self._sizer.Add(self._text, self.EXPAND_VERTICALLY, wx.EXPAND)
+        self._count = 0
+        if self._record:
+            self.update(self._record)
+
+    def update(self, record):
+        self._count += 1
+
+        self._sizer.Clear()
+
+        self._child = wx.TextCtrl(self, -1, "%d" % (self._count),
+                                  style=wx.TE_MULTILINE)
+        self._child.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
+                          wx.NORMAL, False, u'Courier'))
+        self._sizer.Add(self._child, self.EXPAND_VERTICALLY, wx.EXPAND)
+
+
+class RecordDataPane(RecordPane):
+    """
+    @param record (keyword) A record instance.
+    """
+    def __init__(self, *args, **kwargs):
+        super(RecordDataPane, self).__init__(*args, **kwargs)
+        self._child = None
         if self._record:
             self.update(self._record)
 
     def update(self, record):
         self._record = record
-        self._text.SetValue(unicode(_format_hex((self._record._buf.tostring()))))
+        self._sizer.Clear()  # <-- really annoyed at this.
+        print len([c for c in self._sizer.Children])
+
+        for attr in self._record.attributes():
+            if attr.type() == ATTR_TYPE.DATA:
+                try:
+                    if attr.non_resident():
+                        continue  # TODO(wb)
+                        try:
+                            for (offset, length) in attr.runlist().runs():
+                                runlist_panel = RunlistPanel(self, offset, length)
+                                self._sizer.Add(runlist_panel,
+                                                0, wx.EXPAND)
+                        except IndexError:
+                            sys.stderr.write("Error parsing runlist\n")
+                            continue
+                    else:
+                        value_view = wx.TextCtrl(self,
+                                                 style=wx.TE_MULTILINE)
+                        self._child = value_view
+                        value_view.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
+                                                 wx.NORMAL, False, u'Courier'))
+                        value_view.SetValue(unicode(_format_hex(attr.value())))
+                        self._sizer.Add(value_view, 1, wx.EXPAND)
+                except ZeroDivisionError:
+                    continue
+        print ">", len([c for c in self._sizer.Children])
+
 
 class MFTRecordView(wx.Panel):
     def __init__(self, *args, **kwargs):
@@ -595,18 +784,20 @@ class MFTRecordView(wx.Panel):
         nb = wx.Notebook(self, -1)
 
         self._hex_view = RecordHexPane(nb, -1)
-#        self._meta_view = RecordMetadataPane(nb, -1, record=record)
+        self._meta_view = RecordMetadataPane(nb, -1)
+        self._data_view = RecordDataPane(nb, -1)
 
         nb.AddPage(self._hex_view, "Hex Dump")
-#        nb.AddPage(self._meta_view, "Metadata")
+        nb.AddPage(self._meta_view, "Metadata")
+        nb.AddPage(self._data_view, "Data")
 
         self._sizer.Add(nb, 1, wx.EXPAND)
         self._sizer.Layout()
 
-
     def display_record(self, record):
         self._hex_view.update(record)
-#        self._meta_view.update(record)
+        self._meta_view.update(record)
+        self._data_view.update(record)
 
         comment = """
 
