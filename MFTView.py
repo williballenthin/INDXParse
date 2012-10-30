@@ -35,6 +35,26 @@ def _expand_into(dest, src):
     dest.SetSizer(vbox)
 
 
+def _format_hex(data):
+    """
+    see http://code.activestate.com/recipes/142812/
+    """
+    FILTER = ''.join([(len(repr(chr(x))) == 3) and chr(x) or '.'
+                      for x in range(256)])
+
+    def dump(src, length=16):
+        N = 0
+        result = ''
+        while src:
+            s, src = src[:length], src[length:]
+            hexa = ' '.join(["%02X" % ord(x) for x in s])
+            s = s.translate(FILTER)
+            result += "%04X   %-*s   %s\n" % (N, length * 3, hexa, s)
+            N += length
+        return result
+    return dump(data)
+
+
 class Node():
     def __init__(self, number, name, parent, is_directory):
         self._number = number
@@ -243,14 +263,18 @@ class MFTTreeCtrl(wx.TreeCtrl):
             self._extend(item)
 
 
-def make_labelledline(parent, label, value):
-    pane = wx.Panel(parent, -1)
-    sizer = wx.BoxSizer(wx.HORIZONTAL)
-    sizer.Add(wx.StaticText(pane, -1, label), 1, wx.EXPAND)
-    sizer.Add(wx.TextCtrl(pane, -1, value, style=wx.TE_READONLY), 1, wx.EXPAND)
-    pane.SetSizer(sizer)
-    return pane
+class LabelledLine(wx.Panel):
+    def __init__(self, parent, label, value):
+        super(LabelledLine, self).__init__(parent, -1)
+        self._sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self._sizer.Add(wx.StaticText(self, -1, label), 1, wx.EXPAND)
+        self._text = wx.TextCtrl(self, -1, style=wx.TE_LEFT)
+        self._sizer.Add(self._text, 1, wx.EXPAND)
+        self.SetSizer(self._sizer)
+        self.update(value)
 
+    def update(self, value):
+        self._text.SetValue(value)
 
 def make_runlistpanel(parent, offset, length):
     pane = wx.Panel(parent, -1)
@@ -291,6 +315,274 @@ def make_runlistpanel(parent, offset, length):
     return pane
 
 
+class RecordPane(scrolled.ScrolledPanel):
+    """
+    Displays some information about an MFT record.
+    This is a superclass to things that might show
+      interesting information.
+    @param record (keyword) A record instance.
+    """
+    def __init__(self, *args, **kwargs):
+        self._record = kwargs.get("record", None)
+        try:
+            del kwargs["record"]
+        except KeyError:
+            pass
+        super(RecordPane, self).__init__(*args, **kwargs)
+        self._sizer = wx.BoxSizer(wx.VERTICAL)
+        self.SetSizer(self._sizer)
+
+        # this is only for readability, and is
+        # specific to the wx.VERTICAL box sizer
+        # used here
+        self.EXPAND_VERTICALLY = 1
+        self.NOT_EXPAND_VERTICALLY = 0
+
+    def update(self, record):
+        self._record = record
+
+class RecordHexPane(RecordPane):
+    """
+    Displays a hex dump of the entire MFT record.
+    @param record (keyword) A record instance.
+    """
+    def __init__(self, *args, **kwargs):
+        super(RecordHexPane, self).__init__(*args, **kwargs)
+        self._text = wx.TextCtrl(self, -1, style=wx.TE_MULTILINE)
+        self._text.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
+                          wx.NORMAL, False, u'Courier'))
+        self._sizer.Add(self._text, self.EXPAND_VERTICALLY, wx.EXPAND)
+        if self._record:
+            self.update(self._record)
+
+    def update(self, record):
+        self._record = record
+        self._text.SetValue(unicode(_format_hex((self._record._buf.tostring()))))
+
+class RecordMetadataPane(RecordPane):
+    """
+
+    @param record (keyword) A record instance.
+    """
+    def __init__(self, *args, **kwargs):
+        super(RecordMetadataPane, self).__init__(*args, **kwargs)
+
+        # note, the parent must be `self`
+        record_box = wx.StaticBox(self, -1, "MFT Record")
+        record_box_sizer = wx.StaticBoxSizer(record_box, wx.VERTICAL)
+        # note, the parent must be `self`, not the `record_box`
+        record_number = LabelledLine(self, "MFT Record Number",
+                                         str(self._record.mft_record_number()))
+        record_box_sizer.Add(record_number, self.NOT_EXPAND_VERTICALLY,
+                             wx.EXPAND)
+
+        attributes = []
+        if self._record.is_directory():
+            attributes.append("directory")
+        else:
+            attributes.append("file")
+        if self._record.is_active():
+            attributes.append("active")
+        else:
+            attributes.append("deleted")
+
+        attributes_line = LabelledLine(self, "Attributes",
+                                            ", ".join(attributes))
+        record_box_sizer.Add(attributes_line, self.NOT_EXPAND_VERTICALLY,
+                             wx.EXPAND)
+
+        size = 0
+        if not self._record.is_directory():
+            data_attr = self._record.data_attribute()
+            if data_attr and data_attr.non_resident() > 0:
+                size = data_attr.data_size()
+            else:
+                size = self._record.filename_information().logical_size()
+
+        size_line = LabelledLine(self, "Size (bytes)", str(size))
+        record_box_sizer.Add(size_line, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
+
+        seq_line = LabelledLine(self, "Sequence Number",
+                                     str(self._record.sequence_number()))
+        record_box_sizer.Add(seq_line, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
+
+        # note, must add the sizer, not the `record_box`
+        self._sizer.Add(record_box_sizer, self.NOT_EXPAND_VERTICALLY,
+                        wx.EXPAND)
+
+        si_box = wx.StaticBox(self, -1, "Standard Information Attribute")
+        si_box_sizer = wx.StaticBoxSizer(si_box, wx.VERTICAL)
+
+        attributes = []
+        if self._record.standard_information().attributes() & 0x01:
+            attributes.append("readonly")
+        if self._record.standard_information().attributes() & 0x02:
+            attributes.append("hidden")
+        if self._record.standard_information().attributes() & 0x04:
+            attributes.append("system")
+        if self._record.standard_information().attributes() & 0x08:
+            attributes.append("unused-dos")
+        if self._record.standard_information().attributes() & 0x10:
+            attributes.append("directory-dos")
+        if self._record.standard_information().attributes() & 0x20:
+            attributes.append("archive")
+        if self._record.standard_information().attributes() & 0x40:
+            attributes.append("device")
+        if self._record.standard_information().attributes() & 0x80:
+            attributes.append("normal")
+        if self._record.standard_information().attributes() & 0x100:
+            attributes.append("temporary")
+        if self._record.standard_information().attributes() & 0x200:
+            attributes.append("sparse")
+        if self._record.standard_information().attributes() & 0x400:
+            attributes.append("reparse-point")
+        if self._record.standard_information().attributes() & 0x800:
+            attributes.append("compressed")
+        if self._record.standard_information().attributes() & 0x1000:
+            attributes.append("offline")
+        if self._record.standard_information().attributes() & 0x2000:
+            attributes.append("not-indexed")
+        if self._record.standard_information().attributes() & 0x4000:
+            attributes.append("encrypted")
+        if self._record.standard_information().attributes() & 0x10000000:
+            attributes.append("has-indx")
+        if self._record.standard_information().attributes() & 0x20000000:
+            attributes.append("has-view-index")
+        attributes_line = LabelledLine(self, "Attributes",
+                                            ", ".join(attributes))
+        si_box_sizer.Add(attributes_line, self.NOT_EXPAND_VERTICALLY,
+                             wx.EXPAND)
+
+        crtime = self._record.standard_information().created_time()
+        created_line = LabelledLine(self, "Created", str(crtime))
+        si_box_sizer.Add(created_line, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
+
+        mtime = self._record.standard_information().modified_time()
+        modified_line = LabelledLine(self, "Modified", str(mtime))
+        si_box_sizer.Add(modified_line, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
+
+        chtime = self._record.standard_information().changed_time()
+        changed_line = LabelledLine(self, "Changed", str(chtime))
+        si_box_sizer.Add(changed_line, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
+
+        atime = self._record.standard_information().accessed_time()
+        accessed_line = LabelledLine(self, "Accessed", str(atime))
+        si_box_sizer.Add(accessed_line, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
+
+        self._sizer.Add(si_box_sizer, self.NOT_EXPAND_VERTICALLY,
+                        wx.EXPAND)
+
+        for a in self._record.attributes():
+            if a.type() != ATTR_TYPE.FILENAME_INFORMATION:
+                continue
+            try:
+                attr = FilenameAttribute(a.value(), 0, self)
+                filename_type = ""
+                if attr.filename_type() == 0x0:
+                    filename_type = "POSIX"
+                if attr.filename_type() == 0x1:
+                    filename_type = "WIN32"
+                if attr.filename_type() == 0x2:
+                    filename_type = "DOS 8.3"
+                if attr.filename_type() == 0x3:
+                    filename_type = "WIN32 + DOS"
+
+                fn_box = wx.StaticBox(self, -1,
+                                      "Filename Information Attribute (%s)" % \
+                                          (filename_type))
+                fn_box_sizer = wx.StaticBoxSizer(fn_box, wx.VERTICAL)
+
+                name_line = LabelledLine(self, "Filename",
+                                              str(attr.filename()))
+                fn_box_sizer.Add(name_line, self.NOT_EXPAND_VERTICALLY,
+                                 wx.EXPAND)
+
+                attributes = []
+                if attr.flags() & 0x01:
+                    attributes.append("readonly")
+                if attr.flags() & 0x02:
+                    attributes.append("hidden")
+                if attr.flags() & 0x04:
+                    attributes.append("system")
+                if attr.flags() & 0x08:
+                    attributes.append("unused-dos")
+                if attr.flags() & 0x10:
+                    attributes.append("directory-dos")
+                if attr.flags() & 0x20:
+                    attributes.append("archive")
+                if attr.flags() & 0x40:
+                    attributes.append("device")
+                if attr.flags() & 0x80:
+                    attributes.append("normal")
+                if attr.flags() & 0x100:
+                    attributes.append("temporary")
+                if attr.flags() & 0x200:
+                    attributes.append("sparse")
+                if attr.flags() & 0x400:
+                    attributes.append("reparse-point")
+                if attr.flags() & 0x800:
+                    attributes.append("compressed")
+                if attr.flags() & 0x1000:
+                    attributes.append("offline")
+                if attr.flags() & 0x2000:
+                    attributes.append("not-indexed")
+                if attr.flags() & 0x4000:
+                    attributes.append("encrypted")
+                if attr.flags() & 0x10000000:
+                    attributes.append("has-indx")
+                if attr.flags() & 0x20000000:
+                    attributes.append("has-view-index")
+                attributes_line = LabelledLine(self, "Attributes",
+                                                    ", ".join(attributes))
+                fn_box_sizer.Add(attributes_line, self.NOT_EXPAND_VERTICALLY,
+                                 wx.EXPAND)
+
+                alloc_size_line = LabelledLine(self,
+                                                    "Allocated Size (bytes)",
+                                                    str(attr.physical_size()))
+                fn_box_sizer.Add(alloc_size_line,
+                                  self.NOT_EXPAND_VERTICALLY,
+                                  wx.EXPAND)
+
+                log_size_line = LabelledLine(self,
+                                                  "Logical Size (bytes)",
+                                                  str(attr.logical_size()))
+                fn_box_sizer.Add(log_size_line,
+                                  self.NOT_EXPAND_VERTICALLY,
+                                  wx.EXPAND)
+
+                crtime = attr.created_time()
+                created_line = LabelledLine(self, "Created", str(crtime))
+                fn_box_sizer.Add(created_line, self.NOT_EXPAND_VERTICALLY,
+                                 wx.EXPAND)
+
+                mtime = attr.modified_time()
+                modified_line = LabelledLine(self, "Modified", str(mtime))
+                fn_box_sizer.Add(modified_line, self.NOT_EXPAND_VERTICALLY,
+                                 wx.EXPAND)
+
+                chtime = attr.changed_time()
+                changed_line = LabelledLine(self, "Changed", str(chtime))
+                fn_box_sizer.Add(changed_line, self.NOT_EXPAND_VERTICALLY,
+                                 wx.EXPAND)
+
+                atime = attr.accessed_time()
+                accessed_line = LabelledLine(self, "Accessed", str(atime))
+                fn_box_sizer.Add(accessed_line, self.NOT_EXPAND_VERTICALLY,
+                                 wx.EXPAND)
+
+                self._sizer.Add(fn_box_sizer, self.NOT_EXPAND_VERTICALLY,
+                                wx.EXPAND)
+            except Exception:
+                continue
+
+        if self._record:
+            self.update(self._record)
+
+    def update(self, record):
+        self._record = record
+        self._text.SetValue(unicode(_format_hex((self._record._buf.tostring()))))
+
 class MFTRecordView(wx.Panel):
     def __init__(self, *args, **kwargs):
         self._model = kwargs.get("model", None)
@@ -300,97 +592,23 @@ class MFTRecordView(wx.Panel):
         self._sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self._sizer)
 
-    def _format_hex(self, data):
-        """
-        see http://code.activestate.com/recipes/142812/
-        """
-        FILTER = ''.join([(len(repr(chr(x))) == 3) and chr(x) or '.'
-                        for x in range(256)])
+        nb = wx.Notebook(self, -1)
 
-        def dump(src, length=16):
-            N = 0
-            result = ''
-            while src:
-                s, src = src[:length], src[length:]
-                hexa = ' '.join(["%02X" % ord(x) for x in s])
-                s = s.translate(FILTER)
-                result += "%04X   %-*s   %s\n" % (N, length * 3, hexa, s)
-                N += length
-            return result
-        return dump(data)
+        self._hex_view = RecordHexPane(nb, -1)
+#        self._meta_view = RecordMetadataPane(nb, -1, record=record)
 
-    def display_value(self, value):
-        self._sizer.Clear()
-        view = wx.TextCtrl(self, style=wx.TE_MULTILINE)
-        view.SetValue(unicode(value))
-        self._sizer.Add(view, 1, wx.EXPAND)
+        nb.AddPage(self._hex_view, "Hex Dump")
+#        nb.AddPage(self._meta_view, "Metadata")
+
+        self._sizer.Add(nb, 1, wx.EXPAND)
         self._sizer.Layout()
 
+
     def display_record(self, record):
-        self._sizer.Clear()
-        fixed_font = wx.Font(8, wx.SWISS, wx.NORMAL,
-                             wx.NORMAL, False, u'Courier')
-        nb = wx.Notebook(self)
+        self._hex_view.update(record)
+#        self._meta_view.update(record)
 
-        hex_view = wx.TextCtrl(nb, style=wx.TE_MULTILINE)
-        hex_view.SetFont(fixed_font)
-        hex_view.SetValue(unicode(self._format_hex(record._buf.tostring())))
-        nb.AddPage(hex_view, "Hex Dump")
-
-        meta_view = scrolled.ScrolledPanel(nb, -1)
-        meta_view_sizer = wx.BoxSizer(wx.VERTICAL)
-        meta_view.SetSizer(meta_view_sizer)
-
-        r_view = wx.StaticBox(meta_view, -1, "MFT Record")
-        r_view_sizer = wx.StaticBoxSizer(r_view, wx.VERTICAL)
-        ll = make_labelledline(meta_view, "MFT Record Number",
-                                           str(record.mft_record_number()))
-        r_view_sizer.Add(ll, 0, wx.EXPAND)
-        if record.is_directory():
-            r_view_sizer.Add(make_labelledline(meta_view, "Size", str(0)),
-                             0, wx.EXPAND)
-        else:
-            data_attr = record.data_attribute()
-            if data_attr and data_attr.non_resident() > 0:
-                size = data_attr.data_size()
-            else:
-                size = record.filename_information().logical_size()
-            r_view_sizer.Add(make_labelledline(meta_view, "Size",
-                                               str(size)), 0, wx.EXPAND)
-
-        ll2 = make_labelledline(meta_view, "Sequence",
-                                           str(record.sequence_number()))
-        r_view_sizer.Add(ll2, 0, wx.EXPAND)
-        meta_view_sizer.Add(r_view_sizer, 0, wx.ALL | wx.EXPAND)
-
-        si_view = wx.StaticBox(meta_view, -1, "Standard Information")
-        si_view_sizer = wx.StaticBoxSizer(si_view, wx.VERTICAL)
-        si_view_sizer.Add(make_labelledline(meta_view, "Created", str(record.standard_information().created_time())), 0, wx.EXPAND)
-        si_view_sizer.Add(make_labelledline(meta_view, "Modified", str(record.standard_information().modified_time())), 0, wx.EXPAND)
-        si_view_sizer.Add(make_labelledline(meta_view, "Changed", str(record.standard_information().changed_time())), 0, wx.EXPAND)
-        si_view_sizer.Add(make_labelledline(meta_view, "Accessed", str(record.standard_information().accessed_time())), 0, wx.EXPAND)
-        meta_view_sizer.Add(si_view_sizer, 0, wx.ALL | wx.EXPAND)
-
-        for a in record.attributes():
-            if a.type() == ATTR_TYPE.FILENAME_INFORMATION:
-                try:
-                    attr = FilenameAttribute(a.value(), 0, self)
-
-                    fn_view = wx.StaticBox(meta_view, -1, "Filename Information, type " + hex(attr.filename_type()))
-                    fn_view_sizer = wx.StaticBoxSizer(fn_view, wx.VERTICAL)
-                    fn_view_sizer.Add(make_labelledline(meta_view, "Filename", str(attr.filename())), 0, wx.EXPAND)
-                    fn_view_sizer.Add(make_labelledline(meta_view, "Allocated Size", str(attr.physical_size())), 0, wx.EXPAND)
-                    fn_view_sizer.Add(make_labelledline(meta_view, "Actual Size", str(attr.logical_size())), 0, wx.EXPAND)
-                    fn_view_sizer.Add(make_labelledline(meta_view, "Created", str(attr.created_time())), 0, wx.EXPAND)
-                    fn_view_sizer.Add(make_labelledline(meta_view, "Modified", str(attr.modified_time())), 0, wx.EXPAND)
-                    fn_view_sizer.Add(make_labelledline(meta_view, "Changed", str(attr.changed_time())), 0, wx.EXPAND)
-                    fn_view_sizer.Add(make_labelledline(meta_view, "Accessed", str(attr.accessed_time())), 0, wx.EXPAND)
-                    meta_view_sizer.Add(fn_view_sizer, 0, wx.ALL|wx.EXPAND)
-                except Exception as e:
-                    continue
-        meta_view.SetAutoLayout(1)
-        meta_view.SetupScrolling()
-        nb.AddPage(meta_view, "Metadata")
+        comment = """
 
         has_data = False
         data_view = wx.Panel(nb, -1)
@@ -410,7 +628,7 @@ class MFTRecordView(wx.Panel):
                     else:
                         value_view = wx.TextCtrl(data_view, style=wx.TE_MULTILINE)
                         value_view.SetFont(fixed_font)
-                        value_view.SetValue(unicode(self._format_hex(attr.value())))
+                        value_view.SetValue(unicode(_format_hex(attr.value())))
                         data_view_sizer.Add(value_view, 1, wx.EXPAND)
                     has_data = True
                 except ZeroDivisionError:
@@ -428,16 +646,16 @@ class MFTRecordView(wx.Panel):
                                        "Attribute, type " + hex(attr.type()))
                 at_view_sizer = wx.StaticBoxSizer(at_view, wx.VERTICAL)
 
-                at_view_sizer.Add(make_labelledline(attr_view, "Type", str(attr.type())), 0, wx.EXPAND)
+                at_view_sizer.Add(LabelledLine(attr_view, "Type", str(attr.type())), 0, wx.EXPAND)
                 name = attr.name()
                 if name == "":
                     name = attr.TYPES[attr.type()]
-                at_view_sizer.Add(make_labelledline(attr_view, "Name", str(name)), 0, wx.EXPAND)
-                at_view_sizer.Add(make_labelledline(attr_view, "Size", str(attr.size())), 0, wx.EXPAND)
+                at_view_sizer.Add(LabelledLine(attr_view, "Name", str(name)), 0, wx.EXPAND)
+                at_view_sizer.Add(LabelledLine(attr_view, "Size", str(attr.size())), 0, wx.EXPAND)
 
                 atd_view = wx.TextCtrl(attr_view, style=wx.TE_MULTILINE)
                 atd_view.SetFont(fixed_font)
-                atd_view.SetValue(unicode(self._format_hex(attr._buf[attr.absolute_offset(0):attr.absolute_offset(0) + attr.size()].tostring())))
+                atd_view.SetValue(unicode(_format_hex(attr._buf[attr.absolute_offset(0):attr.absolute_offset(0) + attr.size()].tostring())))
                 at_view_sizer.Add(atd_view, 1, wx.EXPAND)
 
                 attr_view_sizer.Add(at_view_sizer, 1, wx.ALL|wx.EXPAND)
@@ -459,17 +677,17 @@ class MFTRecordView(wx.Panel):
                 for e in irh.node_header().entries():
                     ir_view = wx.StaticBox(indx_panel, -1, "INDX Record Information")
                     ir_view_sizer = wx.StaticBoxSizer(ir_view, wx.VERTICAL)
-                    ir_view_sizer.Add(make_labelledline(indx_panel, "Filename", e.filename_information().filename()), 0, wx.EXPAND)
-                    ir_view_sizer.Add(make_labelledline(indx_panel, "Size (bytes)", str(e.filename_information().logical_size())), 0, wx.EXPAND)
-                    ir_view_sizer.Add(make_labelledline(indx_panel, "Created", e.filename_information().created_time().isoformat("T") + "Z"), 0, wx.EXPAND)
-                    ir_view_sizer.Add(make_labelledline(indx_panel, "Modified", e.filename_information().modified_time().isoformat("T") + "Z"), 0, wx.EXPAND)
-                    ir_view_sizer.Add(make_labelledline(indx_panel, "Changed", e.filename_information().changed_time().isoformat("T") + "Z"), 0, wx.EXPAND)
-                    ir_view_sizer.Add(make_labelledline(indx_panel, "Accessed", e.filename_information().accessed_time().isoformat("T") + "Z"), 0, wx.EXPAND)
+                    ir_view_sizer.Add(LabelledLine(indx_panel, "Filename", e.filename_information().filename()), 0, wx.EXPAND)
+                    ir_view_sizer.Add(LabelledLine(indx_panel, "Size (bytes)", str(e.filename_information().logical_size())), 0, wx.EXPAND)
+                    ir_view_sizer.Add(LabelledLine(indx_panel, "Created", e.filename_information().created_time().isoformat("T") + "Z"), 0, wx.EXPAND)
+                    ir_view_sizer.Add(LabelledLine(indx_panel, "Modified", e.filename_information().modified_time().isoformat("T") + "Z"), 0, wx.EXPAND)
+                    ir_view_sizer.Add(LabelledLine(indx_panel, "Changed", e.filename_information().changed_time().isoformat("T") + "Z"), 0, wx.EXPAND)
+                    ir_view_sizer.Add(LabelledLine(indx_panel, "Accessed", e.filename_information().accessed_time().isoformat("T") + "Z"), 0, wx.EXPAND)
                     indx_panel_sizer.Add(ir_view_sizer, 0, wx.ALL|wx.EXPAND)
                 for e in irh.node_header().slack_entries():
                     ir_view = wx.StaticBox(indx_panel, -1, "Slack INDX Record Information")
                     ir_view_sizer = wx.StaticBoxSizer(ir_view, wx.VERTICAL)
-                    ir_view_sizer.Add(make_labelledline(indx_panel, "Filename", e.filename_information().filename()), 0, wx.EXPAND)
+                    ir_view_sizer.Add(LabelledLine(indx_panel, "Filename", e.filename_information().filename()), 0, wx.EXPAND)
                     indx_panel_sizer.Add(ir_view_sizer, 0, wx.ALL|wx.EXPAND)
             for attr in record.attributes():
                 if attr.type() != ATTR_TYPE.INDEX_ALLOCATION:
@@ -482,9 +700,7 @@ class MFTRecordView(wx.Panel):
             indx_panel.SetAutoLayout(1)
             indx_panel.SetupScrolling()
             nb.AddPage(indx_panel, "INDX")
-
-        self._sizer.Add(nb, 1, wx.EXPAND)
-        self._sizer.Layout()
+            """
 
     def clear_value(self):
         self._sizer.Clear()
@@ -542,8 +758,9 @@ class MFTFileView(wx.Panel):
 class MFTFileViewer(wx.Frame):
     def __init__(self, parent, filename):
         super(MFTFileViewer, self).__init__(parent, -1, "MFT File Viewer",
-                                            size=(800, 600))
+                                            size=(900, 600))
         self.CreateStatusBar()
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
 
         menu_bar = wx.MenuBar()
         file_menu = wx.Menu()
@@ -558,24 +775,8 @@ class MFTFileViewer(wx.Frame):
         _expand_into(p, self._nb)
         self.Layout()
 
-import threading
-
-
-def start(func, *args):
-    thread = threading.Thread(target=func, args=args)
-    thread.setDaemon(True)
-    thread.start()
-
-
-def test(dialog):
-    def foo(count, total):
-        update_str = "%d / %d\n%0.2f%% Complete\n" % \
-                     (count, total, 100 * count / float(total))
-        wx.CallAfter(dialog.Update,
-                     100 * count / float(total), update_str)
-    m = MFTModel(sys.argv[1])
-    m.fetch(progress_fn=foo)
-    wx.CallAfter(dialog.Destroy)
+    def OnClose(self, event):
+        sys.exit(0)
 
 if __name__ == "__main__":
     app = wx.App(False)
