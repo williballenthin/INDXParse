@@ -21,8 +21,13 @@
 from MFT import *
 import wx
 import wx.lib.scrolledpanel as scrolled
+import  wx.lib.newevent
 
 verbose = False
+
+# RecordUpdatedEvent
+# @param record The updated record.
+RecordUpdatedEvent, EVT_RECORD_UPDATED_EVENT = wx.lib.newevent.NewEvent()
 
 
 def nop(*args, **kwargs):
@@ -70,11 +75,23 @@ class Node():
         return self._name
 
 
-class MFTModel():
-    def __init__(self, filename):
+class AppModel(wx.EvtHandler):
+    """
+    @emit EVT_RECORD_UPDATED_EVENT
+    """
+    def __init__(self, filename, record):
+        super(AppModel, self).__init__()
         self._filename = filename
         self._nodes = {}
         self._orphans = []
+        self._record = record
+
+    def set_record(self, record):
+        self._record = record
+        wx.PostEvent(self, RecordUpdatedEvent(record=record))
+
+    def record(self):
+        return self._record
 
     def get_root(self):
         return self.get_node(5)
@@ -382,9 +399,9 @@ class RecordPane(scrolled.ScrolledPanel):
     @param record (keyword) A record instance.
     """
     def __init__(self, *args, **kwargs):
-        self._record = kwargs.get("record", None)
+        self._model = kwargs.get("model", None)
         try:
-            del kwargs["record"]
+            del kwargs["model"]
         except KeyError:
             pass
         super(RecordPane, self).__init__(*args, **kwargs)
@@ -400,8 +417,10 @@ class RecordPane(scrolled.ScrolledPanel):
         self.SetAutoLayout(1)
         self.SetupScrolling()
 
-    def update(self, record):
-        self._record = record
+        self._model.Bind(EVT_RECORD_UPDATED_EVENT, self.update)
+
+    def update(self, event):
+        print "Warning: Unbound Record Pane update"
 
 
 class RecordHexPane(RecordPane):
@@ -415,12 +434,10 @@ class RecordHexPane(RecordPane):
         self._text.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
                           wx.NORMAL, False, u'Courier'))
         self._sizer.Add(self._text, self.EXPAND_VERTICALLY, wx.EXPAND)
-        if self._record:
-            self.update(self._record)
 
-    def update(self, record):
-        self._record = record
-        self._text.SetValue(unicode(_format_hex((self._record._buf.tostring()))))
+    def update(self, event):
+        event.Skip()
+        self._text.SetValue(unicode(_format_hex(self._model.record()._buf.tostring())))
 
 
 class RecordMetadataPane(RecordPane):
@@ -441,7 +458,7 @@ class RecordMetadataPane(RecordPane):
                              self.NOT_EXPAND_VERTICALLY,
                              wx.EXPAND)
 
-        self._record_attributes_line = LabelledLine(self, "Attributes", "")
+        self._record_attributes_line = LabelledLine(self, "Attributes", "<none>")
         record_box_sizer.Add(self._record_attributes_line,
                              self.NOT_EXPAND_VERTICALLY,
                              wx.EXPAND)
@@ -463,7 +480,7 @@ class RecordMetadataPane(RecordPane):
         self._si_box = wx.StaticBox(self, -1, "Standard Information Attribute")
         si_box_sizer = wx.StaticBoxSizer(self._si_box, wx.VERTICAL)
 
-        self._si_attributes_line = LabelledLine(self, "Attributes", "")
+        self._si_attributes_line = LabelledLine(self, "Attributes", "<none>")
         si_box_sizer.Add(self._si_attributes_line, self.NOT_EXPAND_VERTICALLY,
                              wx.EXPAND)
 
@@ -507,7 +524,7 @@ class RecordMetadataPane(RecordPane):
             fn_box_sizer.Add(self._fn[a].name_line, self.NOT_EXPAND_VERTICALLY,
                              wx.EXPAND)
 
-            self._fn[a].attributes_line = LabelledLine(self, "Attributes", "")
+            self._fn[a].attributes_line = LabelledLine(self, "Attributes", "<none>")
             fn_box_sizer.Add(self._fn[a].attributes_line,
                              self.NOT_EXPAND_VERTICALLY,
                              wx.EXPAND)
@@ -549,83 +566,85 @@ class RecordMetadataPane(RecordPane):
             self._sizer.Add(fn_box_sizer, self.NOT_EXPAND_VERTICALLY,
                             wx.EXPAND)
 
-        if self._record:
-            self.update(self._record)
-
-    def update(self, record):
-        self._record = record
-
-        self._record_number.update(str(self._record.mft_record_number()))
+    def update(self, event):
+        event.Skip()
+        self._record_number.update(str(self._model.record().mft_record_number()))
 
         attributes = []
-        if self._record.is_directory():
+        if self._model.record().is_directory():
             attributes.append("directory")
         else:
             attributes.append("file")
-        if self._record.is_active():
+        if self._model.record().is_active():
             attributes.append("active")
         else:
             attributes.append("deleted")
-        self._record_attributes_line.update(", ".join(attributes))
+        if len(attributes) > 0:
+            self._record_attributes_line.update(", ".join(attributes))
+        else:
+            self._record_attributes_line.update("<none>")
 
         size = 0
-        if not self._record.is_directory():
-            data_attr = self._record.data_attribute()
+        if not self._model.record().is_directory():
+            data_attr = self._model.record().data_attribute()
             if data_attr and data_attr.non_resident() > 0:
                 size = data_attr.data_size()
             else:
-                size = self._record.filename_information().logical_size()
+                size = self._model.record().filename_information().logical_size()
 
         self._record_size_line.update(str(size))
-        self._seq_line.update(str(self._record.sequence_number()))
+        self._seq_line.update(str(self._model.record().sequence_number()))
 
         attributes = []
-        if self._record.standard_information().attributes() & 0x01:
+        if self._model.record().standard_information().attributes() & 0x01:
             attributes.append("readonly")
-        if self._record.standard_information().attributes() & 0x02:
+        if self._model.record().standard_information().attributes() & 0x02:
             attributes.append("hidden")
-        if self._record.standard_information().attributes() & 0x04:
+        if self._model.record().standard_information().attributes() & 0x04:
             attributes.append("system")
-        if self._record.standard_information().attributes() & 0x08:
+        if self._model.record().standard_information().attributes() & 0x08:
             attributes.append("unused-dos")
-        if self._record.standard_information().attributes() & 0x10:
+        if self._model.record().standard_information().attributes() & 0x10:
             attributes.append("directory-dos")
-        if self._record.standard_information().attributes() & 0x20:
+        if self._model.record().standard_information().attributes() & 0x20:
             attributes.append("archive")
-        if self._record.standard_information().attributes() & 0x40:
+        if self._model.record().standard_information().attributes() & 0x40:
             attributes.append("device")
-        if self._record.standard_information().attributes() & 0x80:
+        if self._model.record().standard_information().attributes() & 0x80:
             attributes.append("normal")
-        if self._record.standard_information().attributes() & 0x100:
+        if self._model.record().standard_information().attributes() & 0x100:
             attributes.append("temporary")
-        if self._record.standard_information().attributes() & 0x200:
+        if self._model.record().standard_information().attributes() & 0x200:
             attributes.append("sparse")
-        if self._record.standard_information().attributes() & 0x400:
+        if self._model.record().standard_information().attributes() & 0x400:
             attributes.append("reparse-point")
-        if self._record.standard_information().attributes() & 0x800:
+        if self._model.record().standard_information().attributes() & 0x800:
             attributes.append("compressed")
-        if self._record.standard_information().attributes() & 0x1000:
+        if self._model.record().standard_information().attributes() & 0x1000:
             attributes.append("offline")
-        if self._record.standard_information().attributes() & 0x2000:
+        if self._model.record().standard_information().attributes() & 0x2000:
             attributes.append("not-indexed")
-        if self._record.standard_information().attributes() & 0x4000:
+        if self._model.record().standard_information().attributes() & 0x4000:
             attributes.append("encrypted")
-        if self._record.standard_information().attributes() & 0x10000000:
+        if self._model.record().standard_information().attributes() & 0x10000000:
             attributes.append("has-indx")
-        if self._record.standard_information().attributes() & 0x20000000:
+        if self._model.record().standard_information().attributes() & 0x20000000:
             attributes.append("has-view-index")
-        self._si_attributes_line.update(", ".join(attributes))
+        if len(attributes) > 0:
+            self._si_attributes_line.update(", ".join(attributes))
+        else:
+            self._si_attributes_line.update("<none>")
 
-        crtime = self._record.standard_information().created_time().isoformat("T")
+        crtime = self._model.record().standard_information().created_time().isoformat("T")
         self._si_created_line.update(crtime + "Z")
 
-        mtime = self._record.standard_information().modified_time().isoformat("T")
+        mtime = self._model.record().standard_information().modified_time().isoformat("T")
         self._si_modified_line.update(mtime + "Z")
 
-        chtime = self._record.standard_information().changed_time().isoformat("T")
+        chtime = self._model.record().standard_information().changed_time().isoformat("T")
         self._si_changed_line.update(chtime + "Z")
 
-        atime = self._record.standard_information().accessed_time().isoformat("T")
+        atime = self._model.record().standard_information().accessed_time().isoformat("T")
         self._si_accessed_line.update(atime + "Z")
 
         for i in self._fn:
@@ -638,7 +657,7 @@ class RecordMetadataPane(RecordPane):
             self._fn[i].changed_line.update("")
             self._fn[i].accessed_line.update("")
 
-        for b in self._record.attributes():
+        for b in self._model.record().attributes():
             if b.type() != ATTR_TYPE.FILENAME_INFORMATION:
                 continue
             try:
@@ -682,7 +701,10 @@ class RecordMetadataPane(RecordPane):
                     attributes.append("has-indx")
                 if attr.flags() & 0x20000000:
                     attributes.append("has-view-index")
-                self._fn[a].attributes_line.update(", ".join(attributes))
+                if len(attributes) > 0:
+                    self._fn[a].attributes_line.update(", ".join(attributes))
+                else:
+                    self._fn[a].attributes_line.update("<none>")
 
                 self._fn[a].alloc_size_line.update(str(attr.physical_size()))
                 self._fn[a].log_size_line.update(str(attr.logical_size()))
@@ -704,72 +726,49 @@ class RecordMetadataPane(RecordPane):
         self.Layout()
 
 
-class DynamicPane(RecordPane):
-    """
-    @param record (keyword) A record instance.
-    """
-    def __init__(self, *args, **kwargs):
-        super(DynamicPane, self).__init__(*args, **kwargs)
-        self._child = None
-        self._text = wx.TextCtrl(self, -1, style=wx.TE_MULTILINE)
-        self._text.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
-                          wx.NORMAL, False, u'Courier'))
-        self._sizer.Add(self._text, self.EXPAND_VERTICALLY, wx.EXPAND)
-        self._count = 0
-        if self._record:
-            self.update(self._record)
-
-    def update(self, record):
-        self._count += 1
-
-        self._sizer.Clear()
-
-        self._child = wx.TextCtrl(self, -1, "%d" % (self._count),
-                                  style=wx.TE_MULTILINE)
-        self._child.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
-                          wx.NORMAL, False, u'Courier'))
-        self._sizer.Add(self._child, self.EXPAND_VERTICALLY, wx.EXPAND)
-
-
 class RecordDataPane(RecordPane):
     """
+    Displays information about the data associated with a file.
+    If the file is resident, then this displays a hex dump of the
+      contents.
+    If the file is non-resident, then this displays the cluster
+      runs in (offset, length) sets.
+    Displays each data attribute, including alternate data streams.
+    TODO(wb) differentiate between ADS and main data.
+    TODO(wb) allow custom disk geometry.
     @param record (keyword) A record instance.
     """
     def __init__(self, *args, **kwargs):
         super(RecordDataPane, self).__init__(*args, **kwargs)
-        self._child = None
-        if self._record:
-            self.update(self._record)
 
-    def update(self, record):
-        self._record = record
-        self._sizer.Clear()  # <-- really annoyed at this.
-        print len([c for c in self._sizer.Children])
+    def update(self, event):
+        event.Skip()
+        self._sizer.Clear()  # Note, be sure to call self.Layout() after re-add
+        self.DestroyChildren()
 
-        for attr in self._record.attributes():
+        for attr in self._model.record().attributes():
             if attr.type() == ATTR_TYPE.DATA:
                 try:
                     if attr.non_resident():
-                        continue  # TODO(wb)
                         try:
                             for (offset, length) in attr.runlist().runs():
-                                runlist_panel = RunlistPanel(self, offset, length)
+                                runlist_panel = RunlistPanel(self, offset,
+                                                             length)
                                 self._sizer.Add(runlist_panel,
                                                 0, wx.EXPAND)
                         except IndexError:
                             sys.stderr.write("Error parsing runlist\n")
                             continue
-                    else:
+                    elif len(attr.value()) > 0:
                         value_view = wx.TextCtrl(self,
                                                  style=wx.TE_MULTILINE)
-                        self._child = value_view
                         value_view.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
                                                  wx.NORMAL, False, u'Courier'))
                         value_view.SetValue(unicode(_format_hex(attr.value())))
                         self._sizer.Add(value_view, 1, wx.EXPAND)
                 except ZeroDivisionError:
                     continue
-        print ">", len([c for c in self._sizer.Children])
+        self.Layout()
 
 
 class MFTRecordView(wx.Panel):
@@ -783,49 +782,18 @@ class MFTRecordView(wx.Panel):
 
         nb = wx.Notebook(self, -1)
 
-        self._hex_view = RecordHexPane(nb, -1)
-        self._meta_view = RecordMetadataPane(nb, -1)
-        self._data_view = RecordDataPane(nb, -1)
+        self._hex_view = RecordHexPane(nb, -1, model=self._model)
+        self._meta_view = RecordMetadataPane(nb, -1, model=self._model)
+        self._data_view = RecordDataPane(nb, -1, model=self._model)
 
-        nb.AddPage(self._hex_view, "Hex Dump")
+        nb.AddPage(self._hex_view,  "Hex Dump")
         nb.AddPage(self._meta_view, "Metadata")
         nb.AddPage(self._data_view, "Data")
 
         self._sizer.Add(nb, 1, wx.EXPAND)
         self._sizer.Layout()
 
-    def display_record(self, record):
-        self._hex_view.update(record)
-        self._meta_view.update(record)
-        self._data_view.update(record)
-
         comment = """
-
-        has_data = False
-        data_view = wx.Panel(nb, -1)
-        data_view_sizer = wx.BoxSizer(wx.VERTICAL)
-        data_view.SetSizer(data_view_sizer)
-
-        for attr in record.attributes():
-            if attr.type() == ATTR_TYPE.DATA:
-                try:
-                    if attr.non_resident():
-                        try:
-                            for (offset, length) in attr.runlist().runs():
-                                data_view_sizer.Add(make_runlistpanel(data_view, offset, length), 0, wx.EXPAND)
-                        except IndexError:
-                            sys.stderr.write("Error parsing runlist\n")
-                            continue
-                    else:
-                        value_view = wx.TextCtrl(data_view, style=wx.TE_MULTILINE)
-                        value_view.SetFont(fixed_font)
-                        value_view.SetValue(unicode(_format_hex(attr.value())))
-                        data_view_sizer.Add(value_view, 1, wx.EXPAND)
-                    has_data = True
-                except ZeroDivisionError:
-                    continue
-        if has_data:
-            nb.AddPage(data_view, "Data")
 
         attr_view = scrolled.ScrolledPanel(nb, -1)
         attr_view_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -893,17 +861,12 @@ class MFTRecordView(wx.Panel):
             nb.AddPage(indx_panel, "INDX")
             """
 
-    def clear_value(self):
-        self._sizer.Clear()
-        self._sizer.Add(wx.Panel(self, -1), 1, wx.EXPAND)
-        self._sizer.Layout()
-
 
 class MFTFileView(wx.Panel):
     def __init__(self, parent, filename):
         super(MFTFileView, self).__init__(parent, -1, size=(800, 600))
         self._filename = filename
-        self._model = MFTModel(filename)
+        self._model = AppModel(filename, None)
 
         vsplitter = wx.SplitterWindow(self, -1)
 
@@ -938,12 +901,10 @@ class MFTFileView(wx.Panel):
         })
 
         try:
-            record = f.mft_get_record(rec_num)
+            self._model.set_record(f.mft_get_record(rec_num))
         except InvalidMFTRecordNumber as e:
             sys.stderr.write("Unable to open MFT record %d\n" % (e.value))
             return
-
-        self._recordview.display_record(record)
 
 
 class MFTFileViewer(wx.Frame):
