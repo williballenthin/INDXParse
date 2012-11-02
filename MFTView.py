@@ -18,21 +18,11 @@
 #   limitations under the License.
 #
 #   Version v.2.0.0
-
-
-
-
-# TODO(wb): Unbind handlers when objects die
-
-
-
-
-
-
 from MFT import *
 import wx
 import wx.lib.scrolledpanel as scrolled
 import  wx.lib.newevent
+from wx.lib.evtmgr import eventManager
 
 verbose = False
 
@@ -111,6 +101,12 @@ class AppModel(wx.EvtHandler):
         self._record = record
         self._volume_offset = 32256
         self._cluster_size = 4096
+
+    def GetId(self):
+        """
+        At the moment, this must be a singleton...
+        """
+        return 1
 
     def set_volume_offset(self, volume_offset):
         self._volume_offset = volume_offset
@@ -364,7 +360,7 @@ class RunlistPanel(wx.Panel):
         self._model = model
         self._sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        sb = wx.StaticBox(parent, -1, "Cluster Run")
+        sb = wx.StaticBox(self, -1, "Cluster Run")
         sbs = wx.StaticBoxSizer(sb, wx.VERTICAL)
 
         hbox1 = wx.BoxSizer(wx.HORIZONTAL)
@@ -403,14 +399,18 @@ class RunlistPanel(wx.Panel):
 
         self._sizer.Add(sbs, -1, wx.EXPAND)
         self.SetSizer(self._sizer)
+        self.Layout()
 
         self.update(None)
-        self._model.Bind(EVT_VOLUME_OFFSET_UPDATED_EVENT, self.update)
-        self._model.Bind(EVT_CLUSTER_SIZE_UPDATED_EVENT, self.update)
+        eventManager.Register(self.update, EVT_VOLUME_OFFSET_UPDATED_EVENT, self._model)
+        eventManager.Register(self.update, EVT_CLUSTER_SIZE_UPDATED_EVENT, self._model)
+
+    def __del__(self, *args, **kwargs):
+        eventManager.DeregisterListener(self.update)
+        eventManager.DegisterDeadTopics()
+        super(RunlistPanel, self).__del__(*args, **kwargs)
 
     def update(self, event):
-        if event:
-            event.Skip()
         self._base_offset_text.SetValue(str(self._offset))
         self._base_length_text.SetValue(str(self._length))
         self._cluster_offset_text.SetValue(str(self._model.volume_offset() + self._offset * self._model.cluster_size()))
@@ -429,7 +429,7 @@ class DiskGeometryWarningPanel(wx.Panel):
         self._model = model
         self._sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        sb = wx.StaticBox(parent, -1, "NOTE")
+        sb = wx.StaticBox(self, -1, "NOTE: Check Disk Geometry")
         sbs = wx.StaticBoxSizer(sb, wx.VERTICAL)
         sbs.Add(wx.StaticText(self, label="""
           These byte offsets assume the following disk geometry.
@@ -464,9 +464,22 @@ class DiskGeometryWarningPanel(wx.Panel):
 
         self._sizer.Add(sbs, -1, wx.EXPAND)
         self.SetSizer(self._sizer)
+        self.Layout()
 
-        self._model.Bind(EVT_VOLUME_OFFSET_UPDATED_EVENT, self._updated_volume_offset)
-        self._model.Bind(EVT_CLUSTER_SIZE_UPDATED_EVENT, self._updated_cluster_size)
+        eventManager.Register(self._updated_volume_offset,
+                              EVT_VOLUME_OFFSET_UPDATED_EVENT,
+                              self._model)
+        eventManager.Register(self._updated_cluster_size,
+                              EVT_CLUSTER_SIZE_UPDATED_EVENT,
+                              self._model)
+
+    def __del__(self, *args, **kwargs):
+        self._volume_offset_text.Unbind(wx.EVT_TEXT)
+        self._cluster_size_text.Unbind(wx.EVT_TEXT)
+        eventManager.DeregisterListener(self._updated_volume_offset)
+        eventManager.DeregisterListener(self._updated_cluster_size)
+        eventManager.DeregisterDeadTopics()
+        super(DiskGeometryWarningPanel, self).__del__(*args, **kwargs)
 
     def _volume_offset_changed(self, event):
         """
@@ -499,7 +512,13 @@ class DiskGeometryWarningPanel(wx.Panel):
         Called when the application model is changed that
         results in an updated volume offset.
         """
-        event.Skip()
+
+        # For some reason, references hang around and receive
+        #   events, although they're invalid. So we skip them.
+        #   And probably leak memory.
+        if not self:
+            return
+
         if not self._volume_offset_text.IsModified():
             self._volume_offset_text.ChangeValue(str(self._model.volume_offset()))
 
@@ -508,7 +527,13 @@ class DiskGeometryWarningPanel(wx.Panel):
         Called when the application model is changed that
         results in an updated cluster size.
         """
-        event.Skip()
+
+        # For some reason, references hang around and receive
+        #   events, although they're invalid. So we skip them.
+        #   And probably leak memory.
+        if not self:
+            return
+
         if not self._cluster_size_text.IsModified():
             self._cluster_size_text.ChangeValue(str(self._model.cluster_size()))
 
@@ -539,7 +564,14 @@ class RecordPane(scrolled.ScrolledPanel):
         self.SetAutoLayout(1)
         self.SetupScrolling()
 
-        self._model.Bind(EVT_RECORD_UPDATED_EVENT, self.update)
+        eventManager.Register(self.update,
+                              EVT_RECORD_UPDATED_EVENT,
+                              self._model)
+
+    def __del__(self, *args, **kwargs):
+        eventManager.DeregisterListener(self.update)
+        eventManager.DeregisterDeadTopics()
+        super(RecordPane, self).__del__(*args, **kwargs)
 
     def update(self, event):
         print "Warning: Unbound Record Pane update"
@@ -557,7 +589,6 @@ class RecordHexPane(RecordPane):
         self._sizer.Add(self._text, self.EXPAND_VERTICALLY, wx.EXPAND)
 
     def update(self, event):
-        event.Skip()
         self._text.SetValue(unicode(_format_hex(self._model.record()._buf.tostring())))
 
 
@@ -687,7 +718,6 @@ class RecordMetadataPane(RecordPane):
                             wx.EXPAND)
 
     def update(self, event):
-        event.Skip()
         self._record_number.update(str(self._model.record().mft_record_number()))
 
         attributes = []
@@ -860,12 +890,19 @@ class RecordDataPane(RecordPane):
         super(RecordDataPane, self).__init__(*args, **kwargs)
 
     def update(self, event):
-        event.Skip()
         self._sizer.Clear()
         self.DestroyChildren()
 
-        warning_panel = DiskGeometryWarningPanel(self, self._model)
-        self._sizer.Add(warning_panel, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
+        has_runlists = False
+        for attr in self._model.record().attributes():
+            if attr.type() == ATTR_TYPE.DATA:
+                if attr.non_resident():
+                    for (_, __) in attr.runlist().runs():
+                        has_runlists = True
+
+        if has_runlists:
+            warning_panel = DiskGeometryWarningPanel(self, self._model)
+            self._sizer.Add(warning_panel, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
 
         for attr in self._model.record().attributes():
             if attr.type() == ATTR_TYPE.DATA:
@@ -902,7 +939,6 @@ class RecordAttributePane(RecordPane):
         super(RecordAttributePane, self).__init__(*args, **kwargs)
 
     def update(self, event):
-        event.Skip()
         self._sizer.Clear()
         self.DestroyChildren()
 
@@ -969,15 +1005,23 @@ class RecordINDXPane(RecordPane):
         super(RecordINDXPane, self).__init__(*args, **kwargs)
 
     def update(self, event):
-        event.Skip()
         self._sizer.Clear()  # Note, be sure to call self.Layout() after re-add
         self.DestroyChildren()
 
         if not self._model.record().is_directory():
             return
 
-        warning_panel = DiskGeometryWarningPanel(self, self._model)
-        self._sizer.Add(warning_panel, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
+        has_runlists = False
+        for attr in self._model.record().attributes():
+            if attr.type() != ATTR_TYPE.INDEX_ALLOCATION:
+                continue
+            if attr.non_resident() != 0:
+                for (_, __) in attr.runlist().runs():
+                    has_runlists = True
+
+        if has_runlists:
+            warning_panel = DiskGeometryWarningPanel(self, self._model)
+            self._sizer.Add(warning_panel, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
 
         indxroot = self._model.record().attribute(ATTR_TYPE.INDEX_ROOT)
         if indxroot and indxroot.non_resident() == 0:
@@ -998,7 +1042,7 @@ class RecordINDXPane(RecordPane):
                                   self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
                 ir_view_sizer.Add(LabelledLine(self, "Accessed", e.filename_information().accessed_time().isoformat("T") + "Z"),
                                   self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
-                self._sizer.Add(ir_view_sizer, self.NOT_EXPAND_VERTICALLY, wx.ALL|wx.EXPAND)
+                self._sizer.Add(ir_view_sizer, self.NOT_EXPAND_VERTICALLY, wx.ALL | wx.EXPAND)
             for e in irh.node_header().slack_entries():
                 ir_view = wx.StaticBox(self, -1, "Slack INDX Record Information")
                 ir_view_sizer = wx.StaticBoxSizer(ir_view, wx.VERTICAL)
@@ -1011,11 +1055,16 @@ class RecordINDXPane(RecordPane):
                 continue
             if attr.non_resident() != 0:
                 # indx allocation is non-resident
-                for (offset, length) in attr.runlist().runs():
-                    self._sizer.Add(RunlistPanel(self, offset, length, self._model),
-                                    self.NOT_EXPAND_VERTICALLY,
-                                    wx.EXPAND)
+                rl_view = wx.StaticBox(self, -1, "INDX_ALLOCATION Locations")
+                rl_view_sizer = wx.StaticBoxSizer(rl_view, wx.VERTICAL)
 
+                for (offset, length) in attr.runlist().runs():
+                    rl_view_sizer.Add(RunlistPanel(self, offset, length, self._model),
+                                      self.NOT_EXPAND_VERTICALLY,
+                                      wx.EXPAND)
+                self._sizer.Add(rl_view_sizer,
+                                self.NOT_EXPAND_VERTICALLY,
+                                wx.ALL | wx.EXPAND)
         self.SetAutoLayout(1)
         self.SetupScrolling()
 
@@ -1074,6 +1123,10 @@ class MFTFileView(wx.Panel):
         self.Centre()
 
         self._tree.Bind(wx.EVT_TREE_SEL_CHANGED, self.OnFileSelected)
+
+    def __del__(self, *args, **kwargs):
+        self._tree.Unbind(wx.EVT_TREE_SEL_CHANGED)
+        super(MFTFileView, self).__del__(*args, **kwargs)
 
     def OnFileSelected(self, event):
         item = event.GetItem()
