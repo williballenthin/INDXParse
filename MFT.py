@@ -19,26 +19,35 @@
 #
 #   Version v.1.1.8
 
-import struct, time, array, sys, cPickle, re, os, calendar
+import struct
+import array
+import sys
+import cPickle
+import os
 from datetime import datetime
 import types
 
 verbose = False
+
 
 def debug(message):
     global verbose
     if verbose:
         print "# [d] %s" % (message)
 
+
 def warning(message):
     print "# [w] %s" % (message)
+
 
 def info(message):
     print "# [i] %s" % (message)
 
+
 def error(message):
     print "# [e] %s" % (message)
     sys.exit(-1)
+
 
 class decoratorargs(object):
     def __new__(typ, *attr_args, **attr_kwargs):
@@ -48,17 +57,20 @@ class decoratorargs(object):
             return self
         return decorator
 
+
 class memoize(decoratorargs):
     class Node:
         __slots__ = ['key', 'value', 'older', 'newer']
+
         def __init__(self, key, value, older=None, newer=None):
             self.key = key
             self.value = value
             self.older = older
             self.newer = newer
-            
-    def __init__(self, func, capacity, 
-                 keyfunc=lambda *args, **kwargs: cPickle.dumps((args, kwargs))):
+
+    def __init__(self, func, capacity,
+                 keyfunc=lambda *args, **kwargs: cPickle.dumps((args,
+                                                                kwargs))):
         if not isinstance(func, property):
             self.func = func
             self.name = func.__name__
@@ -70,7 +82,7 @@ class memoize(decoratorargs):
         self.capacity = capacity
         self.keyfunc = keyfunc
         self.reset()
-    
+
     def reset(self):
         self.mru = self.Node(None, None)
         self.mru.older = self.mru.newer = self.mru
@@ -85,7 +97,7 @@ class memoize(decoratorargs):
             return self.__call__()
         else:
             return self
-        
+
     def __call__(self, *args, **kwargs):
         key = self.keyfunc(*args, **kwargs)
         try:
@@ -93,18 +105,15 @@ class memoize(decoratorargs):
         except KeyError:
             # We have an entry not in the cache
             self.misses += 1
- #           try:
             func = types.MethodType(self.func, self.obj, self.name)
             value = func(*args, **kwargs)
-#            except:
-#                value = self.func(*args, **kwargs)                
             lru = self.mru.newer  # Always true
             # If we haven't reached capacity
             if self.count < self.capacity:
                 # Put it between the MRU and LRU - it'll be the new MRU
                 node = self.Node(key, value, self.mru, lru)
                 self.mru.newer = node
-                
+
                 lru.older = node
                 self.mru = node
                 self.count += 1
@@ -113,43 +122,44 @@ class memoize(decoratorargs):
                 # value first
                 try:
                     del self.nodes[lru.key]  # This mapping is now invalid
-                except KeyError: # HACK TODO: this may not work/leak
+                except KeyError:  # HACK TODO: this may not work/leak
                     pass
                 lru.key = key
                 lru.value = value
                 self.mru = lru
-                
+
             # Add the new mapping
             self.nodes[key] = self.mru
             return value
-                                
+
         # We have an entry in the cache
         self.hits += 1
-                                
+
         # If it's already the MRU, do nothing
         if node is self.mru:
             return node.value
-            
+
         lru = self.mru.newer  # Always true
-                
+
         # If it's the LRU, update the MRU to be it
         if node is lru:
             self.mru = lru
             return node.value
-            
+
         # Remove the node from the list
         node.older.newer = node.newer
         node.newer.older = node.older
-                    
+
         # Put it between MRU and LRU
         node.older = self.mru
         self.mru.newer = node
-                    
+
         node.newer = lru
         lru.older = node
-                
+
         self.mru = node
         return node.value
+
 
 def align(offset, alignment):
     """
@@ -162,6 +172,7 @@ def align(offset, alignment):
         return offset
         return offset + (alignment - (offset % alignment))
 
+
 def dosdate(dosdate, dostime):
     """
     `dosdate`: 2 bytes, little endian.
@@ -169,32 +180,34 @@ def dosdate(dosdate, dostime):
     returns: datetime.datetime or datetime.datetime.min on error
     """
     try:
-        t  = ord(dosdate[1]) << 8
+        t = ord(dosdate[1]) << 8
         t |= ord(dosdate[0])
-        day   = t & 0b0000000000011111
+        day = t & 0b0000000000011111
         month = (t & 0b0000000111100000) >> 5
-        year  = (t & 0b1111111000000000) >> 9
+        year = (t & 0b1111111000000000) >> 9
         year += 1980
-        
-        t  = ord(dostime[1]) << 8
+
+        t = ord(dostime[1]) << 8
         t |= ord(dostime[0])
-        sec     = t & 0b0000000000011111
-        sec    *= 2
-        minute  = (t & 0b0000011111100000) >> 5
-        hour    = (t & 0b1111100000000000) >> 11
+        sec = t & 0b0000000000011111
+        sec *= 2
+        minute = (t & 0b0000011111100000) >> 5
+        hour = (t & 0b1111100000000000) >> 11
 
         return datetime.datetime(year, month, day, hour, minute, sec)
     except:
         return datetime.datetime.min
 
+
 def parse_windows_timestamp(qword):
     # see http://integriography.wordpress.com/2010/01/16/using-phython-to-parse-and-present-windows-64-bit-timestamps/
     return datetime.utcfromtimestamp(float(qword) * 1e-7 - 11644473600)
 
+
 class INDXException(Exception):
     """
     Base Exception class for INDX parsing.
-    """    
+    """
     def __init__(self, value):
         """
         Constructor.
@@ -207,9 +220,10 @@ class INDXException(Exception):
     def __str__(self):
         return "INDX Exception: %s" % (self._value)
 
+
 class ParseException(INDXException):
     """
-    An exception to be thrown during NTFS INDX parsing, such as 
+    An exception to be thrown during NTFS INDX parsing, such as
     when an invalid header is encountered.
     """
     def __init__(self, value):
@@ -223,6 +237,7 @@ class ParseException(INDXException):
     def __str__(self):
         return "INDX Parse Exception(%s)" % (self._value)
 
+
 class OverrunBufferException(ParseException):
     def __init__(self, readOffs, bufLen):
         tvalue = "read: %s, buffer length: %s" % (hex(readOffs), hex(bufLen))
@@ -231,8 +246,9 @@ class OverrunBufferException(ParseException):
     def __str__(self):
         return "Tried to parse beyond the end of the file (%s)" % (self._value)
 
+
 class Block(object):
-    """ 
+    """
     Base class for structure blocks in the NTFS INDX format.
     A block is associated with a offset into a byte-string.
     """
@@ -258,11 +274,11 @@ class Block(object):
     def declare_field(self, type, name, offset=None, length=None):
         """
         Declaratively add fields to this block.
-        This method will dynamically add corresponding offset and unpacker methods
-        to this block.
+        This method will dynamically add corresponding offset
+        and unpacker methods to this block.
         Arguments:
         - `type`: A string. Should be one of the unpack_* types.
-        - `name`: A string. 
+        - `name`: A string.
         - `offset`: A number.
         - `length`: (Optional) A number.
         """
@@ -283,13 +299,13 @@ class Block(object):
         setattr(self, name, handler)
         setattr(self, "_off_" + name, offset)
         try:
-            debug("(%s) %s\t@ %s\t: %s" % (type.upper(), 
-                                           name, 
+            debug("(%s) %s\t@ %s\t: %s" % (type.upper(),
+                                           name,
                                            hex(self.absolute_offset(offset)),
                                            str(handler())[:0x20]))
-        except ValueError: # invalid Windows timestamp
-            debug("(%s) %s\t@ %s\t: %s" % (type.upper(), 
-                                           name, 
+        except ValueError:  # invalid Windows timestamp
+            debug("(%s) %s\t@ %s\t: %s" % (type.upper(),
+                                           name,
                                            hex(self.absolute_offset(offset)),
                                            "<<error>>"))
         if type == "byte":
@@ -313,9 +329,11 @@ class Block(object):
         elif type == "wstring" and length != None:
             self._implicit_offset = offset + (2 * length)
         elif "string" in type and length == None:
-            raise INDXException("Implicit offset not supported for dynamic length strings")
+            raise INDXException("Implicit offset not " +
+                                "supported for dynamic length strings")
         else:
-            raise INDXException("Implicit offset not supported for type: " + type)            
+            raise INDXException("Implicit offset not " +
+                                "supported for type: " + type)
 
     def current_field_offset(self):
         return self._implicit_offset
@@ -374,7 +392,8 @@ class Block(object):
 
     def unpack_int(self, offset):
         """
-        Returns a little-endian signed integer (4 bytes) from the relative offset.
+        Returns a little-endian signed integer (4 bytes)
+        from the relative offset.
         Arguments:
         - `offset`: The relative offset from the start of the block.
         Throws:
@@ -442,13 +461,13 @@ class Block(object):
         try:
             return self._buf[self._offset + offset:self._offset + offset + \
                              2 * length].tostring().decode("utf16")
-        except AttributeError: # already a 'str' ?
+        except AttributeError:  # already a 'str' ?
             return self._buf[self._offset + offset:self._offset + offset + \
                              2 * length].decode("utf16")
 
     def unpack_dosdate(self, offset):
         """
-        Returns a datetime from the DOSDATE and DOSTIME starting at 
+        Returns a datetime from the DOSDATE and DOSTIME starting at
         the relative offset.
         Arguments:
         - `offset`: The relative offset from the start of the block.
@@ -482,15 +501,18 @@ class Block(object):
 
     def parent(self):
         """
-        Get the parent block. See the class documentation for what the parent link is.
+        Get the parent block.
+        See the class documentation for what the parent link is.
         """
         return self._parent
 
     def offset(self):
         """
-        Equivalent to self.absolute_offset(0x0), which is the starting offset of this block.
+        Equivalent to self.absolute_offset(0x0),
+        which is the starting offset of this block.
         """
         return self._offset
+
 
 class FixupBlock(Block):
     def __init__(self, buf, offset, parent):
@@ -498,22 +520,24 @@ class FixupBlock(Block):
 
     def fixup(self, num_fixups, fixup_value_offset):
         fixup_value = self.unpack_word(fixup_value_offset)
-    
+
         for i in range(0, num_fixups - 1):
             fixup_offset = 512 * (i + 1) - 2
             check_value = self.unpack_word(fixup_offset)
-        
+
             if check_value != fixup_value:
-                warning("Bad fixup at %s" % (hex(self.offset() + fixup_offset)))
+                warning("Bad fixup at %s" % \
+                            (hex(self.offset() + fixup_offset)))
                 continue
 
             new_value = self.unpack_word(fixup_value_offset + 2 + 2 * i)
             self.pack_word(fixup_offset, new_value)
-        
+
             check_value = self.unpack_word(fixup_offset)
             debug("Fixup verified at %s and patched from %s to %s." % \
                   (hex(self.offset() + fixup_offset),
                    hex(fixup_value), hex(check_value)))
+
 
 class IndexRootHeader(Block):
     def __init__(self, buf, offset, parent):
@@ -527,9 +551,12 @@ class IndexRootHeader(Block):
         self.declare_field("byte", "unused2")
         self.declare_field("byte", "unused3")
         self._node_header_offset = self.current_field_offset()
-    
+
     def node_header(self):
-        return IndexNodeHeader(self._buf, self.offset() + self._node_header_offset, self)
+        return IndexNodeHeader(self._buf,
+                               self.offset() + self._node_header_offset,
+                               self)
+
 
 class IndexRecordHeader(FixupBlock):
     def __init__(self, buf, offset, parent):
@@ -542,9 +569,12 @@ class IndexRecordHeader(FixupBlock):
         self.declare_field("qword", "vcn")
         self._node_header_offset = self.current_field_offset()
         self.fixup(self.usa_count(), self.usa_offset())
-        
+
     def node_header(self):
-        return IndexNodeHeader(self._buf, self.offset() + self._node_header_offset, self)    
+        return IndexNodeHeader(self._buf,
+                               self.offset() + self._node_header_offset,
+                               self)
+
 
 class IndexNodeHeader(Block):
     def __init__(self, buf, offset, parent):
@@ -555,7 +585,7 @@ class IndexNodeHeader(Block):
         self.declare_field("dword", "entry_list_allocation_end")
         self.declare_field("dword", "flags")
         self.declare_field("binary", "list_buffer", \
-                           self.entry_list_start(), 
+                           self.entry_list_start(),
                            self.entry_list_allocation_end() - self.entry_list_start())
 
     def entries(self):
@@ -565,7 +595,7 @@ class IndexNodeHeader(Block):
         offset = self.entry_list_start()
         if offset == 0:
             debug("No entries in this allocation block.")
-            return 
+            return
         while offset <= self.entry_list_end() - 0x52:
             debug("Entry has another entry after it.")
             e = IndexEntry(self._buf, self.offset() + offset, self)
@@ -598,6 +628,7 @@ class IndexNodeHeader(Block):
             debug("Slack entry parsing overran buffer.")
             pass
 
+
 class IndexEntry(Block):
     def __init__(self, buf, offset, parent):
         debug("INDEX ENTRY at %s." % (hex(offset)))
@@ -607,13 +638,16 @@ class IndexEntry(Block):
         self.declare_field("word", "filename_information_length")
         self.declare_field("dword", "flags")
         self.declare_field("binary", "filename_information_buffer", \
-                           self.current_field_offset(), self.filename_information_length())
-        self.declare_field("qword", "child_vcn", align(self.current_field_offset(), 0x8))
+                           self.current_field_offset(),
+                           self.filename_information_length())
+        self.declare_field("qword", "child_vcn",
+                           align(self.current_field_offset(), 0x8))
 
     def filename_information(self):
-        return FilenameAttribute(self._buf, 
-                                 self.offset() + self._off_filename_information_buffer, 
+        return FilenameAttribute(self._buf,
+                                 self.offset() + self._off_filename_information_buffer,
                                  self)
+
 
 class StandardInformation(Block):
     def __init__(self, buf, offset, parent):
@@ -624,8 +658,10 @@ class StandardInformation(Block):
         self.declare_field("windows_timestamp", "changed_time")
         self.declare_field("windows_timestamp", "accessed_time")
         self.declare_field("dword", "attributes")
-        self.declare_field("binary", "reserved", self.current_field_offset(), 12)
+        self.declare_field("binary", "reserved",
+                           self.current_field_offset(), 12)
         # there may be more after this if its a new NTFS
+
 
 class FilenameAttribute(Block):
     def __init__(self, buf, offset, parent):
@@ -643,7 +679,8 @@ class FilenameAttribute(Block):
         self.declare_field("byte", "filename_length")
         self.declare_field("byte", "filename_type")
         self.declare_field("wstring", "filename", 0x42, self.filename_length())
-    
+
+
 class SlackIndexEntry(IndexEntry):
     def __init__(self, buf, offset, parent):
         """
@@ -651,7 +688,8 @@ class SlackIndexEntry(IndexEntry):
         Arguments:
         - `buf`: Byte string containing NTFS INDX file
         - `offset`: The offset into the buffer at which the block starts.
-        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, which links to this block.
+        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block,
+            which links to this block.
         """
         super(SlackIndexEntry, self).__init__(buf, offset, parent)
 
@@ -677,6 +715,7 @@ class SlackIndexEntry(IndexEntry):
         except ValueError:
             return False
 
+
 class Runentry(Block):
     def __init__(self, buf, offset, parent):
         super(Runentry, self).__init__(buf, offset, parent)
@@ -684,8 +723,12 @@ class Runentry(Block):
         self.declare_field("byte", "header")
         self._offset_length = self.header() >> 4
         self._length_length = self.header() & 0xF
-        self.declare_field("binary", "length_binary", self.current_field_offset(), self._length_length)
-        self.declare_field("binary", "offset_binary", self.current_field_offset(), self._offset_length)
+        self.declare_field("binary",
+                           "length_binary",
+                           self.current_field_offset(), self._length_length)
+        self.declare_field("binary",
+                           "offset_binary",
+                           self.current_field_offset(), self._offset_length)
 
     def is_valid(self):
         return self._offset_length > 0 and self._length_length > 0
@@ -725,6 +768,7 @@ class Runentry(Block):
     def size(self):
         return self.current_field_offset()
 
+
 class Runlist(Block):
     def __init__(self, buf, offset, parent):
         super(Runlist, self).__init__(buf, offset, parent)
@@ -754,12 +798,14 @@ class Runlist(Block):
             last_offset = current_offset
             yield (current_offset, current_length)
 
+
 class ATTR_TYPE:
     STANDARD_INFORMATION = 0x10
     FILENAME_INFORMATION = 0x30
     DATA = 0x80
     INDEX_ROOT = 0x90
     INDEX_ALLOCATION = 0xA0
+
 
 class Attribute(Block):
     TYPES = {
@@ -777,7 +823,7 @@ class Attribute(Block):
       192: "$SYMBOLIC LINK",
       208: "$REPARSE POINT/$EA INFORMATION",
       224: "$EA",
-      256: "$LOGGED UTILITY STREAM"
+      256: "$LOGGED UTILITY STREAM",
     }
 
     def __init__(self, buf, offset, parent):
@@ -809,17 +855,19 @@ class Attribute(Block):
             self.declare_field("word", "value_offset")
             self.declare_field("byte", "value_flags")
             self.declare_field("byte", "reserved")
-            self.declare_field("binary", "value", self.value_offset(), self.value_length())
-            
+            self.declare_field("binary", "value",
+                               self.value_offset(), self.value_length())
+
     def runlist(self):
         return Runlist(self._buf, self.offset() + self.runlist_offset(), self)
 
     def size(self):
-        s = self.unpack_dword(self._off_size) 
+        s = self.unpack_dword(self._off_size)
         return s + (8 - (s % 8))
 
     def name(self):
         return self.unpack_wstring(self.name_offset(), self.name_length())
+
 
 class MFTRecord(FixupBlock):
     def __init__(self, buf, offset, parent, inode=None):
@@ -868,13 +916,14 @@ class MFTRecord(FixupBlock):
     # this a required resident attribute
     def filename_information(self):
         """
-        MFT Records may have more than one FN info attribute, 
+        MFT Records may have more than one FN info attribute,
         each with a different type of filename (8.3, POSIX, etc.)
         This one tends towards WIN32.
         """
         fn = False
         for a in self.attributes():
-            if a.type() == ATTR_TYPE.FILENAME_INFORMATION: # TODO optimize to self._buf here
+            # TODO optimize to self._buf here
+            if a.type() == ATTR_TYPE.FILENAME_INFORMATION:
                 try:
                     value = a.value()
                     check = FilenameAttribute(value, 0, self)
@@ -882,7 +931,7 @@ class MFTRecord(FixupBlock):
                        check.filename_type() == 0x0003:
                         return check
                     fn = check
-                except Exception as e:
+                except Exception:
                     pass
         return fn
 
@@ -902,8 +951,9 @@ class MFTRecord(FixupBlock):
             if attr.type() == ATTR_TYPE.DATA and attr.name() == "":
                 return attr
 
+
 # This would be a local function to record_build_path,
-# but we can't pickle a local function, and 
+# but we can't pickle a local function, and
 # memoization is key here.
 # TODO merge this back into record_build_path
 @memoize(100)
@@ -921,11 +971,13 @@ def _record_build_path_rec(mftfilename, parent_ref):
         return "\\??"
     return _record_build_path_rec(mftfilename, pfn.mft_parent_reference()) + "\\" + pfn.filename()
 
+
 def record_build_path(mftfilename, record):
     fn = record.filename_information()
     if not fn:
         return "??"
     return _record_build_path_rec(mftfilename, fn.mft_parent_reference()) + "\\" + fn.filename()
+
 
 class InvalidAttributeException(INDXException):
     def __init__(self, value):
@@ -934,9 +986,11 @@ class InvalidAttributeException(INDXException):
     def __str__(self):
         return "Invalid attribute Exception(%s)" % (self._value)
 
+
 class InvalidMFTRecordNumber(Exception):
     def __init__(self, value):
         self.value = value
+
 
 class NTFSFile():
     def __init__(self, options):
@@ -962,7 +1016,7 @@ class NTFSFile():
     def _calculate_mftoffset(self):
         with open(self.filename, "rb") as f:
             f.seek(self.offset)
-            f.seek(0x30, 1) # relative
+            f.seek(0x30, 1)  # relative
             buf = f.read(8)
             relmftoffset = struct.unpack_from("<Q", buf, 0)[0]
             self.mftoffset = self.offset + relmftoffset * self.clustersize
@@ -979,7 +1033,7 @@ class NTFSFile():
                 record = True
                 count = -1
                 while record:
-                    if count % 100 == 0 and should_progress: 
+                    if count % 100 == 0 and should_progress:
                         n = (count * 1024 * 100) / float(size)
                         sys.stderr.write("\rCompleted: %0.4f%%" % (n))
                         sys.stderr.flush()
@@ -1017,7 +1071,7 @@ class NTFSFile():
                         continue
                     debug("Yielding record " + str(count))
                     yield record
-            
+
     def mft_get_record_buf(self, number):
         if self.filetype == "indx":
             return array.array("B", "")
@@ -1041,7 +1095,7 @@ class NTFSFile():
         return MFTRecord(buf, 0, False)
 
     # memoization is key here.
-    @memoize(100, keyfunc=lambda r, _: 
+    @memoize(100, keyfunc=lambda r, _:
              str(r.magic()) + str(r.lsn()) + str(r.link_count()) + \
              str(r.mft_record_number()) + str(r.flags()))
     def mft_record_build_path(self, record, cycledetector=None):
@@ -1094,4 +1148,3 @@ class NTFSFile():
                 f.seek(offset)
                 return array.array("B", f.read(length))
         return array.array("B", "")
-
