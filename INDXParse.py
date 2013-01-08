@@ -390,6 +390,8 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         debug("ENTRY at %s." % (hex(offset)))
         super(NTATTR_STANDARD_INDEX_ENTRY, self).__init__(buf, offset, parent)
 
+        self._size_offset = 0x08
+
         self._created_time_offset = 0x18
         self._modified_time_offset = 0x20
         self._changed_time_offset = 0x28
@@ -410,6 +412,10 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         """
         return the first address not a part of this block
         """
+        size = self.unpack_word(self._size_offset)
+        if size > 0:
+            return self.offset() + size
+
         string_end = self.offset() + self._filename_offset + \
              2 * self.unpack_byte(self._filename_length_offset)
 
