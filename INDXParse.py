@@ -17,7 +17,8 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #
-#   Version v.1.1.8
+
+__version__ = "1.1.8"
 
 import struct
 import time
