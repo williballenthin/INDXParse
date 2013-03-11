@@ -321,7 +321,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
             debug("No entries in this allocation block.")
             return
 
-        e = NTATTR_STANDARD_INDEX_ENTRY(self._buf, self.entry_offset(), self)
+        e = NTATTR_DIRECTORY_INDEX_ENTRY(self._buf, self.entry_offset(), self)
         yield e
 
         while e.has_next():
@@ -350,7 +350,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
             while off < self.offset() + self.entry_allocated_size() - 0x52:
                 try:
                     debug("Trying to find slack entry at %s." % (hex(off)))
-                    e = NTATTR_STANDARD_INDEX_SLACK_ENTRY(self._buf, off, self)
+                    e = NTATTR_DIRECTORY_INDEX_SLACK_ENTRY(self._buf, off, self)
                     if e.is_valid():
                         debug("Slack entry is valid.")
                         off = e.end_offset()
@@ -367,6 +367,54 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
 
 class NTATTR_STANDARD_INDEX_ENTRY(Block):
+#Generic index entry fields
+# according to File System Forensic Analysis by Brian Carrier, table 13.15
+
+# 0x00-0x07 entry-type-specific
+
+# 0x08  unsigned short  sizeOfIndexEntry;
+# 0x0A  unsigned short  sizeOfStream;
+# 0x0C  unsigned short  flags;
+    def __init__(self, buf, offset, parent):
+        """
+        Constructor.
+        Arguments:
+        - `buf`: Byte string containing NTFS INDX file
+        - `offset`: The offset into the buffer at which the block starts.
+        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, which links to this block.
+        """
+        debug("ENTRY at %s." % (hex(offset)))
+        super(NTATTR_STANDARD_INDEX_ENTRY, self).__init__(buf, offset, parent)
+
+        self._size_offset = 0x08
+        self._size_of_stream_offset = 0x0A
+        self._flags_offset = 0x0C
+
+    def size(self):
+        return self.unpack_word(self._size_offset)
+
+    def end_offset(self):
+        """
+        return the first address not a part of this block
+        """
+        size = self.size()
+        if size > 0:
+            return self.offset() + size
+        else:
+            raise ParseException("Non-positive index entry size presented to generic end_offset()")
+
+    def has_next(self):
+        return self.end_offset() - self.parent().offset() <= self.parent().entry_size()
+
+    def next(self):
+        """
+        return the next entry after this one.
+        warning, this does not check to see if another exists, but blindly creates one
+        from the next data in the buffer. check NTATTR_STANDARD_INDEX_ENTRY.has_next() first
+        """
+        return self.__class__(self._buf, self.end_offset(), self.parent())
+
+class NTATTR_DIRECTORY_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
 # 0x0    LONGLONG mftReference;
 # 0x8    unsigned short sizeOfIndexEntry;
 # 0xA    unsigned short sizeOfStream;
@@ -401,9 +449,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, which links to this block.
         """
         debug("ENTRY at %s." % (hex(offset)))
-        super(NTATTR_STANDARD_INDEX_ENTRY, self).__init__(buf, offset, parent)
-
-        self._size_offset = 0x08
+        super(NTATTR_DIRECTORY_INDEX_ENTRY, self).__init__(buf, offset, parent)
 
         self._created_time_offset = 0x18
         self._modified_time_offset = 0x20
@@ -425,7 +471,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         """
         return the first address not a part of this block
         """
-        size = self.unpack_word(self._size_offset)
+        size = self.size()
         if size > 0:
             return self.offset() + size
 
@@ -433,17 +479,6 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
              2 * self.unpack_byte(self._filename_length_offset)
 
         return align(string_end, 8)
-
-    def has_next(self):
-        return self.end_offset() - self.parent().offset() <= self.parent().entry_size()
-
-    def next(self):
-        """
-        return the next entry after this one.
-        warning, this does not check to see if another exists, but blindly creates one
-        from the next data in the buffer. check NTATTR_STANDARD_INDEX_ENTRY.has_next() first
-        """
-        return NTATTR_STANDARD_INDEX_ENTRY(self._buf, self.end_offset(), self.parent())
 
     def parse_time(self, offset):
         return parse_windows_timestamp(self.unpack_qword(offset))
@@ -517,7 +552,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
             return "UNKNOWN FILE NAME"
 
 
-class NTATTR_STANDARD_INDEX_SLACK_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
+class NTATTR_DIRECTORY_INDEX_SLACK_ENTRY(NTATTR_DIRECTORY_INDEX_ENTRY):
     def __init__(self, buf, offset, parent):
         """
         Constructor.
@@ -526,7 +561,7 @@ class NTATTR_STANDARD_INDEX_SLACK_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
         - `offset`: The offset into the buffer at which the block starts.
         - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, which links to this block.
         """
-        super(NTATTR_STANDARD_INDEX_SLACK_ENTRY, self).__init__(buf, offset, parent)
+        super(NTATTR_DIRECTORY_INDEX_SLACK_ENTRY, self).__init__(buf, offset, parent)
 
     def is_valid(self):
         recent_date = datetime(1990, 1, 1, 0, 0, 0)
