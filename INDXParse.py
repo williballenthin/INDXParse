@@ -313,7 +313,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
     def entry_allocated_size(self):
         return self.unpack_dword(0x20)
 
-    def entries(self):
+    def entries(self, indext):
         """
         A generator that returns each INDX entry associated with this header.
         """
@@ -321,7 +321,14 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
             debug("No entries in this allocation block.")
             return
 
-        e = NTATTR_DIRECTORY_INDEX_ENTRY(self._buf, self.entry_offset(), self)
+        #Translate indext to class
+        entry_class = None
+        if indext == "dir":
+            entry_class = NTATTR_DIRECTORY_INDEX_ENTRY
+        else:
+            raise INDXException("Unsupported index type: %r." % indext)
+
+        e = entry_class(self._buf, self.entry_offset(), self)
         yield e
 
         while e.has_next():
@@ -637,7 +644,7 @@ if __name__ == '__main__':
     off = 0
     while off < len(b):
         h = NTATTR_STANDARD_INDEX_HEADER(b, off, False)
-        for e in h.entries():
+        for e in h.entries("dir"):
             if do_csv:
                 try:
                     print entry_csv(e)
