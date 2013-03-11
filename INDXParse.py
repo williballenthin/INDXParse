@@ -409,9 +409,8 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
     def next(self):
         """
         return the next entry after this one.
-        warning, this does not check to see if another exists, but blindly creates one
-        from the next data in the buffer. check NTATTR_STANDARD_INDEX_ENTRY.has_next() first
         """
+        assert self.has_next()
         return self.__class__(self._buf, self.end_offset(), self.parent())
 
 class NTATTR_DIRECTORY_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
