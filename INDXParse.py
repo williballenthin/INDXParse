@@ -17,6 +17,9 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #
+#
+#   Bibliography:
+#   Mentions of "NTFSdoc" in code comments refer to: Richard Russon and Yuval Fledel.  "NTFS Documentation," apparent publication in March 2008.  Retrieved from: http://dubeyko.com/development/FileSystems/NTFS/ntfsdoc.pdf.  Last checked Mar. 2013.
 
 __version__ = "1.1.8"
 
@@ -323,7 +326,11 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
         #Translate indext to class
         entry_class = None
-        if indext == "dir":
+        if indext == "sdh":
+            entry_class = NTATTR_SDH_INDEX_ENTRY
+        elif indext == "sii":
+            entry_class = NTATTR_SII_INDEX_ENTRY
+        elif indext == "dir":
             entry_class = NTATTR_DIRECTORY_INDEX_ENTRY
         else:
             raise INDXException("Unsupported index type: %r." % indext)
@@ -420,11 +427,152 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         assert self.has_next()
         return self.__class__(self._buf, self.end_offset(), self.parent())
 
+class NTATTR_SDH_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
+#Security Descriptor Hash ($SDH) Index
+# values according to NTFSdoc
+
+# 0x0  unsigned short  offsetToData=0x18;
+# 0x2  unsigned short  sizeOfData=0x14;
+# 0x4  BYTE            padding[4]=0x00;
+
+# 0x8  unsigned short  sizeOfIndexEntry=0x30;
+# 0xA  unsigned short  sizeOfIndexKey=0x08;
+# 0xC  unsigned short  flags;
+# 0xE  BYTE            padding[2]=0x00;
+
+# 0x10  DWORD           SecurityDescriptorHashKey;
+# 0x14  DWORD           SecurityIDKey;
+
+# 0x18  DWORD           SecurityDescriptorHashData;
+# 0x1C  DWORD           SecurityIDData;
+# 0x20  LONGLONG        SDSSecurityDescriptorOffset;
+# 0x28  unsigned        SDSSecurityDescriptorSize;
+# 0x2C  padding ending in 4 bytes of unicode: "II"
+
+    def __init__(self, buf, offset, parent):
+        """
+        Constructor.
+        Arguments:
+        - `buf`: Byte string containing NTFS INDX file
+        - `offset`: The offset into the buffer at which the block starts.
+        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, which links to this block.
+        """
+        debug("ENTRY at %s." % (hex(offset)))
+        super(NTATTR_SDH_INDEX_ENTRY, self).__init__(buf, offset, parent)
+
+        self._size_offset = 0x08
+
+        self._security_descriptor_hash_key_offset = 0x10
+        self._security_ID_key_offset = 0x14
+        self._security_descriptor_hash_data_offset = 0x18
+        self._security_ID_data_offset = 0x1C
+        self._sds_security_descriptor_offset_offset = 0x20
+        self._sds_security_descriptor_size_offset = 0x28
+
+        #TODO assert magic number
+        #TODO assert hard-coded values are what we expect, e.g. is padding null?
+
+    def security_descriptor_hash_key(self):
+        return self.unpack_dword(self._security_descriptor_hash_key_offset)
+
+    def security_ID_key(self):
+        return self.unpack_dword(self._security_ID_key_offset)
+
+    def security_descriptor_hash_data(self):
+        return self.unpack_dword(self._security_descriptor_hash_data_offset)
+
+    def security_ID_data(self):
+        return self.unpack_dword(self._security_ID_data_offset)
+
+    def security_descriptor_offset(self):
+        return self.unpack_qword(self._sds_security_descriptor_offset_offset)
+
+    def security_descriptor_size(self):
+        return self.unpack_dword(self._sds_security_descriptor_size_offset)
+
+class NTATTR_SII_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
+#Security Id Index ($SII)
+# values according to NTFSdoc
+
+# 0x0  unsigned short  offsetToData=0x14;
+# 0x2  unsigned short  sizeOfData=0x14;
+# 0x4  BYTE            padding[4]=0x00;
+
+# 0x8  unsigned short  sizeOfIndexEntry=0x28;
+# 0xA  unsigned short  sizeOfIndexKey=0x04;
+# 0xC  unsigned short  flags;
+# 0xE  BYTE            padding[2]=0x00;
+
+# 0x10  DWORD           SecurityIDKey;
+
+# 0x14  DWORD           SecurityDescriptorHashData;
+# 0x18  DWORD           SecurityIDData;
+# 0x1C  LONGLONG        SDSSecurityDescriptorOffset;
+# 0x24  unsigned        SDSSecurityDescriptorSize;
+
+    def __init__(self, buf, offset, parent):
+        """
+        Constructor.
+        Arguments:
+        - `buf`: Byte string containing NTFS INDX file
+        - `offset`: The offset into the buffer at which the block starts.
+        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, which links to this block.
+        """
+        debug("ENTRY at %s." % (hex(offset)))
+        super(NTATTR_SII_INDEX_ENTRY, self).__init__(buf, offset, parent)
+
+        self._offset_to_data_offset = 0x00
+        self._size_of_data_offset = 0x02
+        self._internal_padding_offset = 0x04
+        self._size_offset = 0x08
+        self._key_size_offset = 0x0A
+        self._flags_offset = 0x0C
+        self._internal_padding2_offset = 0x0E
+
+        self._security_ID_key_offset = 0x10
+        self._security_descriptor_hash_data_offset = 0x14
+        self._security_ID_data_offset = 0x18
+        self._sds_security_descriptor_offset_offset = 0x1C
+        self._sds_security_descriptor_size_offset = 0x24
+
+    def offset_to_data(self):
+        return self.unpack_word(self._offset_to_data_offset)
+
+    def size_of_data(self):
+        return self.unpack_word(self._size_of_data_offset)
+
+    def internal_padding1(self):
+        return self.unpack_dword(self._internal_padding_offset)
+
+    def key_size(self):
+        return self.unpack_word(self._key_size_offset)
+
+    def flags(self):
+        return self.unpack_word(self._flags_offset)
+
+    def internal_padding2(self):
+        return self.unpack_word(self._internal_padding2_offset)
+
+    def security_ID_key(self):
+        return self.unpack_dword(self._security_ID_key_offset)
+
+    def security_descriptor_hash_data(self):
+        return self.unpack_dword(self._security_descriptor_hash_data_offset)
+
+    def security_ID_data(self):
+        return self.unpack_dword(self._security_ID_data_offset)
+
+    def security_descriptor_offset(self):
+        return self.unpack_qword(self._sds_security_descriptor_offset_offset)
+
+    def security_descriptor_size(self):
+        return self.unpack_dword(self._sds_security_descriptor_size_offset)
+
 class NTATTR_DIRECTORY_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
 # 0x0    LONGLONG mftReference;
+
 # 0x8    unsigned short sizeOfIndexEntry;
 # 0xA    unsigned short sizeOfStream;
-
 # 0xC    unsigned short flags;
 # 0xE    BYTE padding[2];
 
@@ -577,7 +725,7 @@ class NTATTR_DIRECTORY_INDEX_SLACK_ENTRY(NTATTR_DIRECTORY_INDEX_ENTRY):
                 self.created_time_safe() > recent_date
 
 
-def entry_csv(entry, filename=False):
+def entry_dir_csv(entry, filename=False):
     if filename:
         fn = filename
     else:
@@ -588,6 +736,15 @@ def entry_csv(entry, filename=False):
                                                   entry.accessed_time_safe(), entry.changed_time_safe(),
                                                   entry.created_time_safe())
 
+def entry_SDH_csv(entry):
+    return "%d,\t%d,\t%d,\t%d,\t%d,\t%d" % (entry.security_descriptor_hash_key(), entry.security_descriptor_hash_data(),
+                                       entry.security_ID_key(), entry.security_ID_data(), entry.security_descriptor_offset(),
+                                       entry.security_descriptor_size())
+
+def entry_SII_csv(entry):
+    return "%d,\t%d,\t%d,\t%d,\t%d" % (entry.security_descriptor_hash_data(),
+                                   entry.security_ID_key(), entry.security_ID_data(), entry.security_descriptor_offset(),
+                                   entry.security_descriptor_size())
 
 def entry_bodyfile(entry, filename=False):
     if filename:
@@ -625,6 +782,7 @@ if __name__ == '__main__':
     group.add_argument('-b', action="store_true", dest="bodyfile", default=False, help="Output Bodyfile")
     parser.add_argument('-d', action="store_true", dest="deleted", help="Find entries in slack space")
     parser.add_argument('-v', action="store_true", dest="verbose", help="Print debugging information")
+    parser.add_argument('-t', action="store", choices=["dir", "sdh", "sii"], default="dir", dest="index_type", help="Choose index type (dir, sdh, or sii)")
     parser.add_argument('filename', action="store", help="Input INDX file path")
     results = parser.parse_args()
 
@@ -634,9 +792,20 @@ if __name__ == '__main__':
     do_csv = results.csv or \
         (not results.csv and not results.bodyfile)
 
-    if do_csv:
-        print "FILENAME,\tPHYSICAL SIZE,\tLOGICAL SIZE,\tMODIFIED TIME,\tACCESSED TIME,\tCHANGED TIME,\tCREATED TIME"
+    if(results.bodyfile and results.index_type != "dir"):
+        print 'Only "dir" type supports bodyfile output'
+        sys.exit(1)
+    elif(results.deleted and  results.index_type != "dir"):
+        print 'For now, only "dir" type supports slackspace entries'
+        sys.exit(1)
 
+    if do_csv:
+        if results.index_type == "dir":
+            print "FILENAME,\tPHYSICAL SIZE,\tLOGICAL SIZE,\tMODIFIED TIME,\tACCESSED TIME,\tCHANGED TIME,\tCREATED TIME"
+        if results.index_type == "sdh":
+            print "SDH KEY,\tSDH DATA,\tSECURITY ID KEY,\tSECURITY ID DATA,\tSDS SECURITY DESCRIPTOR OFFSET,\tSDS SECURITY DESCRIPTOR SIZE"
+        if results.index_type == "sii":
+            print "SDH DATA,\tSECURITY ID KEY,\tSECURITY ID DATA,\tSDS SECURITY DESCRIPTOR OFFSET,\tSDS SECURITY DESCRIPTOR SIZE"
 
     with open(results.filename, "rb") as f:
         b = array.array("B", f.read())
@@ -644,12 +813,17 @@ if __name__ == '__main__':
     off = 0
     while off < len(b):
         h = NTATTR_STANDARD_INDEX_HEADER(b, off, False)
-        for e in h.entries("dir"):
+        for e in h.entries(results.index_type):
             if do_csv:
-                try:
-                    print entry_csv(e)
-                except UnicodeEncodeError:
-                    print entry_csv(e, e.filename().encode("ascii", "replace") + " (error decoding filename)")
+                if results.index_type == "sdh":
+                    print entry_SDH_csv(e)
+                if results.index_type == "sii":
+                    print entry_SII_csv(e)
+                if results.index_type == "dir":
+                    try:
+                        print entry_dir_csv(e)
+                    except UnicodeEncodeError:
+                        print entry_dir_csv(e, e.filename().encode("ascii", "replace") + " (error decoding filename)")
             elif results.bodyfile:
                 try:
                     print entry_bodyfile(e)
@@ -661,9 +835,9 @@ if __name__ == '__main__':
                 bad_fn = e.filename().encode("ascii", "replace") + " (slack at %s)(error decoding filename)" % (hex(e.offset()))
                 if do_csv:
                     try:
-                        print entry_csv(e, fn)
+                        print entry_dir_csv(e, fn)
                     except UnicodeEncodeError:
-                        print entry_csv(e, bad_fn)
+                        print entry_dir_csv(e, bad_fn)
                 elif results.bodyfile:
                     try:
                         print entry_bodyfile(e, fn)
