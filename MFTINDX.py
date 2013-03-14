@@ -101,7 +101,7 @@ def record_bodyfile(ntfsfile, record, inode=None, attributes=None):
                                             attributes=attributes))
         for ads in ADSs:
             ret += "%s" % (information_bodyfile(path + ":" + ads[0], ads[1],
-                                                inode, fn, 
+                                                inode, fn,
                                                 attributes=attributes))
 
     return ret
@@ -120,7 +120,7 @@ def node_header_bodyfile(options, node_header, basepath):
             size = e.filename_information().logical_size()
             inode = 0
             ret += information_bodyfile(path, size, inode,
-                                        e.filename_information(), 
+                                        e.filename_information(),
                                         attributes=attrs)
     attrs.append("slack")
     if options.slack:
@@ -129,7 +129,7 @@ def node_header_bodyfile(options, node_header, basepath):
             size = e.filename_information().logical_size()
             inode = 0
             ret += information_bodyfile(path, size, inode,
-                                        e.filename_information(), 
+                                        e.filename_information(),
                                         attributes=attrs)
     return ret
 
@@ -285,6 +285,129 @@ def print_indx_info(options):
     print "Found directory entry for: " + options.infomode
     print "Path: " + f.mft_record_build_path(record, {})
     print "MFT Record: " + str(record.mft_record_number())
+
+    print "Metadata: "
+    if record.is_active():
+        print "  active file"
+    else:
+        print "  deleted file"
+
+    if record.is_directory():
+        print "  type: directory"
+    else:
+        print "  type: file"
+
+    if not record.is_directory():
+        data_attr = record.data_attribute()
+        if data_attr and data_attr.non_resident() > 0:
+            print "  size: %d bytes" % (data_attr.data_size())
+        else:
+            print "  size: %d bytes" % \
+                (record.filename_information().logical_size())
+
+    def get_flags(flags):
+        attributes = []
+        if flags & 0x01:
+            attributes.append("readonly")
+        if flags & 0x02:
+            attributes.append("hidden")
+        if flags & 0x04:
+            attributes.append("system")
+        if flags & 0x08:
+            attributes.append("unused-dos")
+        if flags & 0x10:
+            attributes.append("directory-dos")
+        if flags & 0x20:
+            attributes.append("archive")
+        if flags & 0x40:
+            attributes.append("device")
+        if flags & 0x80:
+            attributes.append("normal")
+        if flags & 0x100:
+            attributes.append("temporary")
+        if flags & 0x200:
+            attributes.append("sparse")
+        if flags & 0x400:
+            attributes.append("reparse-point")
+        if flags & 0x800:
+            attributes.append("compressed")
+        if flags & 0x1000:
+            attributes.append("offline")
+        if flags & 0x2000:
+            attributes.append("not-indexed")
+        if flags & 0x4000:
+            attributes.append("encrypted")
+        if flags & 0x10000000:
+            attributes.append("has-indx")
+        if flags & 0x20000000:
+            attributes.append("has-view-index")
+        return attributes
+
+    print "  attributes: " + \
+        ", ".join(get_flags(record.standard_information().attributes()))
+
+    crtime = record.standard_information().created_time().isoformat("T") + "Z"
+    mtime = record.standard_information().modified_time().isoformat("T") + "Z"
+    chtime = record.standard_information().changed_time().isoformat("T") + "Z"
+    atime = record.standard_information().accessed_time().isoformat("T") + "Z"
+
+    print "  SI modified: %s" % (mtime)
+    print "  SI accessed: %s" % (atime)
+    print "  SI changed: %s" % (chtime)
+    print "  SI birthed: %s" % (crtime)
+
+    print "Filenames:"
+    for b in record.attributes():
+        if b.type() != ATTR_TYPE.FILENAME_INFORMATION:
+            continue
+        try:
+            attr = FilenameAttribute(b.value(), 0, record)
+            a = attr.filename_type()
+            print "  Type: %s" % (["POSIX", "WIN32", "DOS 8.3", "WIN32 + DOS 8.3"][a])
+            print "    name: %s" % (str(attr.filename()))
+            print "    attributes: " + \
+                ", ".join(get_flags(attr.flags()))
+            print "    logical size:  %d bytes" % (attr.logical_size())
+            print "    physical size: %d bytes" % (attr.physical_size())
+
+            crtime = attr.created_time().isoformat("T") + "Z"
+            mtime = attr.modified_time().isoformat("T") + "Z"
+            chtime = attr.changed_time().isoformat("T") + "Z"
+            atime = attr.accessed_time().isoformat("T") + "Z"
+
+            print "    modified: %s" % (mtime)
+            print "    accessed: %s" % (atime)
+            print "    changed: %s" % (chtime)
+            print "    birthed: %s" % (crtime)
+        except ZeroDivisionError:
+            continue
+
+    print "Attributes:"
+    for b in record.attributes():
+        print "  %s" % (Attribute.TYPES[b.type()])
+        print "    name: %s" % (b.name() or "<none>")
+        print "    attributes: " + \
+            ", ".join(get_flags(attr.flags()))
+        if b.non_resident() > 0:
+            print "    resident: no"
+            print "    data size: %d" % (b.data_size())
+            print "    allocated size: %d" % (b.allocated_size())
+
+            if b.allocated_size() > 0:
+                print "    runlist:"
+                for (offset, length) in b.runlist().runs():
+                    print "      Cluster %s, length %s" % \
+                        (hex(offset), hex(length))
+                    print "        %s (%s) bytes for %s (%s) bytes" % \
+                        (offset * options.clustersize,
+                         hex(offset * options.clustersize),
+                         length * options.clustersize,
+                         hex(length * options.clustersize))
+        else:
+            print "    resident: yes"
+            print "    size: %d bytes" % (b.value_length())
+
+    # INDX stuff
     indxroot = record.attribute(ATTR_TYPE.INDEX_ROOT)
     if not indxroot:
         print "No INDX_ROOT attribute"
