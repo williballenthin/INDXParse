@@ -56,7 +56,7 @@ def record_bodyfile(ntfsfile, record, inode=None, attributes=None):
     """
     Return a bodyfile formatted string for the given MFT record.
     The string contains metadata for the one file described by the record.
-    The string may have multiple lines, which cover $SI and 
+    The string may have multiple lines, which cover $SI and
       $FN timestamp entries, and entries for each ADS.
     """
     ret = ""
@@ -340,8 +340,9 @@ def print_indx_info(options):
                          hex((offset * options.clustersize) + options.offset),
                          length * options.clustersize,
                          hex(length * options.clustersize))
-                    extractbuf += f.read(offset * options.clustersize + options.offset,
-                                         length * options.clustersize)
+                    ooff = offset * options.clustersize + options.offset
+                    llen = length * options.clustersize
+                    extractbuf += f.read(ooff, llen)
             else:
                 # This shouldn't happen.
                 print "INDX_ALLOCATION is resident"
