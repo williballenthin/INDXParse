@@ -21,7 +21,7 @@
 from MFT import *
 import wx
 import wx.lib.scrolledpanel as scrolled
-import  wx.lib.newevent
+import wx.lib.newevent
 from wx.lib.evtmgr import eventManager
 
 verbose = False
@@ -259,11 +259,11 @@ class MFTTreeCtrl(wx.TreeCtrl):
 
         dialog = wx.ProgressDialog('Loading MFT', '0.00% Complete',
                                    maximum=100.0,
-                                   style=wx.PD_AUTO_HIDE |    \
-                                       wx.PD_APP_MODAL |      \
-                                       wx.PD_CAN_ABORT |      \
-                                       wx.PD_ELAPSED_TIME |   \
-                                       wx.PD_ESTIMATED_TIME | \
+                                   style=wx.PD_AUTO_HIDE |
+                                       wx.PD_APP_MODAL |
+                                       wx.PD_CAN_ABORT |
+                                       wx.PD_ELAPSED_TIME |
+                                       wx.PD_ESTIMATED_TIME |
                                        wx.PD_REMAINING_TIME)
 
         def progress_update(count, total):
@@ -402,8 +402,10 @@ class RunlistPanel(wx.Panel):
         self.Layout()
 
         self.update(None)
-        eventManager.Register(self.update, EVT_VOLUME_OFFSET_UPDATED_EVENT, self._model)
-        eventManager.Register(self.update, EVT_CLUSTER_SIZE_UPDATED_EVENT, self._model)
+        eventManager.Register(self.update,
+                              EVT_VOLUME_OFFSET_UPDATED_EVENT, self._model)
+        eventManager.Register(self.update,
+                              EVT_CLUSTER_SIZE_UPDATED_EVENT, self._model)
 
     def __del__(self, *args, **kwargs):
         eventManager.DeregisterListener(self.update)
@@ -413,8 +415,10 @@ class RunlistPanel(wx.Panel):
     def update(self, event):
         self._base_offset_text.SetValue(str(self._offset))
         self._base_length_text.SetValue(str(self._length))
-        self._cluster_offset_text.SetValue(str(self._model.volume_offset() + self._offset * self._model.cluster_size()))
-        self._cluster_length_text.SetValue(str(self._length * self._model.cluster_size()))
+        coff = str(self._model.volume_offset() + self._offset * self._model.cluster_size())
+        clen = str(self._length * self._model.cluster_size())
+        self._cluster_offset_text.SetValue(coff)
+        self._cluster_length_text.SetValue(clen)
 
 
 class DiskGeometryWarningPanel(wx.Panel):
@@ -454,7 +458,8 @@ class DiskGeometryWarningPanel(wx.Panel):
                                                  self._cluster_size_label_ok,
                                                  style=wx.TE_READONLY)
         hbox1.Add(self._cluster_size_label, 1, wx.EXPAND)
-        self._cluster_size_text = wx.TextCtrl(self, -1, str(self._model.cluster_size()))
+        self._cluster_size_text = wx.TextCtrl(self, -1,
+                                              str(self._model.cluster_size()))
         self._cluster_size_text.Bind(wx.EVT_TEXT, self._cluster_size_changed)
         hbox1.Add(self._cluster_size_text, 0, wx.EXPAND)
 
@@ -520,7 +525,8 @@ class DiskGeometryWarningPanel(wx.Panel):
             return
 
         if not self._volume_offset_text.IsModified():
-            self._volume_offset_text.ChangeValue(str(self._model.volume_offset()))
+            voff = str(self._model.volume_offset())
+            self._volume_offset_text.ChangeValue(voff)
 
     def _updated_cluster_size(self, event):
         """
@@ -535,7 +541,8 @@ class DiskGeometryWarningPanel(wx.Panel):
             return
 
         if not self._cluster_size_text.IsModified():
-            self._cluster_size_text.ChangeValue(str(self._model.cluster_size()))
+            csize = str(self._model.cluster_size())
+            self._cluster_size_text.ChangeValue(csize)
 
 
 class RecordPane(scrolled.ScrolledPanel):
@@ -589,7 +596,8 @@ class RecordHexPane(RecordPane):
         self._sizer.Add(self._text, self.EXPAND_VERTICALLY, wx.EXPAND)
 
     def update(self, event):
-        self._text.SetValue(unicode(_format_hex(self._model.record()._buf.tostring())))
+        hhex = unicode(_format_hex(self._model.record()._buf.tostring()))
+        self._text.SetValue(hhex)
 
 
 class RecordMetadataPane(RecordPane):
@@ -668,7 +676,7 @@ class RecordMetadataPane(RecordPane):
 
             filename_type = ["POSIX", "WIN32", "DOS 8.3", "WIN32 + DOS 8.3"][a]
             self._fn[a].box = wx.StaticBox(self, -1,
-                                      "Filename Information Attribute (%s)" % \
+                                      "Filename Information Attribute (%s)" %
                                       (filename_type))
             fn_box_sizer = wx.StaticBoxSizer(self._fn[a].box, wx.VERTICAL)
             self._fn[a].name_line = LabelledLine(self, "Filename", "")
@@ -902,7 +910,8 @@ class RecordDataPane(RecordPane):
 
         if has_runlists:
             warning_panel = DiskGeometryWarningPanel(self, self._model)
-            self._sizer.Add(warning_panel, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
+            self._sizer.Add(warning_panel,
+                            self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
 
         for attr in self._model.record().attributes():
             if attr.type() == ATTR_TYPE.DATA:
@@ -925,7 +934,8 @@ class RecordDataPane(RecordPane):
                         value_view.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
                                                  wx.NORMAL, False, u'Courier'))
                         value_view.SetValue(unicode(_format_hex(attr.value())))
-                        self._sizer.Add(value_view, self.EXPAND_VERTICALLY, wx.EXPAND)
+                        self._sizer.Add(value_view,
+                                        self.EXPAND_VERTICALLY, wx.EXPAND)
                 except ZeroDivisionError:
                     continue
         self.Layout()
@@ -950,9 +960,11 @@ class RecordAttributePane(RecordPane):
 
                 at_view_sizer.Add(LabelledLine(self, "Type", str(attr.type())),
                                   self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
-                at_view_sizer.Add(LabelledLine(self, "Reported Name", attr.name()),
+                at_view_sizer.Add(LabelledLine(self,
+                                               "Reported Name", attr.name()),
                                   self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
-                at_view_sizer.Add(LabelledLine(self, "Type Name", attr.TYPES[attr.type()]),
+                at_view_sizer.Add(LabelledLine(self,
+                                               "Type Name", attr.TYPES[attr.type()]),
                                   self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
 
                 attributes = []
@@ -963,7 +975,8 @@ class RecordAttributePane(RecordPane):
                 if attr.flags() & 0x8000:
                     attributes.append("sparse")
                 if len(attributes) > 0:
-                    at_view_sizer.Add(LabelledLine(self, "Attributes", ", ".join(attributes)),
+                    at_view_sizer.Add(LabelledLine(self, "Attributes",
+                                                   ", ".join(attributes)),
                                       self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
                 else:
                     at_view_sizer.Add(LabelledLine(self, "Attributes", "<none>"),
@@ -981,7 +994,11 @@ class RecordAttributePane(RecordPane):
                 atd_view = wx.TextCtrl(self, style=wx.TE_MULTILINE)
                 atd_view.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
                                                  wx.NORMAL, False, u'Courier'))
-                atd_view.SetValue(unicode(_format_hex(attr._buf[attr.absolute_offset(0):attr.absolute_offset(0) + attr.size()].tostring())))
+
+                sstart = attr.absolute_offset(0)
+                send = attr.absolute_offset(0) + attr.size()
+                hhex = unicode(_format_hex(attr._buf[sstart:send].tostring()))
+                atd_view.SetValue(hhex)
                 at_view_sizer.Add(atd_view, self.EXPAND_VERTICALLY, wx.EXPAND)
 
                 self._sizer.Add(at_view_sizer,
@@ -1021,7 +1038,8 @@ class RecordINDXPane(RecordPane):
 
         if has_runlists:
             warning_panel = DiskGeometryWarningPanel(self, self._model)
-            self._sizer.Add(warning_panel, self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
+            self._sizer.Add(warning_panel,
+                            self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
 
         indxroot = self._model.record().attribute(ATTR_TYPE.INDEX_ROOT)
         if indxroot and indxroot.non_resident() == 0:
@@ -1042,9 +1060,11 @@ class RecordINDXPane(RecordPane):
                                   self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
                 ir_view_sizer.Add(LabelledLine(self, "Accessed", e.filename_information().accessed_time().isoformat("T") + "Z"),
                                   self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
-                self._sizer.Add(ir_view_sizer, self.NOT_EXPAND_VERTICALLY, wx.ALL | wx.EXPAND)
+                self._sizer.Add(ir_view_sizer,
+                                self.NOT_EXPAND_VERTICALLY, wx.ALL | wx.EXPAND)
             for e in irh.node_header().slack_entries():
-                ir_view = wx.StaticBox(self, -1, "Slack INDX Record Information")
+                ir_view = wx.StaticBox(self, -1,
+                                       "Slack INDX Record Information")
                 ir_view_sizer = wx.StaticBoxSizer(ir_view, wx.VERTICAL)
                 ir_view_sizer.Add(LabelledLine(self, "Filename", e.filename_information().filename()), 0, wx.EXPAND)
                 self._sizer.Add(ir_view_sizer,
