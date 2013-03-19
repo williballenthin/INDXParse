@@ -649,6 +649,14 @@ class IndexEntry(Block):
                                  self)
 
 
+class StandardInformationFieldDoesNotExist(Exception):
+    def __init__(self, msg):
+        self._msg = msg
+
+    def __str__(self):
+        return "Standard Information attribute field does not exist: %s" % (self._msg)
+
+
 class StandardInformation(Block):
     def __init__(self, buf, offset, parent):
         debug("STANDARD INFORMATION ATTRIBUTE at %s." % (hex(offset)))
@@ -659,8 +667,47 @@ class StandardInformation(Block):
         self.declare_field("windows_timestamp", "accessed_time")
         self.declare_field("dword", "attributes")
         self.declare_field("binary", "reserved",
-                           self.current_field_offset(), 12)
-        # there may be more after this if its a new NTFS
+                           self.current_field_offset(), 0xC)
+        # self.declare_field("dword", "owner_id", 0x30)  # Win2k+
+        # self.declare_field("dword", "security_id")  # Win2k+
+        # self.declare_field("qword", "quota_charged")  # Win2k+
+        # self.declare_field("qword", "usn")  # Win2k+
+
+    def owner_id(self):
+        """
+        @raises StandardInformationFieldDoesNotExist
+        """
+        try:
+            return self.unpack_dword(0x30)
+        except OverrunBufferException:
+            raise StandardInformationFieldDoesNotExist("Owner ID")
+
+    def security_id(self):
+        """
+        @raises StandardInformationFieldDoesNotExist
+        """
+        try:
+            return self.unpack_dword(0x34)
+        except OverrunBufferException:
+            raise StandardInformationFieldDoesNotExist("Security ID")
+
+    def quota_charged(self):
+        """
+        @raises StandardInformationFieldDoesNotExist
+        """
+        try:
+            return self.unpack_dword(0x38)
+        except OverrunBufferException:
+            raise StandardInformationFieldDoesNotExist("Quota Charged")
+
+    def usn(self):
+        """
+        @raises StandardInformationFieldDoesNotExist
+        """
+        try:
+            return self.unpack_dword(0x40)
+        except OverrunBufferException:
+            raise StandardInformationFieldDoesNotExist("USN")
 
 
 class FilenameAttribute(Block):

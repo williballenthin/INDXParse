@@ -613,7 +613,3 @@ if __name__ == '__main__':
                         print entry_bodyfile(e, bad_fn)
 
         off = align(h.end_offset(), 4096)
-
-
-
-

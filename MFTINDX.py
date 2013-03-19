@@ -25,7 +25,7 @@ verbose = False
 import argparse
 
 
-def information_bodyfile(path, size, inode, info, attributes=None):
+def information_bodyfile(path, size, inode, owner_id, info, attributes=None):
     if not attributes:
         attributes = []
     try:
@@ -47,9 +47,10 @@ def information_bodyfile(path, size, inode, info, attributes=None):
     attributes_text = ""
     if len(attributes) > 0:
         attributes_text = " (%s)" % (", ".join(attributes))
-    return u"0|%s|%s|0|0|0|%s|%s|%s|%s|%s\n" % (path + attributes_text, inode,
-                                                size, accessed, modified,
-                                                changed, created)
+    return u"0|%s|%s|0|%d|0|%s|%s|%s|%s|%s\n" % (path + attributes_text, inode,
+                                                 owner_id,
+                                                 size, accessed, modified,
+                                                 changed, created)
 
 
 def record_bodyfile(ntfsfile, record, inode=None, attributes=None):
@@ -89,19 +90,27 @@ def record_bodyfile(ntfsfile, record, inode=None, attributes=None):
         ADSs.append((attr.name(), size))
 
     if si:
-        ret += "%s" % (information_bodyfile(path, size, inode, si, attributes))
+        try:
+            si_index = si.security_id()
+        except StandardInformationFieldDoesNotExist:
+            si_index = 0
+        ret += "%s" % (information_bodyfile(path, size, inode, si_index, si, attributes))
         for ads in ADSs:
             ret += "%s" % (information_bodyfile(path + ":" + ads[0],
-                                                ads[1], inode, si, attributes))
+                                                ads[1], inode, si_index, si, attributes))
 
 #    sys.stderr.write(str(ADSs) + "\n")
     attributes.append("filename")
     if si:
-        ret += "%s" % (information_bodyfile(path, size, inode, fn,
+        try:
+            si_index = si.security_id()
+        except StandardInformationFieldDoesNotExist:
+            si_index = 0
+        ret += "%s" % (information_bodyfile(path, size, inode, si_index, fn,
                                             attributes=attributes))
         for ads in ADSs:
             ret += "%s" % (information_bodyfile(path + ":" + ads[0], ads[1],
-                                                inode, fn,
+                                                inode, si_index,  fn,
                                                 attributes=attributes))
 
     return ret
@@ -119,7 +128,7 @@ def node_header_bodyfile(options, node_header, basepath):
             path = basepath + "\\" + e.filename_information().filename()
             size = e.filename_information().logical_size()
             inode = 0
-            ret += information_bodyfile(path, size, inode,
+            ret += information_bodyfile(path, size, inode, 0,
                                         e.filename_information(),
                                         attributes=attrs)
     attrs.append("slack")
@@ -128,7 +137,7 @@ def node_header_bodyfile(options, node_header, basepath):
             path = basepath + "\\" + e.filename_information().filename()
             size = e.filename_information().logical_size()
             inode = 0
-            ret += information_bodyfile(path, size, inode,
+            ret += information_bodyfile(path, size, inode, 0,
                                         e.filename_information(),
                                         attributes=attrs)
     return ret
@@ -356,6 +365,16 @@ def print_indx_info(options):
     print "  SI changed: %s" % (chtime)
     print "  SI birthed: %s" % (crtime)
 
+    try:
+        # since the fields are sequential, we can handle an exception half way through here
+        #  and then ignore the remaining items. Dont have to worry about individual try/catches
+        print "  owner id (quota info): %d" % (record.standard_information().owner_id())
+        print "  security id: %d" % (record.standard_information().security_id())
+        print "  quota charged: %d" % (record.standard_information().quota_charged())
+        print "  USN: %d" % (record.standard_information().usn())
+    except StandardInformationFieldDoesNotExist:
+        pass
+
     print "Filenames:"
     for b in record.attributes():
         if b.type() != ATTR_TYPE.FILENAME_INFORMATION:
@@ -454,9 +473,7 @@ def print_indx_info(options):
                 print "INDX_ALLOCATION is non-resident"
                 for (offset, length) in attr.runlist().runs():
                     print "Cluster %s, length %s" % (hex(offset), hex(length))
-                    print "  Using clustersize %s (%s) bytes "
-                    "and volume offset %s (%s) bytes: "
-                    "\n  %s (%s) bytes for %s (%s) bytes" % \
+                    print "  Using clustersize %s (%s) bytes and volume offset %s (%s) bytes: \n  %s (%s) bytes for %s (%s) bytes" % \
                         (options.clustersize, hex(options.clustersize),
                          options.offset, hex(options.offset),
                          (offset * options.clustersize) + options.offset,
