@@ -277,9 +277,19 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         debug("HEADER @ %s." % (hex(offset)))
         super(NTATTR_STANDARD_INDEX_HEADER, self).__init__(buf, offset, parent)
 
+        #At times, a block of all-null bytes may be included in the index.
+        #Tolerate this only if the whole block is the "0" byte.
+        self._is_null_block = False
+
         _magic = self.unpack_string(0, 4)
         if _magic != "INDX":
-            raise ParseException("Invalid INDX ID")
+            off=0x0
+            while off < len(buf)-offset:
+                if self.unpack_byte(off) != 0:
+                    raise ParseException("Invalid INDX ID at beginning of block at %r bytes of stream, and non-null data encountered %r bytes into the block." % (offset, off))
+                off = off+1
+            warning("Null block encountered at offset %r." % offset)
+            self._is_null_block = True
 
         self._entry_size_offset = 0x1C
         self._entry_allocated_size_offset = 0x20
@@ -348,7 +358,10 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         return self._buf[self.offset() + self.entry_size():self.offset() + self.entry_allocated_size()]
 
     def end_offset(self):
-        return self.offset() + self.entry_allocated_size()
+        if self._is_null_block:
+            return self.offset() + len(self._buf)
+        else:
+            return self.offset() + self.entry_allocated_size()
 
     def deleted_entries(self):
         """
