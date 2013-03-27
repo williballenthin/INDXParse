@@ -307,14 +307,14 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
                   hex(fixup_value), hex(check_value)))
 
     def entry_offset(self):
-        string_end = self.offset() + 0x2A + 2 * self.unpack_word(0x6)
+        string_end = self.offset() + self._fixup_array_offset + 2 * self.unpack_word(self._num_fixups_offset)
         return align(string_end, 8)
 
     def entry_size(self):
-        return self.unpack_dword(0x1C)
+        return self.unpack_dword(self._entry_size_offset)
 
     def entry_allocated_size(self):
-        return self.unpack_dword(0x20)
+        return self.unpack_dword(self._entry_allocated_size_offset)
 
     def entries(self, indext):
         """
