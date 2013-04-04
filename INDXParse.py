@@ -19,15 +19,19 @@
 #
 #   Version v.1.1.8
 
-import struct, time, array
+import struct
+import time
+import array
 from datetime import datetime
 
 import argparse
 global verbose
 
+
 def parse_windows_timestamp(qword):
     # see http://integriography.wordpress.com/2010/01/16/using-phython-to-parse-and-present-windows-64-bit-timestamps/
     return datetime.utcfromtimestamp(float(qword) * 1e-7 - 11644473600)
+
 
 def align(offset, alignment):
     """
@@ -40,18 +44,21 @@ def align(offset, alignment):
         return offset
     return offset + (alignment - (offset % alignment))
 
+
 def debug(message):
     global verbose
     if verbose:
         print "# [d] %s" % (message)
 
+
 def warning(message):
     print "# [w] %s" % (message)
+
 
 class INDXException(Exception):
     """
     Base Exception class for INDX parsing.
-    """    
+    """
     def __init__(self, value):
         """
         Constructor.
@@ -64,9 +71,10 @@ class INDXException(Exception):
     def __str__(self):
         return "INDX Exception: %s" % (self._value)
 
+
 class ParseException(INDXException):
     """
-    An exception to be thrown during NTFS INDX parsing, such as 
+    An exception to be thrown during NTFS INDX parsing, such as
     when an invalid header is encountered.
     """
     def __init__(self, value):
@@ -80,6 +88,7 @@ class ParseException(INDXException):
     def __str__(self):
         return "INDX Parse Exception(%s)" % (self._value)
 
+
 class OverrunBufferException(ParseException):
     def __init__(self, readOffs, bufLen):
         tvalue = "read: %s, buffer length: %s" % (hex(readOffs), hex(bufLen))
@@ -88,8 +97,9 @@ class OverrunBufferException(ParseException):
     def __str__(self):
         return "Tried to parse beyond the end of the file (%s)" % (self._value)
 
+
 class Block(object):
-    """ 
+    """
     Base class for structure blocks in the NTFS INDX format.
     A block is associated with a offset into a byte-string.
     """
@@ -232,22 +242,23 @@ class Block(object):
         """
         return self._offset
 
+
 class NTATTR_STANDARD_INDEX_HEADER(Block):
 # 0x0         char magicNumber[4]; // == "INDX"
-    
+
 # 0x4         unsigned short updatedSequenceArrayOffset;
 # 0x6         unsigned short sizeOfUpdatedSequenceNumberInWords;
-    
+
 # 0x8         LONGLONG logFileSeqNum;
 # 0x10        LONGLONG thisVirtualClusterNumber;
-    
+
 # 0x18        DWORD indexEntryOffset;
 # 0x1C        DWORD sizeOfEntries;
 # 0x20        DWORD sizeOfEntriesAlloc;
-    
+
 # 0x24        BYTE flags;
 # 0x25        BYTE padding[3];
-    
+
 # 0x28        unsigned short updateSeq;
 # 0x2A        WORD updatedSequenceArray[sizeOfUpdatedSequenceNumberInWords];
 
@@ -269,7 +280,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         self._entry_size_offset = 0x1C
         self._entry_allocated_size_offset = 0x20
 
-        self._num_fixups_offset  = 0x06
+        self._num_fixups_offset = 0x06
         self._fixup_value_offset = 0x28
         self._fixup_array_offset = 0x2A
 
@@ -287,7 +298,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
             new_value = self.unpack_word(self._fixup_array_offset + 2 * i)
             self.pack_word(fixup_offset, new_value)
 
-            check_value = self.unpack_word(fixup_offset)            
+            check_value = self.unpack_word(fixup_offset)
             debug("Fixup verified at %s and patched from %s to %s." % (hex(self.offset() + fixup_offset),
                   hex(fixup_value), hex(check_value)))
 
@@ -305,9 +316,9 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         """
         A generator that returns each INDX entry associated with this header.
         """
-        if self.entry_offset() - self.offset()  >= self.entry_size():
+        if self.entry_offset() - self.offset() >= self.entry_size():
             debug("No entries in this allocation block.")
-            return 
+            return
 
         e = NTATTR_STANDARD_INDEX_ENTRY(self._buf, self.entry_offset(), self)
         yield e
@@ -320,7 +331,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
     def slack(self):
         return self._buf[self.offset() + self.entry_size():self.offset() + self.entry_allocated_size()]
-    
+
     def end_offset(self):
         return self.offset() + self.entry_allocated_size()
 
@@ -353,11 +364,12 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
             debug("Slack entry parsing overran buffer.")
             pass
 
+
 class NTATTR_STANDARD_INDEX_ENTRY(Block):
 # 0x0    LONGLONG mftReference;
 # 0x8    unsigned short sizeOfIndexEntry;
 # 0xA    unsigned short sizeOfStream;
-    
+
 # 0xC    unsigned short flags;
 # 0xE    BYTE padding[2];
 
@@ -371,7 +383,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
 # 0x40    LONGLONG logicalSizeOfFile;
 # 0x48    DWORD    flags;
 # 0x4C    DWORD    extendedAttributes;
-    
+
 # 0x50    unsigned BYTE filenameLength;
 # 0x51    NTFS_FNAME_NSPACE filenameType;
 
@@ -400,7 +412,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         self._physical_size_offset = 0x38
         self._logical_size_offset = 0x40
 
-        self._filename_length_offset = 0x50      
+        self._filename_length_offset = 0x50
         self._filename_type_offset = 0x51
         self._filename_offset = 0x52
 
@@ -423,7 +435,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
 
     def has_next(self):
         return self.end_offset() - self.parent().offset() <= self.parent().entry_size()
-        
+
     def next(self):
         """
         return the next entry after this one.
@@ -440,7 +452,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
 
     def modified_time(self):
         return self.parse_time(self._modified_time_offset)
-    
+
     def changed_time(self):
         return self.parse_time(self._changed_time_offset)
 
@@ -450,7 +462,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
     def parse_time_safe(self, offset):
         """
         The *_safe time methods return the date of the
-        UNIX epoch if there is an exception parsing the 
+        UNIX epoch if there is an exception parsing the
         date
         """
         try:
@@ -462,7 +474,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
     def created_time_safe(self):
         """
         The *_safe time methods return the date of the
-        UNIX epoch if there is an exception parsing the 
+        UNIX epoch if there is an exception parsing the
         date
         """
         return self.parse_time_safe(self._created_time_offset)
@@ -470,15 +482,15 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
     def modified_time_safe(self):
         """
         The *_safe time methods return the date of the
-        UNIX epoch if there is an exception parsing the 
+        UNIX epoch if there is an exception parsing the
         date
         """
         return self.parse_time_safe(self._modified_time_offset)
-    
+
     def changed_time_safe(self):
         """
         The *_safe time methods return the date of the
-        UNIX epoch if there is an exception parsing the 
+        UNIX epoch if there is an exception parsing the
         date
         """
         return self.parse_time_safe(self._changed_time_offset)
@@ -486,7 +498,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
     def accessed_time_safe(self):
         """
         The *_safe time methods return the date of the
-        UNIX epoch if there is an exception parsing the 
+        UNIX epoch if there is an exception parsing the
         date
         """
         return self.parse_time_safe(self._accessed_time_offset)
@@ -502,6 +514,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
             return self.unpack_wstring(self._filename_offset, self.unpack_byte(self._filename_length_offset))
         except UnicodeDecodeError:
             return "UNKNOWN FILE NAME"
+
 
 class NTATTR_STANDARD_INDEX_SLACK_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
     def __init__(self, buf, offset, parent):
@@ -521,16 +534,18 @@ class NTATTR_STANDARD_INDEX_SLACK_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
                 self.changed_time_safe() > recent_date and \
                 self.created_time_safe() > recent_date
 
+
 def entry_csv(entry, filename=False):
     if filename:
         fn = filename
     else:
         fn = entry.filename()
-            
+
     return u"%s,\t%s,\t%s,\t%s,\t%s,\t%s,\t%s" % (fn, entry.physical_size(),
                                                   entry.logical_size(), entry.modified_time_safe(),
                                                   entry.accessed_time_safe(), entry.changed_time_safe(),
                                                   entry.created_time_safe())
+
 
 def entry_bodyfile(entry, filename=False):
     if filename:
@@ -539,7 +554,7 @@ def entry_bodyfile(entry, filename=False):
         fn = entry.filename()
 
     try:
-        modified = int(time.mktime(entry.modified_time_safe().timetuple()))    
+        modified = int(time.mktime(entry.modified_time_safe().timetuple()))
     except ValueError:
         modified = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
 
@@ -549,16 +564,17 @@ def entry_bodyfile(entry, filename=False):
         accessed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
 
     try:
-        changed  = int(time.mktime(entry.changed_time_safe().timetuple()))
+        changed = int(time.mktime(entry.changed_time_safe().timetuple()))
     except ValueError:
         changed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
 
     try:
-        created  = int(time.mktime(entry.created_time_safe().timetuple()))
+        created = int(time.mktime(entry.created_time_safe().timetuple()))
     except ValueError:
         created = int(time.mktime(datetime.min.timetuple()))
 
     return u"0|%s|0|0|0|0|%s|%s|%s|%s|%s" % (fn, entry.logical_size(), accessed, modified, changed, created)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Parse NTFS INDX files.')
@@ -579,7 +595,7 @@ if __name__ == '__main__':
     if do_csv:
         print "FILENAME,\tPHYSICAL SIZE,\tLOGICAL SIZE,\tMODIFIED TIME,\tACCESSED TIME,\tCHANGED TIME,\tCREATED TIME"
 
-    
+
     with open(results.filename, "rb") as f:
         b = array.array("B", f.read())
 
