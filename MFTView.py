@@ -18,14 +18,21 @@
 #   limitations under the License.
 #
 #   Version v.2.0.0
+import sys
 import re
+import array
 
 import wx
 import wx.lib.scrolledpanel as scrolled
 import wx.lib.newevent
 from wx.lib.evtmgr import eventManager
 
-from MFT import *
+from MFT import NTFSFile
+from MFT import MFTRecord
+from MFT import IndexRootHeader
+from MFT import ATTR_TYPE
+from MFT import FilenameAttribute
+from MFT import InvalidMFTRecordNumber
 
 
 verbose = False
