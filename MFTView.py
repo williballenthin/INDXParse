@@ -18,11 +18,15 @@
 #   limitations under the License.
 #
 #   Version v.2.0.0
-from MFT import *
+import re
+
 import wx
 import wx.lib.scrolledpanel as scrolled
 import wx.lib.newevent
 from wx.lib.evtmgr import eventManager
+
+from MFT import *
+
 
 verbose = False
 
@@ -583,6 +587,74 @@ class RecordPane(scrolled.ScrolledPanel):
     def update(self, event):
         print "Warning: Unbound Record Pane update"
 
+ascii_byte = " !\"#\$%&\'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~"
+
+
+def ascii_strings(buf, n=4):
+    reg = "([%s]{%d,})" % (ascii_byte, n)
+    ascii_re = re.compile(reg)
+    for match in ascii_re.finditer(buf):
+        yield match.group().decode("ascii")
+
+
+def unicode_strings(buf, n=4):
+    reg = b"((?:[%s]\x00){4,})" % (ascii_byte)
+    ascii_re = re.compile(reg)
+    for match in ascii_re.finditer(buf):
+        try:
+            yield match.group().decode("utf-16")
+        except UnicodeDecodeError:
+            print "unicode find error: " + str(match.group())
+            pass
+
+
+def strings(buf):
+    for string in ascii_strings(buf):
+        yield string
+    for string in unicode_strings(buf):
+        yield string
+
+
+class DataPane(wx.Panel):
+    def __init__(self, *args, **kwargs):
+        super(DataPane, self).__init__(*args, **kwargs)
+        self._data = ""
+
+        vsplitter = wx.SplitterWindow(self, -1)
+        panel_left = wx.Panel(vsplitter, -1)
+        self._text = wx.TextCtrl(panel_left, -1, style=wx.TE_MULTILINE)
+        self._text.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
+                                   wx.NORMAL, False, u'Courier'))
+        _expand_into(panel_left, self._text)
+
+        panel_right = wx.Panel(vsplitter, -1)
+        self._strings = wx.TextCtrl(panel_right, -1, style=wx.TE_MULTILINE)
+        self._strings.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
+                                      wx.NORMAL, False, u'Courier'))
+        _expand_into(panel_right, self._strings)
+
+        vsplitter.SplitVertically(panel_left, panel_right, sashPosition=600)
+        vsplitter.SetSashPosition(600, redraw=True)
+        vsplitter.SetMinimumPaneSize(500)
+        _expand_into(self, vsplitter)
+        self.Centre()
+
+    def update(self, data):
+        self._data = data
+        hhex = unicode(_format_hex(data))
+        self._text.SetValue(hhex)
+
+        strings_text = ""
+        strings_text += "ASCII\n"
+        strings_text += "----------------\n"
+        for string in ascii_strings(data):
+            strings_text += "%s\n" % (string)
+        strings_text += "\n\nUTF-16\n"
+        strings_text += "----------------\n"
+        for string in unicode_strings(data):
+            strings_text += "%s\n" % (string)
+        self._strings.SetValue(strings_text)
+
 
 class RecordHexPane(RecordPane):
     """
@@ -590,14 +662,12 @@ class RecordHexPane(RecordPane):
     """
     def __init__(self, *args, **kwargs):
         super(RecordHexPane, self).__init__(*args, **kwargs)
-        self._text = wx.TextCtrl(self, -1, style=wx.TE_MULTILINE)
-        self._text.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
-                          wx.NORMAL, False, u'Courier'))
-        self._sizer.Add(self._text, self.EXPAND_VERTICALLY, wx.EXPAND)
+        self._data_pane = DataPane(self, -1)
+        _expand_into(self, self._data_pane)
 
     def update(self, event):
-        hhex = unicode(_format_hex(self._model.record()._buf.tostring()))
-        self._text.SetValue(hhex)
+        data = self._model.record()._buf.tostring()
+        self._data_pane.update(data)
 
 
 class RecordMetadataPane(RecordPane):
@@ -991,15 +1061,13 @@ class RecordAttributePane(RecordPane):
                     at_view_sizer.Add(LabelledLine(self, "Resident", "True"),
                                       self.NOT_EXPAND_VERTICALLY, wx.EXPAND)
 
-                atd_view = wx.TextCtrl(self, style=wx.TE_MULTILINE)
-                atd_view.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
-                                                 wx.NORMAL, False, u'Courier'))
-
                 sstart = attr.absolute_offset(0)
                 send = attr.absolute_offset(0) + attr.size()
-                hhex = unicode(_format_hex(attr._buf[sstart:send].tostring()))
-                atd_view.SetValue(hhex)
-                at_view_sizer.Add(atd_view, self.EXPAND_VERTICALLY, wx.EXPAND)
+                data = attr._buf[sstart:send].tostring()
+
+                data_pane = DataPane(self, -1)
+                data_pane.update(data)
+                at_view_sizer.Add(data_pane, self.EXPAND_VERTICALLY, wx.EXPAND)
 
                 self._sizer.Add(at_view_sizer,
                                 self.EXPAND_VERTICALLY,
