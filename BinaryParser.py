@@ -465,6 +465,9 @@ class Block(object):
         handler = None
 
         if isinstance(type_, type):
+            if not issubclass(type_, NestableBlock):
+                raise TypeError("Invalid nested structure")
+
             typename = type_.__name__
 
             if count == 0:
@@ -477,10 +480,6 @@ class Block(object):
                     for _ in range(count):
                         r = type_(self._buf, self.absolute_offset(ofs), self)
                         ofs += len(r)
-
-                        # HACK(wb): don't know how to check type object directly
-                        if not isinstance(r, NestableBlock):
-                            raise TypeError("Nested structure must be a NestableBlock")
                         yield r
                 handler = many_class_handler
 
@@ -495,20 +494,12 @@ class Block(object):
                         r = type_(self._buf, self.absolute_offset(ofs), self)
                         ofs += len(r)
 
-                        # TODO(wb)
-                        # HACK(wb): don't know how to check type object directly
                         if not isinstance(r, NestableBlock):
                             raise TypeError("Nested structure must be a NestableBlock")
 
                     self._implicit_offset = ofs
             else:
                 def class_handler():
-                    r = type_(self._buf, self.absolute_offset(offset), self)
-
-                    # TODO(wb)
-                    # HACK(wb): don't know how to check type object directly
-                    if not isinstance(r, NestableBlock):
-                        raise TypeError("Nested structure must be a NestableBlock")
                     return type_(self._buf, self.absolute_offset(offset), self)
                 handler = class_handler
 
@@ -517,11 +508,6 @@ class Block(object):
                     self._implicit_offset = offset + size
                 else:
                     temp = type_(self._buf, self.absolute_offset(offset), self)
-
-                    # TODO(wb)
-                    # HACK(wb): don't know how to check type object directly
-                    if not isinstance(temp, NestableBlock):
-                        raise TypeError("Nested structure must be a NestableBlock")
 
                     self._implicit_offset = offset + len(temp)
         elif isinstance(type_, basestring):
