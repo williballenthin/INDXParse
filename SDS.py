@@ -19,7 +19,10 @@
 #
 #   Version v.1.2
 from BinaryParser import Block
+from BinaryParser import NestableBlock
+from BinaryParser import align
 from BinaryParser import read_byte
+from BinaryParser import read_word
 from BinaryParser import read_dword
 
 
@@ -56,54 +59,7 @@ class SECURITY_DESCRIPTOR_CONTROL:
     SE_SELF_RELATIVE = 1 << 15
 
 
-class ACL(Block):
-    def __init__(self, buf, offset, parent):
-        super(ACL, self).__init__(buf, offset)
-        self.declare_field("byte", "revision", 0x0)
-        self.declare_field("byte", "alignment1")
-        self.declare_field("word", "size")
-        self.declare_field("word", "ace_count")
-        self.declare_field("word", "alignment2")
-        # TODO(wb): ACEs
-        # http://www.cs.fsu.edu/~baker/devices/lxr/http/source/linux/fs/ntfs/layout.h#L1354
-
-    @staticmethod
-    def structure_size(buf, offset, parent):
-        return 8
-
-    def __len__(self):
-        return ACL.structure_size(self._buf, self.absolute_offset(0x0), None)
-
-
-class NULL_ACL(object):
-    """
-    TODO(wb): Not actually sure what the NULL ACL is...
-      just guessing at the values here.
-    """
-    def __init__(self):
-        super(NULL_ACL, self).__init__(self)
-
-    def revision(self):
-        return 1
-
-    def alignment1(self):
-        return 0
-
-    def size(self):
-        return 0
-
-    def ace_count(self):
-        return 0
-
-    @staticmethod
-    def structure_size(buf, offset, parent):
-        return 0
-
-    def __len__(self):
-        return 0
-
-
-class SID_IDENTIFIER_AUTHORITY(Block):
+class SID_IDENTIFIER_AUTHORITY(NestableBlock):
     def __init__(self, buf, offset, parent):
         super(SID_IDENTIFIER_AUTHORITY, self).__init__(buf, offset)
         self.declare_field("word_be", "high_part", 0x0)
@@ -120,7 +76,7 @@ class SID_IDENTIFIER_AUTHORITY(Block):
         return "%s" % (self.high_part() << 32 + self.low_part())
 
 
-class SID(Block):
+class SID(NestableBlock):
     def __init__(self, buf, offset, parent):
         super(SID, self).__init__(buf, offset)
         self.declare_field("byte", "revision", 0x0)
@@ -144,7 +100,252 @@ class SID(Block):
         return ret
 
 
-class SECURITY_DESCRIPTOR_RELATIVE(Block):
+class ACE_TYPES:
+    """
+    One byte.
+    """
+    ACCESS_MIN_MS_ACE_TYPE = 0
+    ACCESS_ALLOWED_ACE_TYPE = 0
+    ACCESS_DENIED_ACE_TYPE = 1
+    SYSTEM_AUDIT_ACE_TYPE = 2
+    SYSTEM_ALARM_ACE_TYPE = 3  # Not implemented as of Win2k.
+    ACCESS_MAX_MS_V2_ACE_TYPE = 3
+
+    ACCESS_ALLOWED_COMPOUND_ACE_TYPE = 4
+    ACCESS_MAX_MS_V3_ACE_TYPE = 4
+
+    # The following are Win2k only.
+    ACCESS_MIN_MS_OBJECT_ACE_TYPE = 5
+    ACCESS_ALLOWED_OBJECT_ACE_TYPE = 5
+    ACCESS_DENIED_OBJECT_ACE_TYPE = 6
+    SYSTEM_AUDIT_OBJECT_ACE_TYPE = 7
+    SYSTEM_ALARM_OBJECT_ACE_TYPE = 8
+    ACCESS_MAX_MS_OBJECT_ACE_TYPE = 8
+    ACCESS_MAX_MS_V4_ACE_TYPE = 8
+
+    # This one is for WinNT/2k.
+    ACCESS_MAX_MS_ACE_TYPE = 8
+
+
+class ACE_FLAGS:
+    """
+    One byte.
+    """
+    OBJECT_INHERIT_ACE = 0x01
+    CONTAINER_INHERIT_ACE = 0x02
+    NO_PROPAGATE_INHERIT_ACE = 0x04
+    INHERIT_ONLY_ACE = 0x08
+    INHERITED_ACE = 0x10  # Win2k only.
+    VALID_INHERIT_FLAGS = 0x1f
+
+    # The audit flags.
+    SUCCESSFUL_ACCESS_ACE_FLAG = 0x40
+    FAILED_ACCESS_ACE_FLAG = 0x80
+
+
+class ACCESS_MASK:
+    """
+    DWORD.
+    """
+    FILE_READ_DATA = 0x00000001
+    FILE_LIST_DIRECTORY = 0x00000001
+    FILE_WRITE_DATA = 0x00000002
+    FILE_ADD_FILE = 0x00000002
+    FILE_APPEND_DATA = 0x00000004
+    FILE_ADD_SUBDIRECTORY = 0x00000004
+    FILE_READ_EA = 0x00000008
+    FILE_WRITE_EA = 0x00000010
+    FILE_EXECUTE = 0x00000020
+    FILE_TRAVERSE = 0x00000020
+    FILE_DELETE_CHILD = 0x00000040
+    FILE_READ_ATTRIBUTES = 0x00000080
+    FILE_WRITE_ATTRIBUTES = 0x00000100
+    DELETE = 0x00010000
+    READ_CONTROL = 0x00020000
+    WRITE_DAC = 0x00040000
+    WRITE_OWNER = 0x00080000
+    SYNCHRONIZE = 0x00100000
+    STANDARD_RIGHTS_READ = 0x00020000
+    STANDARD_RIGHTS_WRITE = 0x00020000
+    STANDARD_RIGHTS_EXECUTE = 0x00020000
+    STANDARD_RIGHTS_REQUIRED = 0x000f0000
+    STANDARD_RIGHTS_ALL = 0x001f0000
+    ACCESS_SYSTEM_SECURITY = 0x01000000
+    MAXIMUM_ALLOWED = 0x02000000
+    GENERIC_ALL = 0x10000000
+    GENERIC_EXECUTE = 0x20000000
+    GENERIC_WRITE = 0x40000000
+    GENERIC_READ = 0x80000000
+
+
+class ACE(Block):
+    def __init__(self, buf, offset, parent):
+        super(ACE, self).__init__(buf, offset)
+        self.declare_field("byte", "ace_type", 0x0)
+        self.declare_field("byte", "ace_flags")
+
+    @staticmethod
+    def get_ace(buf, offset, parent):
+        header = ACE(buf, offset, parent)
+        if header.ace_type() == ACE_TYPES.ACCESS_ALLOWED_ACE_TYPE:
+            return ACCESS_ALLOWED_ACE(buf, offset, parent)
+        elif header.ace_type() == ACE_TYPES.ACCESS_DENIED_ACE_TYPE:
+            return ACCESS_DENIED_ACE(buf, offset, parent)
+        elif header.ace_type() == ACE_TYPES.SYSTEM_AUDIT_ACE_TYPE:
+            return SYSTEM_AUDIT_ACE(buf, offset, parent)
+        elif header.ace_type() == ACE_TYPES.SYSTEM_ALARM_ACE_TYPE:
+            return SYSTEM_ALARM_ACE(buf, offset, parent)
+        elif header.ace_type() == ACE_TYPES.ACCESS_ALLOWED_OBJECT_ACE_TYPE:
+            return ACCESS_ALLOWED_OBJECT_ACE(buf, offset, parent)
+        elif header.ace_type() == ACE_TYPES.ACCESS_DENIED_OBJECT_ACE_TYPE:
+            return ACCESS_DENIED_OBJECT_ACE(buf, offset, parent)
+        elif header.ace_type() == ACE_TYPES.SYSTEM_AUDIT_OBJECT_ACE_TYPE:
+            return SYSTEM_AUDIT_OBJECT_ACE(buf, offset, parent)
+        elif header.ace_type() == ACE_TYPES.SYSTEM_ALARM_OBJECT_ACE_TYPE:
+            return SYSTEM_ALARM_OBJECT_ACE(buf, offset, parent)
+        else:
+            raise ParseException("unknown ACE type")
+
+
+class StandardACE(ACE, NestableBlock):
+    def __init__(self, buf, offset, parent):
+        super(StandardACE, self).__init__(buf, offset, parent)
+        self.declare_field("word", "size", 0x2)
+        self.declare_field("dword", "access_mask")
+        self.declare_field(SID, "sid")
+
+    @staticmethod
+    def structure_size(buf, offset, parent):
+        return read_word(buf, offset + 0x2)
+
+    def __len__(self):
+        return self.size()
+
+
+class ACCESS_ALLOWED_ACE(StandardACE):
+    def __init__(self, buf, offset, parent):
+        super(ACCESS_ALLOWED_ACE, self).__init__(buf, offset, parent)
+
+
+class ACCESS_DENIED_ACE(StandardACE):
+    def __init__(self, buf, offset, parent):
+        super(ACCESS_DENIED_ACE, self).__init__(buf, offset, parent)
+
+
+class SYSTEM_AUDIT_ACE(StandardACE):
+    def __init__(self, buf, offset, parent):
+        super(SYSTEM_AUDIT_ACE, self).__init__(buf, offset, parent)
+
+
+class SYSTEM_ALARM_ACE(StandardACE):
+    def __init__(self, buf, offset, parent):
+        super(SYSTEM_ALARM_ACE, self).__init__(buf, offset, parent)
+
+
+class OBJECT_ACE_FLAGS:
+    """
+    DWORD.
+    """
+    ACE_OBJECT_TYPE_PRESENT = 1
+    ACE_INHERITED_OBJECT_TYPE_PRESENT = 2
+
+
+class ObjectACE(ACE, NestableBlock):
+    def __init__(self, buf, offset, parent):
+        super(ObjectACE, self).__init__(buf, offset, parent)
+        self.declare_field("word", "size", 0x2)
+        self.declare_field("dword", "access_mask")
+        self.declare_field("dword", "object_flags")
+        self.declare_field("guid", "object_type")
+        self.declare_field("guid", "inherited_object_type")
+
+    @staticmethod
+    def structure_size(buf, offset, parent):
+        return read_word(buf, offset + 0x2)
+
+    def __len__(self):
+        return self.size()
+
+
+class ACCESS_ALLOWED_OBJECT_ACE(ObjectACE):
+    def __init__(self, buf, offset, parent):
+        super(ACCESS_ALLOWED_OBJECT_ACE, self).__init__(buf, offset, parent)
+
+
+class ACCESS_DENIED_OBJECT_ACE(ObjectACE):
+    def __init__(self, buf, offset, parent):
+        super(ACCESS_DENIED_OBJECT_ACE, self).__init__(buf, offset, parent)
+
+
+class SYSTEM_AUDIT_OBJECT_ACE(ObjectACE):
+    def __init__(self, buf, offset, parent):
+        super(SYSTEM_AUDIT_OBJECT_ACE, self).__init__(buf, offset, parent)
+
+
+class SYSTEM_ALARM_OBJECT_ACE(ObjectACE):
+    def __init__(self, buf, offset, parent):
+        super(SYSTEM_ALARM_OBJECT_ACE, self).__init__(buf, offset, parent)
+
+
+class ACL(NestableBlock):
+    def __init__(self, buf, offset, parent):
+        super(ACL, self).__init__(buf, offset)
+        self.declare_field("byte", "revision", 0x0)
+        self.declare_field("byte", "alignment1")
+        self.declare_field("word", "size")
+        self.declare_field("word", "ace_count")
+        self.declare_field("word", "alignment2")
+        self._off_ACEs = self.current_field_offset()
+        self.add_explicit_field(self._off_ACEs, ACE, "ACEs")
+
+    @staticmethod
+    def structure_size(buf, offset, parent):
+        return read_word(buf, offset + 0x2)
+
+    def __len__(self):
+        return self.size()
+
+    def ACEs(self):
+        ofs = self._off_ACEs
+        for _ in range(self.ace_count()):
+            a = ACE.get_ace(self._buf, self.offset() + ofs, self)
+            yield a
+            ofs += a.size()
+            ofs = align(ofs, 4)
+
+
+class NULL_ACL(object):
+    """
+    TODO(wb): Not actually sure what the NULL ACL is...
+      just guessing at the values here.
+    """
+    def __init__(self):
+        super(NULL_ACL, self).__init__(self)
+
+    def revision(self):
+        return 1
+
+    def alignment1(self):
+        return 0
+
+    def size(self):
+        return 0
+
+    def ace_count(self):
+        return 0
+
+    def ACEs(self):
+        return
+
+    @staticmethod
+    def structure_size(buf, offset, parent):
+        return 0
+
+    def __len__(self):
+        return 0
+
+
+class SECURITY_DESCRIPTOR_RELATIVE(NestableBlock):
     def __init__(self, buf, offset, parent):
         super(SECURITY_DESCRIPTOR_RELATIVE, self).__init__(buf, offset)
         self.declare_field("byte", "revision", 0x0)
@@ -162,7 +363,9 @@ class SECURITY_DESCRIPTOR_RELATIVE(Block):
         if self.control() & SECURITY_DESCRIPTOR_CONTROL.SE_DACL_PRESENT:
             self.add_explicit_field(self.dacl_offset(), "ACL", "dacl")
 
-    # no `structure_size`, since it would be no better than parsing out the object fully
+    @staticmethod
+    def structure_size(buf, offset, parent):
+        return len(SECURITY_DESCRIPTOR_RELATIVE(buf, offset, parent))
 
     def __len__(self):
         ret = 20
@@ -203,7 +406,7 @@ class SECURITY_DESCRIPTOR_RELATIVE(Block):
             return None
 
 
-class SDS_ENTRY(Block):
+class SDS_ENTRY(NestableBlock):
     def __init__(self, buf, offset, parent):
         super(SDS_ENTRY, self).__init__(buf, offset)
         self.declare_field("dword", "hash", 0x0)

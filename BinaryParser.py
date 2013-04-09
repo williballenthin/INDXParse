@@ -358,6 +358,21 @@ def read_byte(buf, offset):
         raise OverrunBufferException(offset, len(buf))
 
 
+def read_word(buf, offset):
+    """
+    Returns a little-endian unsigned word from the relative offset of the given buffer.
+    Arguments:
+    - `buf`: The buffer from which to read the value.
+    - `offset`: The relative offset from the start of the block.
+    Throws:
+    - `OverrunBufferException`
+    """
+    try:
+        return struct.unpack_from("<H", buf, offset)[0]
+    except struct.error:
+        raise OverrunBufferException(offset, len(buf))
+
+
 def read_dword(buf, offset):
     """
     Returns a little-endian unsigned dword from the relative offset of the given buffer.
@@ -388,30 +403,37 @@ class Block(object):
         self._buf = buf
         self._offset = offset
         self._implicit_offset = 0
-        self._declared_fields = []  # list of dict(offset:number, type:string, name:string, length:number, count:number)
+        # list of dict(offset:number, type:string, name:string,
+        #              length:number, count:number)
+        self._declared_fields = []
 
     def __repr__(self):
         return "Block(buf=%r, offset=%r)" % (self._buf, self._offset)
 
-    def declare_field(self, type_, name, offset=None, length=None, count=1):
+    def declare_field(self, type_, name, offset=None, length=None, count=None):
         """
         Declaratively add fields to this block.
-        This method will dynamically add corresponding offset and unpacker methods
-        to this block.
+        This method will dynamically add corresponding offset and
+        unpacker methods to this block.
+
         Arguments:
-        - `type_`: A string or a type. If a string, should be one of the unpack_* types.
-            If a type, then it would be best to have the `structure_size` staticmethod,
-            or a `__len__` method.  
-            The signature of the `structure_size` staticmethod must be 
-              (buf:bytestring, offset:int, parent:Block-subclass)
-            The constructor signature must be that of a Block.
+        - `type_`: A string or a NestableBlock type.
+            If a string, should be one of the unpack_* types.
+            If a type, then it must be a subclass of NestableBlock.
         - `name`: A string.
         - `offset`: A number.
         - `length`: (Optional) A number. For (w)strings, length in chars.
-        - `count`: (Optional) A number that specifies the number of instances of this type.
-            If the count is greater than 1, then the handler will return a generator
-            of the items. This parameter is not valid if the `length` parameter is provided.
+        - `count`: (Optional) A number that specifies the number of
+            instances of this type.
+            If the count is greater than 1, then the handler will return
+            a generator of the items. This parameter is not valid if
+            the `length` parameter is provided.
         """
+        is_generator = True
+        if count is None:
+            count = 1
+            is_generator = False
+
         if count < 0:
             raise "Count must be greater than 0."
 
@@ -449,12 +471,16 @@ class Block(object):
                 def no_class_handler():
                     return
                 handler = no_class_handler
-            elif count > 1:
+            elif is_generator:
                 def many_class_handler():
                     ofs = offset
                     for _ in range(count):
                         r = type_(self._buf, self.absolute_offset(ofs), self)
                         ofs += len(r)
+
+                        # HACK(wb): don't know how to check type object directly
+                        if not isinstance(r, NestableBlock):
+                            raise TypeError("Nested structure must be a NestableBlock")
                         yield r
                 handler = many_class_handler
 
@@ -464,15 +490,25 @@ class Block(object):
                         ofs += type_.structure_size(self._buf, self.absolute_offset(ofs), self)
                     self._implicit_offset = ofs
                 else:
-                    # TODO(wb): its annoying we have to instantiate an instance
-                    #   of the structure to find its size...
                     ofs = offset
                     for _ in range(count):
                         r = type_(self._buf, self.absolute_offset(ofs), self)
                         ofs += len(r)
+
+                        # TODO(wb)
+                        # HACK(wb): don't know how to check type object directly
+                        if not isinstance(r, NestableBlock):
+                            raise TypeError("Nested structure must be a NestableBlock")
+
                     self._implicit_offset = ofs
             else:
                 def class_handler():
+                    r = type_(self._buf, self.absolute_offset(offset), self)
+
+                    # TODO(wb)
+                    # HACK(wb): don't know how to check type object directly
+                    if not isinstance(r, NestableBlock):
+                        raise TypeError("Nested structure must be a NestableBlock")
                     return type_(self._buf, self.absolute_offset(offset), self)
                 handler = class_handler
 
@@ -480,9 +516,13 @@ class Block(object):
                     size = type_.structure_size(self._buf, self.absolute_offset(offset), self)
                     self._implicit_offset = offset + size
                 else:
-                    # TODO(wb): its annoying we have to instantiate an instance
-                    #   of the structure to find its size...
                     temp = type_(self._buf, self.absolute_offset(offset), self)
+
+                    # TODO(wb)
+                    # HACK(wb): don't know how to check type object directly
+                    if not isinstance(temp, NestableBlock):
+                        raise TypeError("Nested structure must be a NestableBlock")
+
                     self._implicit_offset = offset + len(temp)
         elif isinstance(type_, basestring):
             typename = type_
@@ -491,7 +531,7 @@ class Block(object):
                 def no_basic_handler():
                     return
                 handler = no_basic_handler
-            elif count > 1:
+            elif is_generator:
                 # length must be in basic_sizes
                 def many_basic_handler():
                     ofs = offset
@@ -598,7 +638,10 @@ class Block(object):
                          field["name"])
                     ret += v.get_all_string(indent + 1)
             elif isinstance(v, types.GeneratorType):
-                pass
+                ret += "%s%s\n" % ("  " * indent, field["name"])
+                for i, j in enumerate(v):
+                    ret += "%s[%d]\n" % ("  " * (indent + 1), i)
+                    ret += j.get_all_string(indent + 2)
             else:
                 if isinstance(v, int):
                     v = hex(v)
@@ -643,11 +686,7 @@ class Block(object):
         Throws:
         - `OverrunBufferException`
         """
-        o = self._offset + offset
-        try:
-            return struct.unpack_from("<H", self._buf, o)[0]
-        except struct.error:
-            raise OverrunBufferException(o, len(self._buf))
+        return read_word(self._buf, self._offset + offset)
 
     def unpack_word_be(self, offset):
         """
@@ -917,3 +956,45 @@ class Block(object):
           offset of this block.
         """
         return self._offset
+
+
+class NestableBlock(Block):
+    """
+    A NestableBlock is a type that can be provided as a field in a Block.
+    The only requirement is that it implement a `len` method, or a
+    `structure_size` staticmethod.  This enables the parent Block to
+    seek among its children.
+    """
+    def __init__(self, buf, offset):
+        super(NestableBlock, self).__init__(buf, offset)
+
+    @staticmethod
+    def structure_size(buf, offset, parent):
+        """
+        This staticmethod should return the size of a block located at the
+          specified location in the given buffer.  This method should do the
+          minimal amount of processing involved to compute the size.  It should
+          not perform any worse than simply instantiating the this type and
+          using its `__len__` method.
+
+        @type  buf: bytestring
+        @param buf: The buffer in which this Block is found.
+        @type  offset: int
+        @param offset: The offset at which this Block begins.
+        @type  parent: object
+        @param parent: The logical parent of this Block.
+        @rtype: int
+        @return The length of the Block starting at the given location.
+        """
+        raise NotImplemented
+
+    def __len__(self):
+        """
+        This method should return the size of this structure in bytes.
+        It should prefer to use size fields or logic that
+          is already parsed out.
+
+        @rtype: int
+        @return The length of this Block in bytes.
+        """
+        raise NotImplemented
