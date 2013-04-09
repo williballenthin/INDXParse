@@ -19,6 +19,10 @@
 #
 #   Version v.1.2.0
 from MFT import *
+from BinaryParser import info
+from BinaryParser import warning
+from BinaryParser import debug
+from BinaryParser import error
 import calendar
 
 verbose = False
@@ -404,8 +408,8 @@ def print_indx_info(options):
     print "Attributes:"
     for b in record.attributes():
         print "  %s" % (Attribute.TYPES[b.type()])
-        print "    name: %s" % (b.name() or "<none>")
-        print "    attributes: " + \
+        print "    attribute name: %s" % (b.name() or "<none>")
+        print "    attribute flags: " + \
             ", ".join(get_flags(attr.flags()))
         if b.non_resident() > 0:
             print "    resident: no"
@@ -500,8 +504,9 @@ def main():
                                      'filesystem structures.')
     parser.add_argument('-t', action="store", metavar="type",
                         nargs=1, dest="filetype",
-                        help="Type of input file. "
-                        "One of 'image', 'MFT', or 'INDX'")
+                        choices=["image", "MFT", "INDX", "auto"],
+                        default="auto",
+                        help="The type of data provided.")
     parser.add_argument('-c', action="store", metavar="size",
                         nargs=1, type=int, dest="clustersize",
                         help="Use this cluster size in bytes "
@@ -547,7 +552,7 @@ def main():
     global verbose
     verbose = results.verbose
 
-    if results.filetype:
+    if results.filetype and results.filetype != "auto":
         results.filetype = results.filetype[0].lower()
         info("Asked to process a file with type: " + results.filetype)
     else:

@@ -23,6 +23,7 @@ import sys
 from datetime import datetime
 from functools import partial
 import types
+import cPickle
 
 verbose = False
 
@@ -94,7 +95,118 @@ def hex_dump(src, start_addr=0):
     return ''.join(result)
 
 
-class memoize(object):
+class decoratorargs(object):
+    def __new__(typ, *attr_args, **attr_kwargs):
+        def decorator(orig_func):
+            self = object.__new__(typ)
+            self.__init__(orig_func, *attr_args, **attr_kwargs)
+            return self
+        return decorator
+
+
+class memoize(decoratorargs):
+    class Node:
+        __slots__ = ['key', 'value', 'older', 'newer']
+
+        def __init__(self, key, value, older=None, newer=None):
+            self.key = key
+            self.value = value
+            self.older = older
+            self.newer = newer
+
+    def __init__(self, func, capacity=1000,
+                 keyfunc=lambda *args, **kwargs: cPickle.dumps((args,
+                                                                kwargs))):
+        if not isinstance(func, property):
+            self.func = func
+            self.name = func.__name__
+            self.is_property = False
+        else:
+            self.func = func.fget
+            self.name = func.fget.__name__
+            self.is_property = True
+        self.capacity = capacity
+        self.keyfunc = keyfunc
+        self.reset()
+
+    def reset(self):
+        self.mru = self.Node(None, None)
+        self.mru.older = self.mru.newer = self.mru
+        self.nodes = {self.mru.key: self.mru}
+        self.count = 1
+        self.hits = 0
+        self.misses = 0
+
+    def __get__(self, inst, clas):
+        self.obj = inst
+        if self.is_property:
+            return self.__call__()
+        else:
+            return self
+
+    def __call__(self, *args, **kwargs):
+        key = self.keyfunc(*args, **kwargs)
+        try:
+            node = self.nodes[key]
+        except KeyError:
+            # We have an entry not in the cache
+            self.misses += 1
+            func = types.MethodType(self.func, self.obj, self.name)
+            value = func(*args, **kwargs)
+            lru = self.mru.newer  # Always true
+            # If we haven't reached capacity
+            if self.count < self.capacity:
+                # Put it between the MRU and LRU - it'll be the new MRU
+                node = self.Node(key, value, self.mru, lru)
+                self.mru.newer = node
+
+                lru.older = node
+                self.mru = node
+                self.count += 1
+            else:
+                # It's FULL! We'll make the LRU be the new MRU, but replace its
+                # value first
+                try:
+                    del self.nodes[lru.key]  # This mapping is now invalid
+                except KeyError:  # HACK TODO: this may not work/leak
+                    pass
+                lru.key = key
+                lru.value = value
+                self.mru = lru
+
+            # Add the new mapping
+            self.nodes[key] = self.mru
+            return value
+
+        # We have an entry in the cache
+        self.hits += 1
+
+        # If it's already the MRU, do nothing
+        if node is self.mru:
+            return node.value
+
+        lru = self.mru.newer  # Always true
+
+        # If it's the LRU, update the MRU to be it
+        if node is lru:
+            self.mru = lru
+            return node.value
+
+        # Remove the node from the list
+        node.older.newer = node.newer
+        node.newer.older = node.older
+
+        # Put it between MRU and LRU
+        node.older = self.mru
+        self.mru.newer = node
+
+        node.newer = lru
+        lru.older = node
+
+        self.mru = node
+        return node.value
+
+class memoize1(object):
     """cache the return value of a method
 
     From http://code.activestate.com/recipes/577452-a-memoize-decorator-for-instance-methods/

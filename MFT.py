@@ -52,7 +52,7 @@ class INDXException(Exception):
 
 class FixupBlock(Block):
     def __init__(self, buf, offset, parent):
-        super(FixupBlock, self).__init__(buf, offset, parent)
+        super(FixupBlock, self).__init__(buf, offset)
 
     def fixup(self, num_fixups, fixup_value_offset):
         fixup_value = self.unpack_word(fixup_value_offset)
@@ -78,7 +78,7 @@ class FixupBlock(Block):
 class IndexRootHeader(Block):
     def __init__(self, buf, offset, parent):
         debug("INDEX ROOT HEADER at %s." % (hex(offset)))
-        super(IndexRootHeader, self).__init__(buf, offset, parent)
+        super(IndexRootHeader, self).__init__(buf, offset)
         self.declare_field("dword", "type", 0x0)
         self.declare_field("dword", "collation_rule")
         self.declare_field("dword", "index_record_size_bytes")
@@ -115,7 +115,7 @@ class IndexRecordHeader(FixupBlock):
 class IndexNodeHeader(Block):
     def __init__(self, buf, offset, parent):
         debug("INDEX NODE HEADER at %s." % (hex(offset)))
-        super(IndexNodeHeader, self).__init__(buf, offset, parent)
+        super(IndexNodeHeader, self).__init__(buf, offset)
         self.declare_field("dword", "entry_list_start", 0x0)
         self.declare_field("dword", "entry_list_end")
         self.declare_field("dword", "entry_list_allocation_end")
@@ -168,7 +168,7 @@ class IndexNodeHeader(Block):
 class IndexEntry(Block):
     def __init__(self, buf, offset, parent):
         debug("INDEX ENTRY at %s." % (hex(offset)))
-        super(IndexEntry, self).__init__(buf, offset, parent)
+        super(IndexEntry, self).__init__(buf, offset)
         self.declare_field("qword", "mft_reference", 0x0)
         self.declare_field("word", "length")
         self.declare_field("word", "filename_information_length")
@@ -196,11 +196,11 @@ class StandardInformationFieldDoesNotExist(Exception):
 class StandardInformation(Block):
     def __init__(self, buf, offset, parent):
         debug("STANDARD INFORMATION ATTRIBUTE at %s." % (hex(offset)))
-        super(StandardInformation, self).__init__(buf, offset, parent)
-        self.declare_field("windows_timestamp", "created_time", 0x0)
-        self.declare_field("windows_timestamp", "modified_time")
-        self.declare_field("windows_timestamp", "changed_time")
-        self.declare_field("windows_timestamp", "accessed_time")
+        super(StandardInformation, self).__init__(buf, offset)
+        self.declare_field("filetime", "created_time", 0x0)
+        self.declare_field("filetime", "modified_time")
+        self.declare_field("filetime", "changed_time")
+        self.declare_field("filetime", "accessed_time")
         self.declare_field("dword", "attributes")
         self.declare_field("binary", "reserved",
                            self.current_field_offset(), 0xC)
@@ -249,12 +249,12 @@ class StandardInformation(Block):
 class FilenameAttribute(Block):
     def __init__(self, buf, offset, parent):
         debug("FILENAME ATTRIBUTE at %s." % (hex(offset)))
-        super(FilenameAttribute, self).__init__(buf, offset, parent)
+        super(FilenameAttribute, self).__init__(buf, offset)
         self.declare_field("qword", "mft_parent_reference", 0x0)
-        self.declare_field("windows_timestamp", "created_time")
-        self.declare_field("windows_timestamp", "modified_time")
-        self.declare_field("windows_timestamp", "changed_time")
-        self.declare_field("windows_timestamp", "accessed_time")
+        self.declare_field("filetime", "created_time")
+        self.declare_field("filetime", "modified_time")
+        self.declare_field("filetime", "changed_time")
+        self.declare_field("filetime", "accessed_time")
         self.declare_field("qword", "physical_size")
         self.declare_field("qword", "logical_size")
         self.declare_field("dword", "flags")
@@ -301,7 +301,7 @@ class SlackIndexEntry(IndexEntry):
 
 class Runentry(Block):
     def __init__(self, buf, offset, parent):
-        super(Runentry, self).__init__(buf, offset, parent)
+        super(Runentry, self).__init__(buf, offset)
         debug("RUNENTRY @ %s." % (hex(offset)))
         self.declare_field("byte", "header")
         self._offset_length = self.header() >> 4
@@ -354,7 +354,7 @@ class Runentry(Block):
 
 class Runlist(Block):
     def __init__(self, buf, offset, parent):
-        super(Runlist, self).__init__(buf, offset, parent)
+        super(Runlist, self).__init__(buf, offset)
         debug("RUNLIST @ %s." % (hex(offset)))
 
     def _entries(self, length=None):
@@ -410,7 +410,7 @@ class Attribute(Block):
     }
 
     def __init__(self, buf, offset, parent):
-        super(Attribute, self).__init__(buf, offset, parent)
+        super(Attribute, self).__init__(buf, offset)
         debug("ATTRIBUTE @ %s." % (hex(offset)))
         self.declare_field("dword", "type")
         self.declare_field("dword", "size")
@@ -523,7 +523,8 @@ class MFTRecord(FixupBlock):
         try:
             attr = self.attribute(ATTR_TYPE.STANDARD_INFORMATION)
             return StandardInformation(attr.value(), 0, self)
-        except AttributeError:
+        except AttributeError as e:
+            print(str(e))
             return False
 
     def data_attribute(self):
