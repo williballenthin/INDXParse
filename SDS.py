@@ -2,7 +2,7 @@
 
 #    This file is part of INDXParse.
 #
-#   Copyright 2011 Will Ballenthin <william.ballenthin@mandiant.com>
+#   Copyright 2011-13 Will Ballenthin <william.ballenthin@mandiant.com>
 #                    while at Mandiant <http://www.mandiant.com>
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
@@ -320,7 +320,7 @@ class NULL_ACL(object):
       just guessing at the values here.
     """
     def __init__(self):
-        super(NULL_ACL, self).__init__(self)
+        super(NULL_ACL, self).__init__()
 
     def revision(self):
         return 1
@@ -423,6 +423,26 @@ class SDS_ENTRY(NestableBlock):
         return self.length()
 
 
+class SDS(Block):
+    def __init__(self, buf, offset, parent):
+        super(SDS, self).__init__(buf, offset)
+        self.add_explicit_field(0, SDS, "sds_entries")
+
+    def sds_entries(self):
+        ofs = 0
+        while len(self._buf) > self.offset() + ofs + 0x14:
+            s = SDS_ENTRY(self._buf, self.offset() + ofs, self)
+            if len(s) != 0:
+                yield s
+                ofs += len(s)
+                ofs = align(ofs, 0x10)
+            else:
+                if ofs % 0x10000 == 0:
+                    return
+                else:
+                    ofs = align(ofs, 0x10000)
+
+
 def main():
     import sys
     import mmap
@@ -431,9 +451,12 @@ def main():
     with open(sys.argv[1], 'r') as f:
         with contextlib.closing(mmap.mmap(f.fileno(), 0,
                                           access=mmap.ACCESS_READ)) as buf:
-            e = SDS_ENTRY(buf, 0, None)
-            print("SDS_ENTRY")
-            print(e.get_all_string(indent=1))
+            s = SDS(buf, 0, None)
+            print "SDS"
+            print s.get_all_string(indent=1)
+#            for e in s.sds_entries():
+#                print("SDS_ENTRY")
+#                print(e.get_all_string(indent=1))
 
 if __name__ == "__main__":
     main()

@@ -206,46 +206,6 @@ class memoize(decoratorargs):
         self.mru = node
         return node.value
 
-class memoize1(object):
-    """cache the return value of a method
-
-    From http://code.activestate.com/recipes/577452-a-memoize-decorator-for-instance-methods/
-
-    This class is meant to be used as a decorator of methods. The return value
-    from a given method invocation will be cached on the instance whose method
-    was invoked. All arguments passed to a method decorated with memoize must
-    be hashable.
-
-    If a memoized method is invoked directly on its class the result will not
-    be cached. Instead the method will be invoked like a static method:
-    class Obj(object):
-        @memoize
-        def add_to(self, arg):
-            return self + arg
-    Obj.add_to(1) # not enough arguments
-    Obj.add_to(1, 2) # returns 3, result is not cached
-    """
-    def __init__(self, func):
-        self.func = func
-
-    def __get__(self, obj, objtype=None):
-        if obj is None:
-            return self.func
-        return partial(self, obj)
-
-    def __call__(self, *args, **kw):
-        obj = args[0]
-        try:
-            cache = obj.__cache
-        except AttributeError:
-            cache = obj.__cache = {}
-        key = (self.func, args[1:], frozenset(kw.items()))
-        try:
-            res = cache[key]
-        except KeyError:
-            res = cache[key] = self.func(*args, **kw)
-        return res
-
 
 def align(offset, alignment):
     """
@@ -256,7 +216,7 @@ def align(offset, alignment):
     """
     if offset % alignment == 0:
         return offset
-        return offset + (alignment - (offset % alignment))
+    return offset + (alignment - (offset % alignment))
 
 
 def dosdate(dosdate, dostime):
@@ -591,6 +551,9 @@ class Block(object):
         @rtype: None
         @return: None
         """
+        
+        if type(typename) == type and issubclass(typename, Block):
+            typename = typename.__name__
         self._declared_fields.append({
                 "offset": offset,
                 "type": typename,
@@ -624,9 +587,9 @@ class Block(object):
                          field["name"])
                     ret += v.get_all_string(indent + 1)
             elif isinstance(v, types.GeneratorType):
-                ret += "%s%s\n" % ("  " * indent, field["name"])
+                ret += "%s%s (%s *)%s\n" % ("  " * indent, hex(field["offset"]), field["type"], field["name"],)
                 for i, j in enumerate(v):
-                    ret += "%s[%d]\n" % ("  " * (indent + 1), i)
+                    ret += "%s[%d] (%s)\n" % ("  " * (indent + 1), i, field["type"])
                     ret += j.get_all_string(indent + 2)
             else:
                 if isinstance(v, int):
