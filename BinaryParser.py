@@ -540,7 +540,7 @@ class Block(object):
           parses, use `add_explicit_field` to include them in the pretty printing.
         @type offset:  int
         @param offset: The offset at which the field begins.
-        @type typename:  str
+        @type typename:  str or Block subclass
         @param typename: The type of the value of the field.
         @type name:  str
         @param name: The name of the field.
@@ -552,7 +552,7 @@ class Block(object):
         @return: None
         """
         
-        if type(typename) == type and issubclass(typename, Block):
+        if type(typename) == type:
             typename = typename.__name__
         self._declared_fields.append({
                 "offset": offset,

@@ -357,7 +357,7 @@ class SECURITY_DESCRIPTOR_RELATIVE(NestableBlock):
         self.declare_field("dword", "dacl_offset")
 
         self.add_explicit_field(self.owner_offset(), "SID", "owner")
-        self.add_explicit_field(self.owner_offset(), "SID", "group")
+        self.add_explicit_field(self.group_offset(), "SID", "group")
         if self.control() & SECURITY_DESCRIPTOR_CONTROL.SE_SACL_PRESENT:
             self.add_explicit_field(self.sacl_offset(), "ACL", "sacl")
         if self.control() & SECURITY_DESCRIPTOR_CONTROL.SE_DACL_PRESENT:
@@ -453,10 +453,9 @@ def main():
                                           access=mmap.ACCESS_READ)) as buf:
             s = SDS(buf, 0, None)
             print "SDS"
-            print s.get_all_string(indent=1)
-#            for e in s.sds_entries():
-#                print("SDS_ENTRY")
-#                print(e.get_all_string(indent=1))
+            for e in s.sds_entries():
+                print("  SDS_ENTRY")
+                print(e.get_all_string(indent=2))
 
 if __name__ == "__main__":
     main()
