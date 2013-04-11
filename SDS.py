@@ -19,7 +19,8 @@
 #
 #   Version v.1.2
 from BinaryParser import Block
-from BinaryParser import NestableBlock
+from BinaryParser import Nestable
+from BinaryParser import ParseException
 from BinaryParser import align
 from BinaryParser import read_byte
 from BinaryParser import read_word
@@ -59,7 +60,7 @@ class SECURITY_DESCRIPTOR_CONTROL:
     SE_SELF_RELATIVE = 1 << 15
 
 
-class SID_IDENTIFIER_AUTHORITY(NestableBlock):
+class SID_IDENTIFIER_AUTHORITY(Block, Nestable):
     def __init__(self, buf, offset, parent):
         super(SID_IDENTIFIER_AUTHORITY, self).__init__(buf, offset)
         self.declare_field("word_be", "high_part", 0x0)
@@ -76,7 +77,7 @@ class SID_IDENTIFIER_AUTHORITY(NestableBlock):
         return "%s" % (self.high_part() << 32 + self.low_part())
 
 
-class SID(NestableBlock):
+class SID(Block, Nestable):
     def __init__(self, buf, offset, parent):
         super(SID, self).__init__(buf, offset)
         self.declare_field("byte", "revision", 0x0)
@@ -207,7 +208,7 @@ class ACE(Block):
             raise ParseException("unknown ACE type")
 
 
-class StandardACE(ACE, NestableBlock):
+class StandardACE(ACE, Nestable):
     def __init__(self, buf, offset, parent):
         super(StandardACE, self).__init__(buf, offset, parent)
         self.declare_field("word", "size", 0x2)
@@ -250,7 +251,7 @@ class OBJECT_ACE_FLAGS:
     ACE_INHERITED_OBJECT_TYPE_PRESENT = 2
 
 
-class ObjectACE(ACE, NestableBlock):
+class ObjectACE(ACE, Nestable):
     def __init__(self, buf, offset, parent):
         super(ObjectACE, self).__init__(buf, offset, parent)
         self.declare_field("word", "size", 0x2)
@@ -287,7 +288,7 @@ class SYSTEM_ALARM_OBJECT_ACE(ObjectACE):
         super(SYSTEM_ALARM_OBJECT_ACE, self).__init__(buf, offset, parent)
 
 
-class ACL(NestableBlock):
+class ACL(Block, Nestable):
     def __init__(self, buf, offset, parent):
         super(ACL, self).__init__(buf, offset)
         self.declare_field("byte", "revision", 0x0)
@@ -345,7 +346,7 @@ class NULL_ACL(object):
         return 0
 
 
-class SECURITY_DESCRIPTOR_RELATIVE(NestableBlock):
+class SECURITY_DESCRIPTOR_RELATIVE(Block, Nestable):
     def __init__(self, buf, offset, parent):
         super(SECURITY_DESCRIPTOR_RELATIVE, self).__init__(buf, offset)
         self.declare_field("byte", "revision", 0x0)
@@ -406,7 +407,7 @@ class SECURITY_DESCRIPTOR_RELATIVE(NestableBlock):
             return None
 
 
-class SDS_ENTRY(NestableBlock):
+class SDS_ENTRY(Block, Nestable):
     def __init__(self, buf, offset, parent):
         super(SDS_ENTRY, self).__init__(buf, offset)
         self.declare_field("dword", "hash", 0x0)

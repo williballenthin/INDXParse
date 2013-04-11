@@ -23,6 +23,7 @@
 
 __version__ = "1.1.8"
 
+import sys
 import struct
 import time
 import array

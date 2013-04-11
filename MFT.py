@@ -25,12 +25,16 @@ import struct
 from datetime import datetime
 
 from BinaryParser import Block
+from BinaryParser import Nestable
 from BinaryParser import memoize
 from BinaryParser import align
 from BinaryParser import warning
 from BinaryParser import debug
 from BinaryParser import ParseException
 from BinaryParser import OverrunBufferException
+from BinaryParser import read_byte
+from BinaryParser import read_word
+from BinaryParser import read_dword
 
 
 class INDXException(Exception):
@@ -75,6 +79,287 @@ class FixupBlock(Block):
                    hex(fixup_value), hex(check_value)))
 
 
+class INDEX_ENTRY_FLAGS:
+    """
+    sizeof() == WORD
+    """
+    INDEX_ENTRY_NODE = 0x1
+    INDEX_ENTRY_END = 0x2
+    INDEX_ENTRY_SPACE_FILLER = 0xFFFF
+
+
+class INDEX_ENTRY_HEADER(Block, Nestable):
+    def __init__(self, buf, offset, parent):
+        super(INDEX_ENTRY_HEADER, self).__init__(buf, offset)
+        self.declare_field("word", "length", 0x8)
+        self.declare_field("word", "key_length")
+        self.declare_field("word", "index_entry_flags")  # see INDEX_ENTRY_FLAGS
+        self.declare_field("word", "reserved")
+
+    @staticmethod
+    def structure_size(buf, offset, parent):
+        return 0x10
+
+    def __len__(self):
+        return 0x10
+
+
+class MFT_INDEX_ENTRY_HEADER(INDEX_ENTRY_HEADER):
+    """
+    Index used by the MFT for INDX attributes.
+    """
+    def __init__(self, buf, offset, parent):
+        super(MFT_INDEX_ENTRY_HEADER, self).__init__(buf, offset, parent)
+        self.declare_field("qword", "mft_reference", 0x0)
+
+
+class SECURE_INDEX_ENTRY_HEADER(INDEX_ENTRY_HEADER):
+    """
+    Index used by the $SECURE file indices SII and SDH
+    """
+    def __init__(self, buf, offset, parent):
+        super(SECURE_INDEX_ENTRY_HEADER, self).__init__(buf, offset, parent)
+        self.declare_field("word", "data_offset", 0x0)
+        self.declare_field("word", "data_length")
+        self.declare_field("dword", "reserved")
+
+
+class INDEX_ENTRY(Block,  Nestable):
+    """
+    NOTE: example structure. See the more specific classes below.
+      Probably do not instantiate.
+    """
+    def __init__(self, buf, offset, parent):
+        super(INDEX_ENTRY, self).__init__(buf, offset)
+        self.declare_field(INDEX_ENTRY_HEADER, "header", 0x0)
+        self.add_explicit_field(0x10, "string", "data")
+
+    def data(self):
+        start = self.offset() + 0x10
+        end = start + self.header().key_length()
+        return self._buf[start:end]
+
+    @staticmethod
+    def structure_size(buf, offset, parent):
+        return read_word(buf, offset + 0x8)
+
+    def __len__(self):
+        return self.header().length()
+
+    def is_valid(self):
+        return True
+
+
+class MFT_INDEX_ENTRY(Block, Nestable):
+    def __init__(self, buf, offset, parent):
+        super(MFT_INDEX_ENTRY, self).__init__(buf, offset)
+        self.declare_field(MFT_INDEX_ENTRY_HEADER, "header", 0x0)
+        self.declare_field(FilenameAttribute, "filename_information")
+
+    @staticmethod
+    def structure_size(buf, offset, parent):
+        return read_word(buf, offset + 0x8)
+
+    def __len__(self):
+        return self.header().length()
+
+    def is_valid(self):
+        # this is a bit of a mess, but it should work
+        recent_date = datetime(1990, 1, 1, 0, 0, 0)
+        future_date = datetime(2025, 1, 1, 0, 0, 0)
+        try:
+            fn = self.filename_information()
+        except:
+            return False
+        if not fn:
+            return False
+        try:
+            return fn.modified_time() > recent_date and \
+                   fn.accessed_time() > recent_date and \
+                   fn.changed_time() > recent_date and \
+                   fn.created_time() > recent_date and \
+                   fn.modified_time() < future_date and \
+                   fn.accessed_time() < future_date and \
+                   fn.changed_time() < future_date and \
+                   fn.created_time() < future_date
+        except ValueError:
+            return False
+
+
+class SII_INDEX_ENTRY(Block, Nestable):
+    def __init__(self, buf, offset, parent):
+        super(SII_INDEX_ENTRY, self).__init__(buf, offset)
+        self.declare_field(SECURE_INDEX_ENTRY_HEADER, "header", 0x0)
+        self.declare_field("dword", "security_id")
+
+    @staticmethod
+    def structure_size(buf, offset, parent):
+        return read_word(buf, offset + 0x8)
+
+    def __len__(self):
+        return self.header().length()
+
+    def is_valid(self):
+        # TODO(wb): test
+        return 1 < self.header().length() < 0x30 and \
+            1 < self.header().key_lenght() < 0x20
+
+
+class SDH_INDEX_ENTRY(Block, Nestable):
+    def __init__(self, buf, offset, parent):
+        super(SDH_INDEX_ENTRY, self).__init__(buf, offset)
+        self.declare_field(SECURE_INDEX_ENTRY_HEADER, "header", 0x0)
+        self.declare_field("dword", "hash")
+        self.declare_field("dword", "security_id")
+
+    @staticmethod
+    def structure_size(buf, offset, parent):
+        return read_word(buf, offset + 0x8)
+
+    def __len__(self):
+        return self.header().length()
+
+    def is_valid(self):
+        # TODO(wb): test
+        return 1 < self.header().length() < 0x30 and \
+            1 < self.header().key_lenght() < 0x20
+
+
+class INDEX_HEADER_FLAGS:
+    SMALL_INDEX = 0x0  # MFT: INDX_ROOT only
+    LARGE_INDEX = 0x1  # MFT: requires INDX_ALLOCATION
+    LEAF_NODE = 0x1
+    INDEX_NODE = 0x2
+    NODE_MASK = 0x1
+
+
+class INDEX_HEADER(Block, Nestable):
+    def __init__(self, buf, offset, parent):
+        super(INDEX_HEADER, self).__init__(buf, offset)
+        self.declare_field("dword", "entries_offset", 0x0)
+        self.declare_field("dword", "index_length")
+        self.declare_field("dword", "allocated_size")
+        self.declare_field("byte", "index_header_flags")  # see INDEX_HEADER_FLAGS
+        # then 3 bytes padding/reserved
+
+    @staticmethod
+    def structure_size(buf, offset, parent):
+        return 0x1C
+
+    def __len__(self):
+        return 0x1C
+
+
+class INDEX(Block, Nestable):
+    def __init__(self, buf, offset, parent, index_entry_class):
+        self._INDEX_ENTRY = index_entry_class
+        super(INDEX, self).__init__(buf, offset)
+        self.declare_field(INDEX_HEADER, "header", 0x0)
+        self.add_explicit_field(self.header().entries_offset(),
+                                INDEX_ENTRY, "entries")
+        start = self.header().entries_offset() + self.header().index_length()
+        self.add_explicit_field(start, INDEX_ENTRY, "slack_entries")
+
+    @staticmethod
+    def structure_size(buf, offset, parent):
+        return read_dword(buf, offset + 0x8)
+
+    def __len__(self):
+        return self.header().allocated_size()
+
+    def entries(self):
+        """
+        A generator that returns each INDEX_ENTRY associated with this node.
+        """
+        offset = self.header().entries_offset()
+        if offset == 0:
+            debug("No entries in this allocation block.")
+            return
+        while offset <= self.header().index_length() - 0x52:
+            debug("Entry has another entry after it.")
+            e = self._INDEX_ENTRY(self._buf, self.offset() + offset, self)
+            offset += e.length()
+            yield e
+        debug("No more entries.")
+
+    def slack_entries(self):
+        """
+        A generator that yields INDEX_ENTRYs found in the slack space
+        associated with this header.
+        """
+        offset = self.header().index_length()
+        try:
+            while offset <= self.header().allocated_size - 0x52:
+                try:
+                    debug("Trying to find slack entry at %s." % (hex(offset)))
+                    e = self._INDEX_ENTRY(self._buf, offset, self)
+                    if e.is_valid():
+                        debug("Slack entry is valid.")
+                        offset += e.length() or 1
+                        yield e
+                    else:
+                        debug("Slack entry is invalid.")
+                        raise ParseException("Not a deleted entry")
+                except ParseException:
+                    debug("Scanning one byte forward.")
+                    offset += 1
+        except struct.error:
+            debug("Slack entry parsing overran buffer.")
+            pass
+
+
+def INDEX_ROOT(Block, Nestable):
+    def __init__(self, buf, offset, parent):
+        super(INDEX_ROOT, self).__init__(buf, offset)
+        self.declare_field("dword", "type", 0x0)
+        self.declare_field("dword", "collation_rule")
+        self.declare_field("dword", "index_record_size_bytes")
+        self.declare_field("byte",  "index_record_size_clusters")
+        self.declare_field("byte", "unused1")
+        self.declare_field("byte", "unused2")
+        self.declare_field("byte", "unused3")
+        self._index_offset = self.current_field_offset()
+        self.add_explicit_field(self._index_offset, INDEX, "index")
+
+    def index(self):
+        return INDEX(self._buf, self.offset(self._index_offset),
+                     self, MFT_INDEX_ENTRY)
+
+    @staticmethod
+    def structure_size(buf, offset, parent):
+        return 0x10 + INDEX.structure_size(buf, offset + 0x10, parent)
+
+    def __len__(self):
+        return 0x10 + len(self.index())
+
+
+class INDEX_ALLOCATION(FixupBlock):
+    def __init__(self, buf, offset, parent):
+        super(IndexRecordHeader, self).__init__(buf, offset, parent)
+        self.declare_field("dword", "magic", 0x0)
+        self.declare_field("word",  "usa_offset")
+        self.declare_field("word",  "usa_count")
+        self.declare_field("qword", "lsn")
+        self.declare_field("qword", "vcn")
+        self._index_offset = self.current_field_offset()
+        self.add_explicit_field(self._index_offset, INDEX, "index")
+        # TODO(wb): we do not want to modify data here.
+        #   best to make a copy and use that.
+        #   Until then, this is not a nestable structure.
+        self.fixup(self.usa_count(), self.usa_offset())
+
+    def index(self):
+        return INDEX(self._buf, self.offset(self._index_offset),
+                     self, MFT_INDEX_ENTRY)
+
+    @staticmethod
+    def structure_size(buf, offset, parent):
+        return 0x30 + INDEX.structure_size(buf, offset + 0x10, parent)
+
+    def __len__(self):
+        return 0x30 + len(self.index())
+
+
 class IndexRootHeader(Block):
     def __init__(self, buf, offset, parent):
         debug("INDEX ROOT HEADER at %s." % (hex(offset)))
@@ -89,7 +374,7 @@ class IndexRootHeader(Block):
         self._node_header_offset = self.current_field_offset()
 
     def node_header(self):
-        return IndexNodeHeader(self._buf,
+        return NTATTR_STANDARD_INDEX_HEADER(self._buf,
                                self.offset() + self._node_header_offset,
                                self)
 
@@ -107,15 +392,15 @@ class IndexRecordHeader(FixupBlock):
         self.fixup(self.usa_count(), self.usa_offset())
 
     def node_header(self):
-        return IndexNodeHeader(self._buf,
+        return NTATTR_STANDARD_INDEX_HEADER(self._buf,
                                self.offset() + self._node_header_offset,
                                self)
 
 
-class IndexNodeHeader(Block):
+class NTATTR_STANDARD_INDEX_HEADER(Block):
     def __init__(self, buf, offset, parent):
         debug("INDEX NODE HEADER at %s." % (hex(offset)))
-        super(IndexNodeHeader, self).__init__(buf, offset)
+        super(NTATTR_STANDARD_INDEX_HEADER, self).__init__(buf, offset)
         self.declare_field("dword", "entry_list_start", 0x0)
         self.declare_field("dword", "entry_list_end")
         self.declare_field("dword", "entry_list_allocation_end")
@@ -246,7 +531,7 @@ class StandardInformation(Block):
             raise StandardInformationFieldDoesNotExist("USN")
 
 
-class FilenameAttribute(Block):
+class FilenameAttribute(Block, Nestable):
     def __init__(self, buf, offset, parent):
         debug("FILENAME ATTRIBUTE at %s." % (hex(offset)))
         super(FilenameAttribute, self).__init__(buf, offset)
@@ -262,6 +547,13 @@ class FilenameAttribute(Block):
         self.declare_field("byte", "filename_length")
         self.declare_field("byte", "filename_type")
         self.declare_field("wstring", "filename", 0x42, self.filename_length())
+
+    @staticmethod
+    def structure_size(buf, offset, parent):
+        return 0x42 + (read_byte(buf, offset + 0x40) * 2)
+
+    def __len__(self):
+        return 0x42 + (self.filename_length() * 2)
 
 
 class SlackIndexEntry(IndexEntry):

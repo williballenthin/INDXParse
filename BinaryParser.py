@@ -21,7 +21,6 @@
 import struct
 import sys
 from datetime import datetime
-from functools import partial
 import types
 import cPickle
 
@@ -377,9 +376,9 @@ class Block(object):
         unpacker methods to this block.
 
         Arguments:
-        - `type_`: A string or a NestableBlock type.
+        - `type_`: A string or a Nestable type.
             If a string, should be one of the unpack_* types.
-            If a type, then it must be a subclass of NestableBlock.
+            If a type, then it must be a subclass of Nestable.
         - `name`: A string.
         - `offset`: A number.
         - `length`: (Optional) A number. For (w)strings, length in chars.
@@ -425,7 +424,7 @@ class Block(object):
         handler = None
 
         if isinstance(type_, type):
-            if not issubclass(type_, NestableBlock):
+            if not issubclass(type_, Nestable):
                 raise TypeError("Invalid nested structure")
 
             typename = type_.__name__
@@ -453,12 +452,9 @@ class Block(object):
                     for _ in range(count):
                         r = type_(self._buf, self.absolute_offset(ofs), self)
                         ofs += len(r)
-
-                        if not isinstance(r, NestableBlock):
-                            raise TypeError("Nested structure must be a NestableBlock")
-
                     self._implicit_offset = ofs
             else:
+                # TODO(wb): this needs to cache/memoize
                 def class_handler():
                     return type_(self._buf, self.absolute_offset(offset), self)
                 handler = class_handler
@@ -907,15 +903,15 @@ class Block(object):
         return self._offset
 
 
-class NestableBlock(Block):
+class Nestable(object):
     """
-    A NestableBlock is a type that can be provided as a field in a Block.
+    A Nestable is a mixin type that can be provided with a Block type.
     The only requirement is that it implement a `len` method, or a
     `structure_size` staticmethod.  This enables the parent Block to
     seek among its children.
     """
     def __init__(self, buf, offset):
-        super(NestableBlock, self).__init__(buf, offset)
+        super(Nestable, self).__init__()
 
     @staticmethod
     def structure_size(buf, offset, parent):
