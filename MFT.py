@@ -2,7 +2,7 @@
 
 #    This file is part of INDXParse.
 #
-#   Copyright 2011 Will Ballenthin <william.ballenthin@mandiant.com>
+#   Copyright 2011-13 Will Ballenthin <william.ballenthin@mandiant.com>
 #                    while at Mandiant <http://www.mandiant.com>
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,6 +35,8 @@ from BinaryParser import OverrunBufferException
 from BinaryParser import read_byte
 from BinaryParser import read_word
 from BinaryParser import read_dword
+from BinaryParser import read_filetime
+from BinaryParser import pack_word
 
 
 class INDXException(Exception):
@@ -77,6 +79,31 @@ class FixupBlock(Block):
             debug("Fixup verified at %s and patched from %s to %s." % \
                   (hex(self.offset() + fixup_offset),
                    hex(fixup_value), hex(check_value)))
+
+    def fixed_data(self, num_fixups, fixup_value_offset):
+        """
+        @rtype: array.array("B")
+        """
+        ret = array.array("B", self.unpack_binary(0x0, length=512 * (num_fixups - 1)))
+        fixup_value = read_word(ret, fixup_value_offset)
+
+
+        for i in range(0, num_fixups - 1):
+            fixup_offset = 512 * (i + 1) - 2
+            check_value = read_word(ret, fixup_offset)
+
+            if check_value != fixup_value:
+                warning("Bad fixup at %s" % (hex(self.offset() + fixup_offset)))
+                continue
+
+            new_value = read_word(ret, fixup_value_offset + 2 + 2 * i)
+            pack_word(ret, fixup_offset, new_value)
+
+            check_value = read_word(ret, fixup_offset)
+            debug("Fixup verified at %s and patched from %s to %s." %
+                  (hex(self.offset() + fixup_offset),
+                   hex(fixup_value), hex(check_value)))
+        return ret
 
 
 class INDEX_ENTRY_FLAGS:
@@ -278,7 +305,7 @@ class INDEX(Block, Nestable):
         while offset <= self.header().index_length() - 0x52:
             debug("Entry has another entry after it.")
             e = self._INDEX_ENTRY(self._buf, self.offset() + offset, self)
-            offset += e.length()
+            offset += e.header().length()
             yield e
         debug("No more entries.")
 
@@ -289,18 +316,42 @@ class INDEX(Block, Nestable):
         """
         offset = self.header().index_length()
         try:
-            while offset <= self.header().allocated_size - 0x52:
+            while offset <= self.header().allocated_size() - 0x52:
                 try:
                     debug("Trying to find slack entry at %s." % (hex(offset)))
+
+                    if self._INDEX_ENTRY == MFT_INDEX_ENTRY:
+                        # ideally, we do:
+                        #  e = self._INDEX_ENTRY(self._buf, offset, self).is_valid()
+                        # but this is prohibitivally slow with current structure model
+                        # so we inline here
+
+                        # TODO(wb): compare straight QWORDs
+                        recent_date = datetime(1990, 1, 1, 0, 0, 0)
+                        future_date = datetime(2025, 1, 1, 0, 0, 0)
+
+                        crtime = read_filetime(self._buf, offset + 0x18)
+                        if crtime < recent_date or crtime > future_date:
+                            raise InvalidIndexEntryException()
+                        mtime = read_filetime(self._buf, offset + 0x20)
+                        if mtime < recent_date or mtime > future_date:
+                            raise InvalidIndexEntryException()
+                        ctime = read_filetime(self._buf, offset + 0x28)
+                        if ctime < recent_date or ctime > future_date:
+                            raise InvalidIndexEntryException()
+                        atime = read_filetime(self._buf, offset + 0x30)
+                        if atime < recent_date or atime > future_date:
+                            raise InvalidIndexEntryException()
+
                     e = self._INDEX_ENTRY(self._buf, offset, self)
                     if e.is_valid():
                         debug("Slack entry is valid.")
-                        offset += e.length() or 1
+                        offset += e.header().length() or 1
                         yield e
                     else:
                         debug("Slack entry is invalid.")
                         raise ParseException("Not a deleted entry")
-                except ParseException:
+                except (ParseException, ValueError, InvalidIndexEntryException):
                     debug("Scanning one byte forward.")
                     offset += 1
         except struct.error:
@@ -315,9 +366,7 @@ def INDEX_ROOT(Block, Nestable):
         self.declare_field("dword", "collation_rule")
         self.declare_field("dword", "index_record_size_bytes")
         self.declare_field("byte",  "index_record_size_clusters")
-        self.declare_field("byte", "unused1")
-        self.declare_field("byte", "unused2")
-        self.declare_field("byte", "unused3")
+        self.declare_field("byte", "unused", count=3)
         self._index_offset = self.current_field_offset()
         self.add_explicit_field(self._index_offset, INDEX, "index")
 
@@ -335,34 +384,30 @@ def INDEX_ROOT(Block, Nestable):
 
 class INDEX_ALLOCATION(FixupBlock):
     def __init__(self, buf, offset, parent):
-        super(IndexRecordHeader, self).__init__(buf, offset, parent)
-        self.declare_field("dword", "magic", 0x0)
+        super(INDEX_ALLOCATION, self).__init__(buf, offset, parent)
+        self.declare_field("string", "magic", 0x0, length=4)
         self.declare_field("word",  "usa_offset")
         self.declare_field("word",  "usa_count")
         self.declare_field("qword", "lsn")
         self.declare_field("qword", "vcn")
         self._index_offset = self.current_field_offset()
         self.add_explicit_field(self._index_offset, INDEX, "index")
-        # TODO(wb): we do not want to modify data here.
-        #   best to make a copy and use that.
-        #   Until then, this is not a nestable structure.
-        self.fixup(self.usa_count(), self.usa_offset())
+        self._fixed_data = self.fixed_data(self.usa_count(), self.usa_offset())
 
     def index(self):
-        return INDEX(self._buf, self.offset(self._index_offset),
-                     self, MFT_INDEX_ENTRY)
+        return INDEX(self._fixed_data, self._index_offset, self, MFT_INDEX_ENTRY)
 
     @staticmethod
     def structure_size(buf, offset, parent):
-        return 0x30 + INDEX.structure_size(buf, offset + 0x10, parent)
+        # Fixup will not be on the structure size field here.
+        return 0x18 + INDEX.structure_size(buf, offset + 0x18, parent)
 
     def __len__(self):
-        return 0x30 + len(self.index())
+        return 0x18 + len(self.index())
 
 
 class IndexRootHeader(Block):
     def __init__(self, buf, offset, parent):
-        debug("INDEX ROOT HEADER at %s." % (hex(offset)))
         super(IndexRootHeader, self).__init__(buf, offset)
         self.declare_field("dword", "type", 0x0)
         self.declare_field("dword", "collation_rule")
@@ -381,7 +426,6 @@ class IndexRootHeader(Block):
 
 class IndexRecordHeader(FixupBlock):
     def __init__(self, buf, offset, parent):
-        debug("INDEX RECORD HEADER at %s." % (hex(offset)))
         super(IndexRecordHeader, self).__init__(buf, offset, parent)
         self.declare_field("dword", "magic", 0x0)
         self.declare_field("word",  "usa_offset")
@@ -397,15 +441,20 @@ class IndexRecordHeader(FixupBlock):
                                self)
 
 
+class InvalidIndexEntryException(ParseException):
+    def __init__(self):
+        super(InvalidIndexEntryException, self).__init__("Invalid entry")
+
+
 class NTATTR_STANDARD_INDEX_HEADER(Block):
     def __init__(self, buf, offset, parent):
-        debug("INDEX NODE HEADER at %s." % (hex(offset)))
         super(NTATTR_STANDARD_INDEX_HEADER, self).__init__(buf, offset)
         self.declare_field("dword", "entry_list_start", 0x0)
         self.declare_field("dword", "entry_list_end")
         self.declare_field("dword", "entry_list_allocation_end")
         self.declare_field("dword", "flags")
-        self.declare_field("binary", "list_buffer", \
+        print hex(self.entry_list_start()), hex(self.entry_list_end()), hex(self.entry_list_allocation_end())
+        self.declare_field("binary", "list_buffer",
                            self.entry_list_start(),
                            self.entry_list_allocation_end() - self.entry_list_start())
 
@@ -434,6 +483,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
             while offset <= self.entry_list_allocation_end() - 0x52:
                 try:
                     debug("Trying to find slack entry at %s." % (hex(offset)))
+
                     e = SlackIndexEntry(self._buf, offset, self)
                     if e.is_valid():
                         debug("Slack entry is valid.")
@@ -441,8 +491,8 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
                         yield e
                     else:
                         debug("Slack entry is invalid.")
-                        raise ParseException("Not a deleted entry")
-                except ParseException:
+                        raise InvalidIndexEntryException
+                except (ParseException, InvalidIndexEntryException):
                     debug("Scanning one byte forward.")
                     offset += 1
         except struct.error:
@@ -452,7 +502,6 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
 class IndexEntry(Block):
     def __init__(self, buf, offset, parent):
-        debug("INDEX ENTRY at %s." % (hex(offset)))
         super(IndexEntry, self).__init__(buf, offset)
         self.declare_field("qword", "mft_reference", 0x0)
         self.declare_field("word", "length")
@@ -480,7 +529,6 @@ class StandardInformationFieldDoesNotExist(Exception):
 
 class StandardInformation(Block):
     def __init__(self, buf, offset, parent):
-        debug("STANDARD INFORMATION ATTRIBUTE at %s." % (hex(offset)))
         super(StandardInformation, self).__init__(buf, offset)
         self.declare_field("filetime", "created_time", 0x0)
         self.declare_field("filetime", "modified_time")
@@ -533,7 +581,6 @@ class StandardInformation(Block):
 
 class FilenameAttribute(Block, Nestable):
     def __init__(self, buf, offset, parent):
-        debug("FILENAME ATTRIBUTE at %s." % (hex(offset)))
         super(FilenameAttribute, self).__init__(buf, offset)
         self.declare_field("qword", "mft_parent_reference", 0x0)
         self.declare_field("filetime", "created_time")
@@ -594,7 +641,6 @@ class SlackIndexEntry(IndexEntry):
 class Runentry(Block):
     def __init__(self, buf, offset, parent):
         super(Runentry, self).__init__(buf, offset)
-        debug("RUNENTRY @ %s." % (hex(offset)))
         self.declare_field("byte", "header")
         self._offset_length = self.header() >> 4
         self._length_length = self.header() & 0xF
@@ -647,7 +693,6 @@ class Runentry(Block):
 class Runlist(Block):
     def __init__(self, buf, offset, parent):
         super(Runlist, self).__init__(buf, offset)
-        debug("RUNLIST @ %s." % (hex(offset)))
 
     def _entries(self, length=None):
         ret = []
@@ -703,7 +748,6 @@ class Attribute(Block):
 
     def __init__(self, buf, offset, parent):
         super(Attribute, self).__init__(buf, offset)
-        debug("ATTRIBUTE @ %s." % (hex(offset)))
         self.declare_field("dword", "type")
         self.declare_field("dword", "size")
         self.declare_field("byte", "non_resident")
@@ -747,7 +791,6 @@ class Attribute(Block):
 class MFTRecord(FixupBlock):
     def __init__(self, buf, offset, parent, inode=None):
         super(MFTRecord, self).__init__(buf, offset, parent)
-        debug("MFTRECORD @ %s." % (hex(offset)))
         self.inode = inode or 0
         self.declare_field("dword", "magic")
         self.declare_field("word",  "usa_offset")

@@ -302,6 +302,17 @@ class OverrunBufferException(ParseException):
             (self._value)
 
 
+def pack_word(buf, offset, word):
+    """
+    Applies the little-endian WORD (2 bytes) to the relative offset.
+    Arguments:
+    - `buf`: The buffer into which to read the value.
+    - `offset`: The relative offset from the start of the block.
+    - `word`: The data to apply.
+    """
+    return struct.pack_into("<H", buf, offset, word)
+
+
 def read_byte(buf, offset):
     """
     Returns a little-endian unsigned byte from the relative offset of the given buffer.
@@ -347,6 +358,34 @@ def read_dword(buf, offset):
         raise OverrunBufferException(offset, len(buf))
 
 
+def read_qword(buf, offset):
+    """
+    Returns a little-endian unsigned qword from the relative offset of the given buffer.
+    Arguments:
+    - `buf`: The buffer from which to read the value.
+    - `offset`: The relative offset from the start of the block.
+    Throws:
+    - `OverrunBufferException`
+    """
+    try:
+        return struct.unpack_from("<Q", buf, offset)[0]
+    except struct.error:
+        raise OverrunBufferException(offset, len(buf))
+
+
+def read_filetime(buf, offset):
+    """
+    Returns a datetime from the QWORD Windows timestamp starting at
+    the relative offset.
+    Arguments:
+    - `buf`: The buffer from which to read the value.
+    - `offset`: The relative offset from the start of the block.
+    Throws:
+    - `OverrunBufferException`
+    """
+    return parse_filetime(read_qword(buf, offset))
+
+
 class Block(object):
     """
     Base class for structure blocks in binary parsing.
@@ -366,8 +405,8 @@ class Block(object):
         #              length:number, count:number)
         self._declared_fields = []
 
-    def __repr__(self):
-        return "Block(buf=%r, offset=%r)" % (self._buf, self._offset)
+#    def __repr__(self):
+#        return "Block(buf=%r, offset=%r)" % (self._buf, self._offset)
 
     def declare_field(self, type_, name, offset=None, length=None, count=None):
         """
@@ -456,7 +495,12 @@ class Block(object):
             else:
                 # TODO(wb): this needs to cache/memoize
                 def class_handler():
-                    return type_(self._buf, self.absolute_offset(offset), self)
+                    try:
+                        existing_cache = getattr(self, "_cached_" + name)
+                        return existing_cache
+                    except AttributeError:
+                        v = type_(self._buf, self.absolute_offset(offset), self)
+                        setattr(self, "_cached_" + name, v)
                 handler = class_handler
 
                 if hasattr(type_, "structure_size"):
@@ -670,8 +714,7 @@ class Block(object):
         - `offset`: The relative offset from the start of the block.
         - `word`: The data to apply.
         """
-        o = self._offset + offset
-        return struct.pack_into("<H", self._buf, o, word)
+        return  pack_word(self._buf, self._offset + offset, word)
 
     def unpack_dword(self, offset):
         """
@@ -721,10 +764,7 @@ class Block(object):
         - `OverrunBufferException`
         """
         o = self._offset + offset
-        try:
-            return struct.unpack_from("<Q", self._buf, o)[0]
-        except struct.error:
-            raise OverrunBufferException(o, len(self._buf))
+        return read_qword(self._buf, o)
 
     def unpack_int64(self, offset):
         """
