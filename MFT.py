@@ -277,6 +277,11 @@ class INDEX_HEADER(Block, Nestable):
         return 0x1C
 
 
+class InvalidIndexEntryException(ParseException):
+    def __init__(self):
+        super(InvalidIndexEntryException, self).__init__("Invalid entry")
+
+
 class INDEX(Block, Nestable):
     def __init__(self, buf, offset, parent, index_entry_class):
         self._INDEX_ENTRY = index_entry_class
@@ -300,10 +305,8 @@ class INDEX(Block, Nestable):
         """
         offset = self.header().entries_offset()
         if offset == 0:
-            debug("No entries in this allocation block.")
             return
         while offset <= self.header().index_length() - 0x52:
-            debug("Entry has another entry after it.")
             e = self._INDEX_ENTRY(self._buf, self.offset() + offset, self)
             offset += e.header().length()
             yield e
@@ -318,8 +321,6 @@ class INDEX(Block, Nestable):
         try:
             while offset <= self.header().allocated_size() - 0x52:
                 try:
-                    debug("Trying to find slack entry at %s." % (hex(offset)))
-
                     if self._INDEX_ENTRY == MFT_INDEX_ENTRY:
                         # ideally, we do:
                         #  e = self._INDEX_ENTRY(self._buf, offset, self).is_valid()
@@ -345,17 +346,13 @@ class INDEX(Block, Nestable):
 
                     e = self._INDEX_ENTRY(self._buf, offset, self)
                     if e.is_valid():
-                        debug("Slack entry is valid.")
                         offset += e.header().length() or 1
                         yield e
                     else:
-                        debug("Slack entry is invalid.")
                         raise ParseException("Not a deleted entry")
                 except (ParseException, ValueError, InvalidIndexEntryException):
-                    debug("Scanning one byte forward.")
                     offset += 1
         except struct.error:
-            debug("Slack entry parsing overran buffer.")
             pass
 
 
@@ -439,11 +436,6 @@ class IndexRecordHeader(FixupBlock):
         return NTATTR_STANDARD_INDEX_HEADER(self._buf,
                                self.offset() + self._node_header_offset,
                                self)
-
-
-class InvalidIndexEntryException(ParseException):
-    def __init__(self):
-        super(InvalidIndexEntryException, self).__init__("Invalid entry")
 
 
 class NTATTR_STANDARD_INDEX_HEADER(Block):
