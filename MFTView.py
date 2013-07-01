@@ -203,7 +203,6 @@ class AppModel(wx.EvtHandler):
             """
             rec_num = record.inode
             if record.magic() != 0x454c4946:
-                print rec_num, hex(record.magic())
                 if record.magic() == int("BAAD", 0x16):
                     node = Node(rec_num, "BAAD",
                         None, record.is_directory())
@@ -213,17 +212,13 @@ class AppModel(wx.EvtHandler):
                     # ignore this guy
                     return
 
-            print rec_num
-
             # node already exists by rec_num
             if rec_num in self._nodes:
-                print "a"
                 raise RecordConflict(rec_num)
 
             # no filename info --> orphan with name "???"
             fn = record.filename_information()
             if not fn:
-                print "no filename"
                 node = Node(rec_num, "???", None, record.is_directory())
                 self._orphans.append(node)
                 self._nodes[rec_num] = node
@@ -231,9 +226,7 @@ class AppModel(wx.EvtHandler):
 
             # detect one level cycle
             parent_record_num = fn.mft_parent_reference() & 0xFFFFFFFFFFFF
-            print ">>", parent_record_num
             if parent_record_num == rec_num:
-                print "b"
                 node = Node(rec_num, fn.filename(),
                             None, record.is_directory())
                 self._orphans.append(node)
@@ -241,7 +234,6 @@ class AppModel(wx.EvtHandler):
                 return
 
             if record.inode == 0x5:
-                print "c"
                 # this is madeness to use record.inode and rec_num
                 # but its possible that the root node points to itself
                 # and creates a cycle
@@ -251,11 +243,9 @@ class AppModel(wx.EvtHandler):
                 return
 
             if parent_record_num not in self._nodes:
-                print " need parent"
                 # no parent --> orphan with correct filename
                 parent_buf = mftfile.mft_get_record_buf(parent_record_num)
                 if parent_buf == array.array("B", ""):
-                    print "d"
                     node = Node(rec_num, fn.filename(),
                                 None, record.is_directory())
                     self._orphans.append(node)
@@ -266,7 +256,6 @@ class AppModel(wx.EvtHandler):
                 #  orphan with correct filename
                 parent = MFTRecord(parent_buf, 0, False, inode=parent_record_num)
                 if parent.sequence_number() != fn.mft_parent_reference() >> 48:
-                    print "e"
                     node = Node(rec_num, fn.filename(),
                                 None, record.is_directory())
                     self._orphans.append(node)
@@ -275,7 +264,6 @@ class AppModel(wx.EvtHandler):
 
                 add_node(mftfile, parent)
 
-            print "f"
             parent_node = self._nodes[parent_record_num]
             node = Node(rec_num, fn.filename(),
                         parent_node, record.is_directory())
@@ -283,16 +271,12 @@ class AppModel(wx.EvtHandler):
             self._nodes[rec_num] = node
             return
 
-        count = 129000
+        count = 0
         for record in f.record_generator(start_at=count):
-            print "g", count
             count += 1
 
             if count % 100 == 0:
                 progress_fn(count, total_count)
-
-            if count < 129100:
-                continue
 
             try:
                 add_node(f, record)
@@ -301,10 +285,6 @@ class AppModel(wx.EvtHandler):
                 # this record must be a directory, and a descendant has already
                 # been processed.
                 pass
-        print "done"
-
-        add_node(f, f.mft_get_record(5))
-        print "done2"
 
 
 class MFTTreeCtrl(wx.TreeCtrl):
