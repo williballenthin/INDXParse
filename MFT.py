@@ -871,7 +871,12 @@ class NTFSFile():
             self.mftoffset = self.offset + relmftoffset * self.clustersize
             debug("MFT offset is %s" % (hex(self.mftoffset)))
 
-    def record_generator(self):
+    def record_generator(self, start_at=0):
+        """
+        @type start_at: int
+        @param start_at: the inode number to start at
+        @rtype generator of MFTRecord
+        """
         if self.filetype == "indx":
             return
         if self.filetype == "mft":
@@ -880,8 +885,10 @@ class NTFSFile():
             should_progress = is_redirected and self.progress
             with open(self.filename, "rb") as f:
                 record = True
-                count = -1
+                count = start_at - 1
+                f.seek(start_at * 1024, 0)
                 while record:
+                    # TODO(wb): this really shouldn't be here
                     if count % 100 == 0 and should_progress:
                         n = (count * 1024 * 100) / float(size)
                         sys.stderr.write("\rCompleted: %0.4f%%" % (n))
@@ -905,9 +912,9 @@ class NTFSFile():
             with open(self.filename, "rb") as f:
                 if not self.mftoffset:
                     self._calculate_mftoffset()
-                f.seek(self.mftoffset)
+                f.seek(self.mftoffset + (start_at * 1024))
                 record = True
-                count = -1
+                count = start_at - 1
                 while record:
                     count += 1
                     buf = array.array("B", f.read(1024))
