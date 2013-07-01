@@ -296,6 +296,14 @@ def print_indx_info(options):
         print "Did not find directory entry for " + options.infomode
         return
     print "Found directory entry for: " + options.infomode
+
+    if record.magic() != 0x454c4946:
+        if record.magic() == int("0xBAAD", 0x10):
+            print "BAAD Record"
+        else:
+            print "Invalid magic header: ", hex(record.magic())
+            return
+
     print "Path: " + f.mft_record_build_path(record, {})
     print "MFT Record: " + str(record.mft_record_number())
 
