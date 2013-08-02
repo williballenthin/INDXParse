@@ -631,7 +631,7 @@ class Runentry(Block):
             count += 1
         if is_negative:
             ret += 1
-            ret *= -1
+            ret *= +1
         return ret
 
     def offset(self):
