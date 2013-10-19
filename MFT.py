@@ -22,19 +22,21 @@ import array
 import os
 import sys
 import struct
+import logging
 from datetime import datetime
 
 from BinaryParser import Block
 from BinaryParser import Nestable
 from BinaryParser import memoize
 from BinaryParser import align
-from BinaryParser import warning
-from BinaryParser import debug
 from BinaryParser import ParseException
 from BinaryParser import OverrunBufferException
 from BinaryParser import read_byte
 from BinaryParser import read_word
 from BinaryParser import read_dword
+
+
+logging.basicConfig(filename="mft.py")
 
 
 class INDXException(Exception):
@@ -66,17 +68,16 @@ class FixupBlock(Block):
             check_value = self.unpack_word(fixup_offset)
 
             if check_value != fixup_value:
-                warning("Bad fixup at %s" % \
-                            (hex(self.offset() + fixup_offset)))
+                logging.warning("Bad fixup at %s", hex(self.offset() + fixup_offset))
                 continue
 
             new_value = self.unpack_word(fixup_value_offset + 2 + 2 * i)
             self.pack_word(fixup_offset, new_value)
 
             check_value = self.unpack_word(fixup_offset)
-            debug("Fixup verified at %s and patched from %s to %s." % \
-                  (hex(self.offset() + fixup_offset),
-                   hex(fixup_value), hex(check_value)))
+            logging.debug("Fixup verified at %s and patched from %s to %s.",
+                          hex(self.offset() + fixup_offset),
+                          hex(fixup_value), hex(check_value))
 
 
 class INDEX_ENTRY_FLAGS:
@@ -102,6 +103,15 @@ class INDEX_ENTRY_HEADER(Block, Nestable):
 
     def __len__(self):
         return 0x10
+
+    def is_index_entry_node(self):
+        return self.index_entry_flags() & INDEX_ENTRY_FLAGS.INDEX_ENTRY_NODE
+
+    def is_index_entry_end(self):
+        return self.index_entry_flags() & INDEX_ENTRY_FLAGS.INDEX_ENTRY_END
+
+    def is_index_entry_space_filler(self):
+        return self.index_entry_flags() & INDEX_ENTRY_FLAGS.INDEX_ENTRY_SPACE_FILLER
 
 
 class MFT_INDEX_ENTRY_HEADER(INDEX_ENTRY_HEADER):
@@ -151,6 +161,9 @@ class INDEX_ENTRY(Block,  Nestable):
 
 
 class MFT_INDEX_ENTRY(Block, Nestable):
+    """
+    Index entry for the MFT directory index $I30, attribute type 0x90.
+    """
     def __init__(self, buf, offset, parent):
         super(MFT_INDEX_ENTRY, self).__init__(buf, offset)
         self.declare_field(MFT_INDEX_ENTRY_HEADER, "header", 0x0)
@@ -187,6 +200,9 @@ class MFT_INDEX_ENTRY(Block, Nestable):
 
 
 class SII_INDEX_ENTRY(Block, Nestable):
+    """
+    Index entry for the $SECURE:$SII index.
+    """
     def __init__(self, buf, offset, parent):
         super(SII_INDEX_ENTRY, self).__init__(buf, offset)
         self.declare_field(SECURE_INDEX_ENTRY_HEADER, "header", 0x0)
@@ -206,6 +222,9 @@ class SII_INDEX_ENTRY(Block, Nestable):
 
 
 class SDH_INDEX_ENTRY(Block, Nestable):
+    """
+    Index entry for the $SECURE:$SDH index.
+    """
     def __init__(self, buf, offset, parent):
         super(SDH_INDEX_ENTRY, self).__init__(buf, offset)
         self.declare_field(SECURE_INDEX_ENTRY_HEADER, "header", 0x0)
@@ -249,6 +268,21 @@ class INDEX_HEADER(Block, Nestable):
     def __len__(self):
         return 0x1C
 
+    def is_small_index(self):
+        return self.index_header_flags() & INDEX_HEADER_FLAGS.SMALL_INDEX
+
+    def is_large_index(self):
+        return self.index_header_flags() & INDEX_HEADER_FLAGS.LARGE_INDEX
+
+    def is_leaf_node(self):
+        return self.index_header_flags() & INDEX_HEADER_FLAGS.LEAF_NODE
+
+    def is_index_node(self):
+        return self.index_header_flags() & INDEX_HEADER_FLAGS.INDEX_NODE
+
+    def is_NODE_MASK(self):
+        return self.index_header_flags() & INDEX_HEADER_FLAGS.NODE_MASK
+
 
 class INDEX(Block, Nestable):
     def __init__(self, buf, offset, parent, index_entry_class):
@@ -257,8 +291,8 @@ class INDEX(Block, Nestable):
         self.declare_field(INDEX_HEADER, "header", 0x0)
         self.add_explicit_field(self.header().entries_offset(),
                                 INDEX_ENTRY, "entries")
-        start = self.header().entries_offset() + self.header().index_length()
-        self.add_explicit_field(start, INDEX_ENTRY, "slack_entries")
+        slack_start = self.header().entries_offset() + self.header().index_length()
+        self.add_explicit_field(slack_start, INDEX_ENTRY, "slack_entries")
 
     @staticmethod
     def structure_size(buf, offset, parent):
@@ -273,14 +307,14 @@ class INDEX(Block, Nestable):
         """
         offset = self.header().entries_offset()
         if offset == 0:
-            debug("No entries in this allocation block.")
+            logging.debug("No entries in this allocation block.")
             return
         while offset <= self.header().index_length() - 0x52:
-            debug("Entry has another entry after it.")
+            logging.debug("Entry has another entry after it.")
             e = self._INDEX_ENTRY(self._buf, self.offset() + offset, self)
             offset += e.length()
             yield e
-        debug("No more entries.")
+        logging.debug("No more entries.")
 
     def slack_entries(self):
         """
@@ -291,20 +325,20 @@ class INDEX(Block, Nestable):
         try:
             while offset <= self.header().allocated_size - 0x52:
                 try:
-                    debug("Trying to find slack entry at %s." % (hex(offset)))
+                    logging.debug("Trying to find slack entry at %s.", hex(offset))
                     e = self._INDEX_ENTRY(self._buf, offset, self)
                     if e.is_valid():
-                        debug("Slack entry is valid.")
+                        logging.debug("Slack entry is valid.")
                         offset += e.length() or 1
                         yield e
                     else:
-                        debug("Slack entry is invalid.")
+                        logging.debug("Slack entry is invalid.")
                         raise ParseException("Not a deleted entry")
                 except ParseException:
-                    debug("Scanning one byte forward.")
+                    logging.debug("Scanning one byte forward.")
                     offset += 1
         except struct.error:
-            debug("Slack entry parsing overran buffer.")
+            logging.debug("Slack entry parsing overran buffer.")
             pass
 
 
@@ -362,7 +396,7 @@ class INDEX_ALLOCATION(FixupBlock):
 
 class IndexRootHeader(Block):
     def __init__(self, buf, offset, parent):
-        debug("INDEX ROOT HEADER at %s." % (hex(offset)))
+        logging.debug("INDEX ROOT HEADER at %s.", hex(offset))
         super(IndexRootHeader, self).__init__(buf, offset)
         self.declare_field("dword", "type", 0x0)
         self.declare_field("dword", "collation_rule")
@@ -381,7 +415,7 @@ class IndexRootHeader(Block):
 
 class IndexRecordHeader(FixupBlock):
     def __init__(self, buf, offset, parent):
-        debug("INDEX RECORD HEADER at %s." % (hex(offset)))
+        logging.debug("INDEX RECORD HEADER at %s." % (hex(offset)))
         super(IndexRecordHeader, self).__init__(buf, offset, parent)
         self.declare_field("dword", "magic", 0x0)
         self.declare_field("word",  "usa_offset")
@@ -399,7 +433,7 @@ class IndexRecordHeader(FixupBlock):
 
 class NTATTR_STANDARD_INDEX_HEADER(Block):
     def __init__(self, buf, offset, parent):
-        debug("INDEX NODE HEADER at %s." % (hex(offset)))
+        logging.debug("INDEX NODE HEADER at %s." % (hex(offset)))
         super(NTATTR_STANDARD_INDEX_HEADER, self).__init__(buf, offset)
         self.declare_field("dword", "entry_list_start", 0x0)
         self.declare_field("dword", "entry_list_end")
@@ -415,14 +449,14 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         """
         offset = self.entry_list_start()
         if offset == 0:
-            debug("No entries in this allocation block.")
+            logging.debug("No entries in this allocation block.")
             return
         while offset <= self.entry_list_end() - 0x52:
-            debug("Entry has another entry after it.")
+            logging.debug("Entry has another entry after it.")
             e = IndexEntry(self._buf, self.offset() + offset, self)
             offset += e.length()
             yield e
-        debug("No more entries.")
+        logging.debug("No more entries.")
 
     def slack_entries(self):
         """
@@ -433,26 +467,26 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         try:
             while offset <= self.entry_list_allocation_end() - 0x52:
                 try:
-                    debug("Trying to find slack entry at %s." % (hex(offset)))
+                    logging.debug("Trying to find slack entry at %s." % (hex(offset)))
                     e = SlackIndexEntry(self._buf, offset, self)
                     if e.is_valid():
-                        debug("Slack entry is valid.")
+                        logging.debug("Slack entry is valid.")
                         offset += e.length() or 1
                         yield e
                     else:
-                        debug("Slack entry is invalid.")
+                        logging.debug("Slack entry is invalid.")
                         raise ParseException("Not a deleted entry")
                 except ParseException:
-                    debug("Scanning one byte forward.")
+                    logging.debug("Scanning one byte forward.")
                     offset += 1
         except struct.error:
-            debug("Slack entry parsing overran buffer.")
+            logging.debug("Slack entry parsing overran buffer.")
             pass
 
 
 class IndexEntry(Block):
     def __init__(self, buf, offset, parent):
-        debug("INDEX ENTRY at %s." % (hex(offset)))
+        logging.debug("INDEX ENTRY at %s." % (hex(offset)))
         super(IndexEntry, self).__init__(buf, offset)
         self.declare_field("qword", "mft_reference", 0x0)
         self.declare_field("word", "length")
@@ -480,7 +514,7 @@ class StandardInformationFieldDoesNotExist(Exception):
 
 class StandardInformation(Block):
     def __init__(self, buf, offset, parent):
-        debug("STANDARD INFORMATION ATTRIBUTE at %s." % (hex(offset)))
+        logging.debug("STANDARD INFORMATION ATTRIBUTE at %s." % (hex(offset)))
         super(StandardInformation, self).__init__(buf, offset)
         self.declare_field("filetime", "created_time", 0x0)
         self.declare_field("filetime", "modified_time")
@@ -533,7 +567,7 @@ class StandardInformation(Block):
 
 class FilenameAttribute(Block, Nestable):
     def __init__(self, buf, offset, parent):
-        debug("FILENAME ATTRIBUTE at %s." % (hex(offset)))
+        logging.debug("FILENAME ATTRIBUTE at %s." % (hex(offset)))
         super(FilenameAttribute, self).__init__(buf, offset)
         self.declare_field("qword", "mft_parent_reference", 0x0)
         self.declare_field("filetime", "created_time")
@@ -594,7 +628,7 @@ class SlackIndexEntry(IndexEntry):
 class Runentry(Block):
     def __init__(self, buf, offset, parent):
         super(Runentry, self).__init__(buf, offset)
-        debug("RUNENTRY @ %s." % (hex(offset)))
+        logging.debug("RUNENTRY @ %s." % (hex(offset)))
         self.declare_field("byte", "header")
         self._offset_length = self.header() >> 4
         self._length_length = self.header() & 0xF
@@ -647,7 +681,7 @@ class Runentry(Block):
 class Runlist(Block):
     def __init__(self, buf, offset, parent):
         super(Runlist, self).__init__(buf, offset)
-        debug("RUNLIST @ %s." % (hex(offset)))
+        logging.debug("RUNLIST @ %s." % (hex(offset)))
 
     def _entries(self, length=None):
         ret = []
@@ -703,7 +737,7 @@ class Attribute(Block):
 
     def __init__(self, buf, offset, parent):
         super(Attribute, self).__init__(buf, offset)
-        debug("ATTRIBUTE @ %s." % (hex(offset)))
+        logging.debug("ATTRIBUTE @ %s." % (hex(offset)))
         self.declare_field("dword", "type")
         self.declare_field("dword", "size")
         self.declare_field("byte", "non_resident")
@@ -747,7 +781,7 @@ class Attribute(Block):
 class MFTRecord(FixupBlock):
     def __init__(self, buf, offset, parent, inode=None):
         super(MFTRecord, self).__init__(buf, offset, parent)
-        debug("MFTRECORD @ %s." % (hex(offset)))
+        logging.debug("MFTRECORD @ %s." % (hex(offset)))
         self.inode = inode or 0
         self.declare_field("dword", "magic")
         self.declare_field("word",  "usa_offset")
@@ -869,7 +903,7 @@ class NTFSFile():
             buf = f.read(8)
             relmftoffset = struct.unpack_from("<Q", buf, 0)[0]
             self.mftoffset = self.offset + relmftoffset * self.clustersize
-            debug("MFT offset is %s" % (hex(self.mftoffset)))
+            logging.debug("MFT offset is %s" % (hex(self.mftoffset)))
 
     def record_generator(self, start_at=0):
         """
@@ -900,9 +934,9 @@ class NTFSFile():
                     try:
                         record = MFTRecord(buf, 0, False, inode=count)
                     except OverrunBufferException:
-                        debug("Failed to parse MFT record %s" % (str(count)))
+                        logging.debug("Failed to parse MFT record %s" % (str(count)))
                         continue
-                    debug("Yielding record " + str(count))
+                    logging.debug("Yielding record " + str(count))
                     yield record
             if should_progress:
                 sys.stderr.write("\n")
@@ -923,9 +957,9 @@ class NTFSFile():
                     try:
                         record = MFTRecord(buf, 0, False, inode=count)
                     except OverrunBufferException:
-                        debug("Failed to parse MFT record %s" % (str(count)))
+                        logging.debug("Failed to parse MFT record %s" % (str(count)))
                         continue
-                    debug("Yielding record " + str(count))
+                    logging.debug("Yielding record " + str(count))
                     yield record
 
     def mft_get_record_buf(self, number):
@@ -974,7 +1008,7 @@ class NTFSFile():
         if parent.sequence_number() != fn.mft_parent_reference() >> 48:
             return "\\$OrphanFiles\\" + fn.filename()
         if rec_num in cycledetector:
-            debug("Cycle detected")
+            logging.debug("Cycle detected")
             if self.prefix:
                 return self.prefix + "\\<CYCLE>"
             else:
