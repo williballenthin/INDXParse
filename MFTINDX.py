@@ -410,6 +410,8 @@ def print_indx_info(options):
             print "    accessed: %s" % (atime)
             print "    changed: %s" % (chtime)
             print "    birthed: %s" % (crtime)
+            print "    parent ref: %d" % (MREF(attr.mft_parent_reference()))
+            print "    parent seq: %d" % (MSEQNO(attr.mft_parent_reference()))
         except ZeroDivisionError:
             continue
 
