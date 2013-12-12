@@ -35,6 +35,7 @@ from BinaryParser import OverrunBufferException
 from BinaryParser import read_byte
 from BinaryParser import read_word
 from BinaryParser import read_dword
+from Progress import NullProgress
 
 
 logging.basicConfig(filename="mft.py")
@@ -941,7 +942,7 @@ class MFTRecord(FixupBlock):
         try:
             attr = self.attribute(ATTR_TYPE.STANDARD_INFORMATION)
             return StandardInformation(attr.value(), 0, self)
-        except AttributeError as e:
+        except AttributeError:
             return False
 
     def data_attribute(self):
@@ -1292,7 +1293,7 @@ class MFTEnumerator(object):
 
         try:
             parent_record = self.get_record(parent_record_num)
-        except OverrunBufferException, InvalidRecordException:
+        except (OverrunBufferException, InvalidRecordException):
             return ORPHAN_ENTRY + FILE_SEP + record_filename
 
         if parent_record.sequence_number() != parent_seq_num:
@@ -1325,14 +1326,20 @@ class MFTTreeNode(object):
     def get_filename(self):
         return self._filename
 
+    def get_parent(self):
+        return self._nodes[self._parent_record_number]
+
     def add_child_record_number(self, child_record_number):
         self._children_record_numbers.append(child_record_number)
 
-    def get_children(self):
+    def get_children_nodes(self):
         return map(lambda n: self._nodes[n], self._children_record_numbers)
 
-    def get_parent(self):
-        return self._nodes[self._parent_record_number]
+    def get_child_node(self, filename):
+        for child in self.get_children_nodes():
+            if child.get_filename() == filename:
+                return child
+        raise KeyError("Failed to find filename: " + filename)
 
 
 ROOT_INDEX = 5
@@ -1367,7 +1374,7 @@ class MFTTree(object):
 
         try:
             parent_record = mft_enumerator.get_record(parent_record_num)
-        except OverrunBufferException, InvalidRecordException:
+        except (OverrunBufferException, InvalidRecordException):
             parent_record_num = MFTTree.ORPHAN_INDEX
             parent_record = None
 
@@ -1389,7 +1396,7 @@ class MFTTree(object):
         if parent_node:
             parent_node.add_child_record_number(record_num)
 
-    def build(self, record_cache=None, path_cache=None):
+    def build(self, record_cache=None, path_cache=None, progress_class=NullProgress):
         DEFAULT_CACHE_SIZE = 1024
         if record_cache is None:
             record_cache = Cache(size_limit=DEFAULT_CACHE_SIZE)
@@ -1400,8 +1407,14 @@ class MFTTree(object):
 
         self._nodes[MFTTree.ORPHAN_INDEX] = MFTTreeNode(self._nodes, MFTTree.ORPHAN_INDEX,
                                                         ORPHAN_ENTRY, ROOT_INDEX)
+
+        count = 0
+        progress = progress_class(len(self._buf) / 1024)
         for record in enum.enumerate_records():
             self._add_record(enum, record)
+            count += 1
+            progress.set_current(count)
+        progress.set_complete()
 
     def get_root(self):
         return self._nodes[ROOT_INDEX]
