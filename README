@@ -112,3 +112,9 @@ TODO
 License
 -------
 INDXParse is released under the Apache 2.0 license.
+
+
+Contributors
+------------
+
+  - Jerome Leseinne for identifying a bug in the is_valid constraits
