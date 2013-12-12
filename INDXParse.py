@@ -32,6 +32,7 @@ from datetime import datetime
 import argparse
 global verbose
 
+INDEX_NODE_BLOCK_SIZE = 4096
 
 def parse_windows_timestamp(qword):
     # see http://integriography.wordpress.com/2010/01/16/using-phython-to-parse-and-present-windows-64-bit-timestamps/
@@ -284,11 +285,11 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
         _magic = self.unpack_string(0, 4)
         if _magic != "INDX":
-            off=0x0
-            while off < len(buf)-offset:
+            off = 0x0
+            while off < min(len(buf) - offset, INDEX_NODE_BLOCK_SIZE):
                 if self.unpack_byte(off) != 0:
                     raise ParseException("Invalid INDX ID at beginning of block at %r bytes of stream, and non-null data encountered %r bytes into the block." % (offset, off))
-                off = off+1
+                off = off + 1
             warning("Null block encountered at offset %r." % offset)
             self._is_null_block = True
 
@@ -360,7 +361,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
     def end_offset(self):
         if self._is_null_block:
-            return self.offset() + len(self._buf)
+            return self.offset() + INDEX_NODE_BLOCK_SIZE
         else:
             return self.offset() + self.entry_allocated_size()
 
@@ -859,4 +860,4 @@ if __name__ == '__main__':
                     except UnicodeEncodeError:
                         print entry_bodyfile(e, bad_fn)
 
-        off = align(h.end_offset(), 4096)
+        off = align(h.end_offset(), INDEX_NODE_BLOCK_SIZE)
