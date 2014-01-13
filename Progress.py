@@ -15,7 +15,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-from progressbar import SimpleProgress, Percentage, Bar, ETA, ProgressBar
 
 
 class Progress(object):
@@ -55,6 +54,11 @@ class NullProgress(Progress):
 
 class ProgressBarProgress(Progress):
     def __init__(self, max_):
+        from progressbar import SimpleProgress
+        from progressbar import Percentage
+        from progressbar import Bar
+        from progressbar import ETA
+        from progressbar import ProgressBar
         super(ProgressBarProgress, self).__init__(max_)
 
         widgets = ["Progress: ",
