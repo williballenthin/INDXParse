@@ -953,6 +953,12 @@ class MFTRecord(FixupBlock):
             if attr.type() == ATTR_TYPE.DATA and attr.name() == "":
                 return attr
 
+    def slack(self):
+        """
+        Returns A binary string containing the MFT record slack.
+        """
+        return self._buf[self.offset()+self.bytes_in_use():self.offset() + 1024].tostring()
+
 
 class InvalidAttributeException(INDXException):
     def __init__(self, value):
