@@ -54,16 +54,12 @@ class NullProgress(Progress):
 
 class ProgressBarProgress(Progress):
     def __init__(self, max_):
-        from progressbar import SimpleProgress
-        from progressbar import Percentage
         from progressbar import Bar
         from progressbar import ETA
         from progressbar import ProgressBar
         super(ProgressBarProgress, self).__init__(max_)
 
         widgets = ["Progress: ",
-                   SimpleProgress(), " ",
-                   Percentage(), " ",
                    Bar(marker="=", left="[", right="]"), " ",
                    ETA(), " ", ]
         self._pbar = ProgressBar(widgets=widgets, maxval=self._max)
