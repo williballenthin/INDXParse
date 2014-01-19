@@ -57,118 +57,127 @@ def get_flags(flags):
 
 def get_timeline_entries(record):
     entries = []
+    si = record.standard_information()
+    fn = record.filename_information()
+    filename = fn.filename()
     entries.append({
-        "timestamp": record.standard_information().created_time(),
+        "timestamp": si.created_time(),
         "type": "birthed",
         "source": "$SI",
-        "path": record.filename_information().filename(),
+        "path": filename,
     })
     entries.append({
-        "timestamp": record.standard_information().accessed_time(),
+        "timestamp": si.accessed_time(),
         "type": "accessed",
         "source": "$SI",
-        "path": record.filename_information().filename(),
+        "path": filename,
     })
     entries.append({
-        "timestamp": record.standard_information().modified_time(),
+        "timestamp": si.modified_time(),
         "type": "modified",
         "source": "$SI",
-        "path": record.filename_information().filename(),
+        "path": filename,
     })
     entries.append({
-        "timestamp": record.standard_information().changed_time(),
+        "timestamp": si.changed_time(),
         "type": "changed",
         "source": "$SI",
-        "path": record.filename_information().filename(),
+        "path": filename,
     })
 
     for b in record.attributes():
         if b.type() != ATTR_TYPE.FILENAME_INFORMATION:
             continue
         attr = FilenameAttribute(b.value(), 0, record)
+        attr_filename = attr.filename()
         entries.append({
             "timestamp": attr.created_time(),
             "type": "birthed",
             "source": "$FN",
-            "path": attr.filename(),
+            "path": attr_filename,
         })
         entries.append({
             "timestamp": attr.accessed_time(),
             "type": "accessed",
             "source": "$FN",
-            "path": attr.filename(),
+            "path": attr_filename,
         })
         entries.append({
             "timestamp": attr.modified_time(),
             "type": "modified",
             "source": "$FN",
-            "path": attr.filename(),
+            "path": attr_filename,
         })
         entries.append({
             "timestamp": attr.changed_time(),
             "type": "changed",
             "source": "$FN",
-            "path": attr.filename(),
+            "path": attr_filename,
         })
 
     indxroot = record.attribute(ATTR_TYPE.INDEX_ROOT)
     if indxroot and indxroot.non_resident() == 0:
         irh = IndexRootHeader(indxroot.value(), 0, False)
         for e in irh.node_header().entries():
+            fn = e.filename_information
+            fn_filename = fn.filename()
             entries.append({
-                "timestamp": e.filename_information().created_time(),
+                "timestamp": fn.created_time(),
                 "type": "birthed",
                 "source": "INDX",
-                "path": e.filename_information().filename()
+                "path": fn_filename
             })
             entries.append({
-                "timestamp": e.filename_information().accessed_time(),
+                "timestamp": fn.accessed_time(),
                 "type": "accessed",
                 "source": "INDX",
-                "path": e.filename_information().filename()
+                "path": fn_filename
             })
             entries.append({
-                "timestamp": e.filename_information().modified_time(),
+                "timestamp": fn.modified_time(),
                 "type": "modified",
                 "source": "INDX",
-                "path": e.filename_information().filename()
+                "path": fn_filename
             })
             entries.append({
-                "timestamp": e.filename_information().changed_time(),
+                "timestamp": fn.changed_time(),
                 "type": "changed",
                 "source": "INDX",
-                "path": e.filename_information().filename()
+                "path": fn_filename
             })
 
         for e in irh.node_header().slack_entries():
+            fn = e.filename_information
+            fn_filename = fn.filename()
             entries.append({
-                "timestamp": e.filename_information().created_time(),
+                "timestamp": fn.created_time(),
                 "type": "birthed",
                 "source": "slack-INDX",
-                "path": e.filename_information().filename()
+                "path": fn_filename
             })
             entries.append({
-                "timestamp": e.filename_information().accessed_time(),
+                "timestamp": fn.accessed_time(),
                 "type": "accessed",
                 "source": "slack-INDX",
-                "path": e.filename_information().filename()
+                "path": fn_filename
             })
             entries.append({
-                "timestamp": e.filename_information().modified_time(),
+                "timestamp": fn.modified_time(),
                 "type": "modified",
                 "source": "slack-INDX",
-                "path": e.filename_information().filename()
+                "path": fn_filename
             })
             entries.append({
-                "timestamp": e.filename_information().changed_time(),
+                "timestamp": fn.changed_time(),
                 "type": "changed",
                 "source": "slack-INDX",
-                "path": e.filename_information().filename()
+                "path": fn_filename
             })
     return sorted(entries, key=lambda x: x["timestamp"])
 
 
 def make_model(record, path, record_buf):
+    si = record.standard_information()
     model = {
         "magic": record.magic(),
         "path": path,
@@ -176,11 +185,11 @@ def make_model(record, path, record_buf):
         "is_active": record.is_active(),
         "is_directory": record.is_directory(),
         "size": 0,  # updated below
-        "flags": get_flags(record.standard_information().attributes()),
-        "created": record.standard_information().created_time(),
-        "modified": record.standard_information().modified_time(),
-        "changed": record.standard_information().changed_time(),
-        "accessed": record.standard_information().accessed_time(),
+        "flags": get_flags(si.attributes()),
+        "created": si.created_time(),
+        "modified": si.modified_time(),
+        "changed": si.changed_time(),
+        "accessed": si.accessed_time(),
         "owner_id": 0,  # updated below
         "security_id": 0,  # updated below
         "quota_charged": 0,  # updated below
@@ -201,13 +210,13 @@ def make_model(record, path, record_buf):
         else:
             model["size"] = record.filename_information().logical_size()
 
+    # since the fields are sequential, we can handle an exception half way through here
+    #  and then ignore the remaining items. Dont have to worry about individual try/catches
     try:
-        # since the fields are sequential, we can handle an exception half way through here
-        #  and then ignore the remaining items. Dont have to worry about individual try/catches
-        model["owner_id"] = record.standard_information().owner_id()
-        model["security_id"] = record.standard_information().security_id()
-        model["quota_charged"] = record.standard_information().quota_charged()
-        model["usn"] = record.standard_information().usn()
+        model["owner_id"] = si.owner_id()
+        model["security_id"] = si.security_id()
+        model["quota_charged"] = si.quota_charged()
+        model["usn"] = si.usn()
     except StandardInformationFieldDoesNotExist:
         pass
 
@@ -259,25 +268,27 @@ def make_model(record, path, record_buf):
     if indxroot and indxroot.non_resident() == 0:
         irh = IndexRootHeader(indxroot.value(), 0, False)
         for e in irh.node_header().entries():
+            fn = e.filename_information()
             model["indx_entries"].append({
-                "filename": e.filename_information().filename(),
-                "size": e.filename_information().logical_size(),
-                "modified": e.filename_information().modified_time(),
-                "accessed": e.filename_information().accessed_time(),
-                "changed": e.filename_information().changed_time(),
-                "created": e.filename_information().created_time(),
+                "filename": fn.filename(),
+                "size": fn.logical_size(),
+                "modified": fn.modified_time(),
+                "accessed": fn.accessed_time(),
+                "changed": fn.changed_time(),
+                "created": fn.created_time(),
                 "record_num": MREF(e.mft_reference()),
                 "sequence_num": MSEQNO(e.mft_reference()),
             })
 
         for e in irh.node_header().slack_entries():
+            fn = e.filename_information()
             model["slack_indx_entries"].append({
-                "filename": e.filename_information().filename(),
-                "size": e.filename_information().logical_size(),
-                "modified": e.filename_information().modified_time(),
-                "accessed": e.filename_information().accessed_time(),
-                "changed": e.filename_information().changed_time(),
-                "created": e.filename_information().created_time(),
+                "filename": fn.filename(),
+                "size": fn.logical_size(),
+                "modified": fn.modified_time(),
+                "accessed": fn.accessed_time(),
+                "changed": fn.changed_time(),
+                "created": fn.created_time(),
                 "record_num": MREF(e.mft_reference()),
                 "sequence_num": MSEQNO(e.mft_reference()),
             })
