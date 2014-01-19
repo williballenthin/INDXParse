@@ -29,7 +29,7 @@ def main():
     with Mmap(filename) as buf:
         enum = MFTEnumerator(buf)
         for record in enum.enumerate_records():
-            slack = record.slack()
+            slack = record.slack_data()
             sys.stdout.write("\x00" * (1024 - len(slack)))
             sys.stdout.write(slack)
 

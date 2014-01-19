@@ -922,7 +922,7 @@ class MFTRecord(FixupBlock):
         This function returns the attribute with the most complete name,
           that is, it tends towards Win32, then POSIX, and then 8.3.
         """
-        fn = False
+        fn = None
         for a in self.attributes():
             # TODO optimize to self._buf here
             if a.type() == ATTR_TYPE.FILENAME_INFORMATION:
@@ -943,7 +943,7 @@ class MFTRecord(FixupBlock):
             attr = self.attribute(ATTR_TYPE.STANDARD_INFORMATION)
             return StandardInformation(attr.value(), 0, self)
         except AttributeError:
-            return False
+            return None
 
     def data_attribute(self):
         """
@@ -953,11 +953,17 @@ class MFTRecord(FixupBlock):
             if attr.type() == ATTR_TYPE.DATA and attr.name() == "":
                 return attr
 
-    def slack(self):
+    def slack_data(self):
         """
         Returns A binary string containing the MFT record slack.
         """
         return self._buf[self.offset()+self.bytes_in_use():self.offset() + 1024].tostring()
+
+    def active_data(self):
+        """
+        Returns A binary string containing the MFT record slack.
+        """
+        return self._buf[self.offset():self.offset() + self.bytes_in_use()].tostring()
 
 
 class InvalidAttributeException(INDXException):
@@ -1370,9 +1376,10 @@ class MFTTree(object):
         fn = record.filename_information()
         if not fn:
             # then there's no filename, or parent reference
-            # there could be some standard information (timestamps), or named streams
+            # there could be some standard information (timestamps),
+            # or named streams
             # but still no parent link.
-            # so lets bail
+            # ...so lets bail
             return
 
         parent_record_num = MREF(fn.mft_parent_reference())
@@ -1402,7 +1409,8 @@ class MFTTree(object):
         if parent_node:
             parent_node.add_child_record_number(record_num)
 
-    def build(self, record_cache=None, path_cache=None, progress_class=NullProgress):
+    def build(self, record_cache=None,
+              path_cache=None, progress_class=NullProgress):
         DEFAULT_CACHE_SIZE = 1024
         if record_cache is None:
             record_cache = Cache(size_limit=DEFAULT_CACHE_SIZE)

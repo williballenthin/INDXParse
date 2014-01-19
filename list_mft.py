@@ -1,147 +1,42 @@
-from MFT import MFTEnumerator
+# TODO:
+#   - display inactive record tags
+#   - add CSV output
+#   - add custom template support
 
 import logging
 import calendar
-from datetime import datetime
 
+from jinja2 import Environment
 import argparse
 
 from BinaryParser import Mmap
 from MFT import Cache
-from MFT import ATTR_TYPE
-from MFT import MREF
-from MFT import IndexRootHeader
-from MFT import StandardInformationFieldDoesNotExist
+from MFT import MFTEnumerator
+from get_file_info import make_model
 
 
-def format_bodyfile(path, size, inode, owner_id, info, attributes=None):
-    if not attributes:
-        attributes = []
-    try:
-        modified = int(calendar.timegm(info.modified_time().timetuple()))
-    except (ValueError, AttributeError):
-        modified = int(calendar.timegm(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
-    try:
-        accessed = int(calendar.timegm(info.accessed_time().timetuple()))
-    except (ValueError, AttributeError):
-        accessed = int(calendar.timegm(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
-    try:
-        changed  = int(calendar.timegm(info.changed_time().timetuple()))
-    except (ValueError, AttributeError):
-        changed = int(calendar.timegm(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
-    try:
-        created  = int(calendar.timegm(info.created_time().timetuple()))
-    except (ValueError, AttributeError):
-        created = int(calendar.timegm(datetime.min.timetuple()))
-    attributes_text = ""
-    if len(attributes) > 0:
-        attributes_text = " (%s)" % (", ".join(attributes))
-    return u"0|%s|%s|0|%d|0|%s|%s|%s|%s|%s\n" % (path + attributes_text, inode,
-                                                 owner_id,
-                                                 size, accessed, modified,
-                                                 changed, created)
+def unixtimestampformat(value):
+    if value is None:
+        return 0
+    return int(calendar.timegm(value.timetuple()))
 
 
-def output_mft_record(mft_enumerator, record, prefix):
-    tags = []
-    if not record.is_active():
-        tags.append("inactive")
-
-    path = prefix + "\\" + mft_enumerator.get_path(record)
-    si = record.standard_information()
-    fn = record.filename_information()
-
-    if not record.is_active() and not fn:
-        return
-
-    inode = record.mft_record_number()
-    if record.is_directory():
-        size = 0
-    else:
-        data_attr = record.data_attribute()
-        if data_attr and data_attr.non_resident() > 0:
-            size = data_attr.data_size()
-        elif fn:
-            size = fn.logical_size()
-        else:
-            size = 0
-
-    ADSs = []  # list of (name, size)
-    for attr in record.attributes():
-        if attr.type() != ATTR_TYPE.DATA or len(attr.name()) == 0:
-            continue
-        if attr.non_resident() > 0:
-            size = attr.data_size()
-        else:
-            size = attr.value_length()
-        ADSs.append((attr.name(), size))
-
-    si_index = 0
-    if si:
-        try:
-            si_index = si.security_id()
-        except StandardInformationFieldDoesNotExist:
-            pass
-
-    indices = []  # list of (filename, size, reference, info)
-    slack_indices = []  # list of (filename, size, reference, info)
-    indxroot = record.attribute(ATTR_TYPE.INDEX_ROOT)
-    if indxroot and indxroot.non_resident() == 0:
-        # TODO(wb): don't use IndxRootHeader
-        irh = IndexRootHeader(indxroot.value(), 0, False)
-        for e in irh.node_header().entries():
-            indices.append((e.filename_information().filename(),
-                            e.mft_reference(),
-                            e.filename_information().logical_size(),
-                            e.filename_information()))
-
-        for e in irh.node_header().slack_entries():
-            slack_indices.append((e.filename_information().filename(),
-                                  e.mft_reference(),
-                                  e.filename_information().logical_size(),
-                                  e.filename_information()))
-
-    # si
-    if si:
-        try:
-            print format_bodyfile(path, size, inode, si_index, si, tags),
-        except UnicodeEncodeError:
-            print "# failed to print: %s" % (list(path))
-
-    # fn
-    if fn:
-        tags = ["filename"]
-        if not record.is_active():
-            tags.append("inactive")
-        try:
-            print format_bodyfile(path, size, inode, si_index, fn, tags),
-        except UnicodeEncodeError:
-            print "# failed to print: %s" % (list(path))
-
-    # ADS
-    for ads in ADSs:
-        tags = []
-        if not record.is_active():
-            tags.append("inactive")
-        try:
-            print format_bodyfile(path + ":" + ads[0], ads[1], inode, si_index, si or {}, tags),
-        except UnicodeEncodeError:
-            print "# failed to print: %s" % (list(path))
-
-    # INDX
-    for indx in indices:
-        tags = ["indx"]
-        try:
-            print format_bodyfile(path + "\\" + indx[0], indx[1], MREF(indx[2]), 0, indx[3], tags),
-        except UnicodeEncodeError:
-            print "# failed to print: %s" % (list(path))
-
-    for indx in slack_indices:
-        tags = ["indx", "slack"]
-        try:
-            print format_bodyfile(path + "\\" + indx[0], indx[1], MREF(indx[2]), 0, indx[3], tags),
-        except UnicodeEncodeError:
-            print "# failed to print: %s" % (list(path))
+def get_default_template(env):
+    return env.from_string(
+"""\
+{% if record.standard_information and record.filename_information %}\
+0|{{ record.path }}|{{ record.record_num }}|0|{{ record.standard_information.owner_id }}|0|{{ record.size }}|{{ record.standard_information.accessed|unixtimestampformat }}|{{ record.standard_information.modified|unixtimestampformat }}|{{ record.standard_information.changed|unixtimestampformat }}|{{ record.standard_information.created|unixtimestampformat }}
+{% endif %}\
+{% if record.standard_information and record.filename_information %}\
+0|{{ record.path }} (filename)|{{ record.record_num }}|0|{{ record.standard_information.owner_id }}|0|{{ record.size }}|{{ record.filename_information.accessed|unixtimestampformat }}|{{ record.filename_information.modified|unixtimestampformat }}|{{ record.filename_information.changed|unixtimestampformat }}|{{ record.filename_information.created|unixtimestampformat }}
+{% endif %}\
+{% for e in record.indx_entries %}\
+0|{{ record.path }}\\{{ e.name }} (INDX)|{{ e.record_num }}|0|0|0|{{ e.logical_size }}|{{ e.accessed|unixtimestampformat }}|{{ e.modified|unixtimestampformat }}|{{ e.changed|unixtimestampformat }}|{{ e.created|unixtimestampformat }}
+{% endfor %}\
+{% for e in record.slack_indx_entries %}\
+0|{{ record.path }}\\{{ e.name }} (slack-INDX)|{{ e.record_num }}|0|0|0|{{ e.logical_size }}|{{ e.accessed|unixtimestampformat }}|{{ e.modified|unixtimestampformat }}|{{ e.changed|unixtimestampformat }}|{{ e.created|unixtimestampformat }}
+{% endfor %}\
+""")
 
 
 def main():
@@ -171,6 +66,10 @@ def main():
     if results.verbose:
         logging.basicConfig(level=logging.DEBUG)
 
+    env = Environment()
+    env.filters["unixtimestampformat"] = unixtimestampformat
+
+    template = get_default_template(env)
     with Mmap(results.filename) as buf:
         record_cache = Cache(results.cache_size)
         path_cache = Cache(results.cache_size)
@@ -179,7 +78,8 @@ def main():
                              record_cache=record_cache,
                              path_cache=path_cache)
         for record, record_path in enum.enumerate_paths():
-            output_mft_record(enum, record, results.prefix)
+            print(template.render(record=make_model(record, record_path)))
+
 
 if __name__ == "__main__":
     main()
