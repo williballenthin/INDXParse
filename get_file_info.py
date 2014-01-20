@@ -115,7 +115,6 @@ def get_timeline_entries(record):
     return sorted(entries, key=lambda x: x["timestamp"])
 
 
-
 def make_filename_information_model(attr):
     if attr is None:
         return None
@@ -248,14 +247,14 @@ def make_model(record, path):
         irh = IndexRootHeader(indxroot.value(), 0, False)
         for e in irh.node_header().entries():
             m = make_filename_information_model(e.filename_information())
-            m["record_num"] = MREF(e.mft_reference()),
-            m["sequence_num"] = MSEQNO(e.mft_reference()),
+            m["record_num"] = MREF(e.mft_reference())
+            m["sequence_num"] = MSEQNO(e.mft_reference())
             model["indx_entries"].append(m)
 
         for e in irh.node_header().slack_entries():
             m = make_filename_information_model(e.filename_information())
-            m["record_num"] = MREF(e.mft_reference()),
-            m["sequence_num"] = MSEQNO(e.mft_reference()),
+            m["record_num"] = MREF(e.mft_reference())
+            m["sequence_num"] = MSEQNO(e.mft_reference())
             model["slack_indx_entries"].append(m)
     return model
 
