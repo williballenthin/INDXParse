@@ -317,7 +317,7 @@ def main():
         else:
             for record, record_path in enum.enumerate_paths():
                 sys.stdout.write(template.render(record=make_model(record, record_path),
-                                                 prefix=results.prefix[0]))
+                                                 prefix=results.prefix[0]) + "\n")
                 progress.set_current(record.inode)
         progress.set_complete()
 
