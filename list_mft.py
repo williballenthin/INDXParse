@@ -3,6 +3,7 @@
 #   - add CSV output
 #   - add custom template support
 
+import sys
 import logging
 import calendar
 
@@ -35,7 +36,7 @@ def get_default_template(env):
 {% endfor %}\
 {% for e in record.slack_indx_entries %}\
 0|{{ record.path }}\\{{ e.name }} (slack-INDX)|{{ e.record_num }}|0|0|0|{{ e.logical_size }}|{{ e.accessed|unixtimestampformat }}|{{ e.modified|unixtimestampformat }}|{{ e.changed|unixtimestampformat }}|{{ e.created|unixtimestampformat }}
-{% endfor %}\
+{% endfor %}
 """)
 
 
@@ -66,7 +67,7 @@ def main():
     if results.verbose:
         logging.basicConfig(level=logging.DEBUG)
 
-    env = Environment()
+    env = Environment(trim_blocks=True, lstrip_blocks=True)
     env.filters["unixtimestampformat"] = unixtimestampformat
 
     template = get_default_template(env)
@@ -78,7 +79,7 @@ def main():
                              record_cache=record_cache,
                              path_cache=path_cache)
         for record, record_path in enum.enumerate_paths():
-            print(template.render(record=make_model(record, record_path)))
+            sys.stdout.write(template.render(record=make_model(record, record_path)))
 
 
 if __name__ == "__main__":
