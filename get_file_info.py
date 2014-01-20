@@ -203,7 +203,7 @@ def make_model(record, path):
     model = {
         "magic": record.magic(),
         "path": path,
-        "record_num": str(record.mft_record_number()),
+        "inode": record.inode,
         "is_active": record.is_active(),
         "is_directory": record.is_directory(),
         "size": 0,  # updated below
@@ -247,13 +247,13 @@ def make_model(record, path):
         irh = IndexRootHeader(indxroot.value(), 0, False)
         for e in irh.node_header().entries():
             m = make_filename_information_model(e.filename_information())
-            m["record_num"] = MREF(e.mft_reference())
+            m["inode"] = MREF(e.mft_reference())
             m["sequence_num"] = MSEQNO(e.mft_reference())
             model["indx_entries"].append(m)
 
         for e in irh.node_header().slack_entries():
             m = make_filename_information_model(e.filename_information())
-            m["record_num"] = MREF(e.mft_reference())
+            m["inode"] = MREF(e.mft_reference())
             m["sequence_num"] = MSEQNO(e.mft_reference())
             model["slack_indx_entries"].append(m)
     return model
@@ -262,7 +262,7 @@ def make_model(record, path):
 def format_record(record, path):
     template = Template(
 """\
-MFT Record: {{ record.record_num }}
+MFT Record: {{ record.inode }}
 Path: {{ record.path }}
 Metadata:
   Active: {{ record.is_active }}
@@ -320,7 +320,7 @@ INDX root entries:\
     Accessed: {{ indx.accessed }}
     Changed: {{ indx.changed }}
     Birthed: {{ indx.created }}
-    Reference: {{ indx.record_num }}
+    Reference: {{ indx.inode }}
     Sequence number: {{ indx.sequence_num }}\
 {% endfor %}
 INDX root slack entries:\
@@ -334,7 +334,7 @@ INDX root slack entries:\
     Accessed: {{ indx.accessed }}
     Changed: {{ indx.changed }}
     Birthed: {{ indx.created }}
-    Reference: {{ indx.record_num }}
+    Reference: {{ indx.inode }}
     Sequence number: {{ indx.sequence_num }}\
 {% endfor %}
 Timeline:
