@@ -967,6 +967,171 @@ class MFTRecord(FixupBlock):
         return self._buf[self.offset():self.offset() + self.bytes_in_use()].tostring()
 
 
+class NTFSFile():
+    def __init__(self, options):
+        if type(options) == dict:
+            self.filename  = options["filename"]
+            self.filetype  = options["filetype"] or "mft"
+            self.offset    = options["offset"] or 0
+            self.clustersize = options["clustersize"] or 4096
+            self.mftoffset = False
+            self.prefix    = options["prefix"] or None
+            self.progress  = options["progress"]
+        else:
+            self.filename  = options.filename
+            self.filetype  = options.filetype
+            self.offset    = options.offset
+            self.clustersize = options.clustersize
+            self.mftoffset = False
+            self.prefix    = options.prefix
+            self.progress  = options.progress
+
+    # TODO calculate cluster size
+
+    def _calculate_mftoffset(self):
+        with open(self.filename, "rb") as f:
+            f.seek(self.offset)
+            f.seek(0x30, 1)  # relative
+            buf = f.read(8)
+            relmftoffset = struct.unpack_from("<Q", buf, 0)[0]
+            self.mftoffset = self.offset + relmftoffset * self.clustersize
+            logging.debug("MFT offset is %s", hex(self.mftoffset))
+
+    def record_generator(self, start_at=0):
+        """
+        @type start_at: int
+        @param start_at: the inode number to start at
+        @rtype generator of MFTRecord
+        """
+        if self.filetype == "indx":
+            return
+        if self.filetype == "mft":
+            size = os.path.getsize(self.filename)
+            is_redirected = os.fstat(0) != os.fstat(1)
+            should_progress = is_redirected and self.progress
+            with open(self.filename, "rb") as f:
+                record = True
+                count = start_at - 1
+                f.seek(start_at * 1024, 0)
+                while record:
+                    # TODO(wb): this really shouldn't be here
+                    if count % 100 == 0 and should_progress:
+                        n = (count * 1024 * 100) / float(size)
+                        sys.stderr.write("\rCompleted: %0.4f%%" % (n))
+                        sys.stderr.flush()
+                    count += 1
+                    buf = array.array("B", f.read(1024))
+                    if not buf:
+                        return
+                    try:
+                        record = MFTRecord(buf, 0, False, inode=count)
+                    except OverrunBufferException:
+                        logging.debug("Failed to parse MFT record %s", str(count))
+                        continue
+                    logging.debug("Yielding record %d", count)
+                    yield record
+            if should_progress:
+                sys.stderr.write("\n")
+        if self.filetype == "image":
+            # TODO this overruns the MFT...
+            # TODO this doesnt account for a fragmented MFT
+            with open(self.filename, "rb") as f:
+                if not self.mftoffset:
+                    self._calculate_mftoffset()
+                f.seek(self.mftoffset + (start_at * 1024))
+                record = True
+                count = start_at - 1
+                while record:
+                    count += 1
+                    buf = array.array("B", f.read(1024))
+                    if not buf:
+                        return
+                    try:
+                        record = MFTRecord(buf, 0, False, inode=count)
+                    except OverrunBufferException:
+                        logging.debug("Failed to parse MFT record %s", str(count))
+                        continue
+                    logging.debug("Yielding record %d", count)
+                    yield record
+
+    def mft_get_record_buf(self, number):
+        if self.filetype == "indx":
+            return array.array("B", "")
+        if self.filetype == "mft":
+            with open(self.filename, "rb") as f:
+                f.seek(number * 1024)
+                return array.array("B", f.read(1024))
+        if self.filetype == "image":
+            with open(self.filename, "rb") as f:
+                f.seek(number * 1024)
+                if not self.mftoffset:
+                    self._calculate_mftoffset()
+                f.seek(self.mftoffset)
+                f.seek(number * 1024, 1)
+                return array.array("B", f.read(1024))
+
+    def mft_get_record(self, number):
+        buf = self.mft_get_record_buf(number)
+        if buf == array.array("B", ""):
+            raise InvalidMFTRecordNumber(number)
+        return MFTRecord(buf, 0, False)
+
+    # memoization is key here.
+    @memoize(100, keyfunc=lambda r, _:
+             str(r.magic()) + str(r.lsn()) + str(r.link_count()) + \
+             str(r.mft_record_number()) + str(r.flags()))
+    def mft_record_build_path(self, record, cycledetector=None):
+        if cycledetector is None:
+            cycledetector = {}
+        rec_num = record.mft_record_number() & 0xFFFFFFFFFFFF
+        if record.mft_record_number() & 0xFFFFFFFFFFFF == 0x0005:
+            if self.prefix:
+                return self.prefix
+            else:
+                return "\\."
+        fn = record.filename_information()
+        if not fn:
+            return "\\??"
+        parent_record_num = fn.mft_parent_reference() & 0xFFFFFFFFFFFF
+        parent_buf = self.mft_get_record_buf(parent_record_num)
+        if parent_buf == array.array("B", ""):
+            return "\\??\\" + fn.filename()
+        parent = MFTRecord(parent_buf, 0, False)
+        if parent.sequence_number() != fn.mft_parent_reference() >> 48:
+            return "\\$OrphanFiles\\" + fn.filename()
+        if rec_num in cycledetector:
+            logging.debug("Cycle detected")
+            if self.prefix:
+                return self.prefix + "\\<CYCLE>"
+            else:
+                return "\\<CYCLE>"
+        cycledetector[rec_num] = True
+        return self.mft_record_build_path(parent, cycledetector) + "\\" + fn.filename()
+
+    def mft_get_record_by_path(self, path):
+        # TODO could optimize here by trying to use INDX buffers
+        # and actually walk through the FS
+        count = -1
+        for record in self.record_generator():
+            count += 1
+            if record.magic() != 0x454C4946:
+                continue
+            if not record.is_active():
+                continue
+            record_path = self.mft_record_build_path(record, {})
+            if record_path.lower() != path.lower():
+                continue
+            return record
+        return False
+
+    def read(self, offset, length):
+        if self.filetype == "image":
+            with open(self.filename, "rb") as f:
+                f.seek(offset)
+                return array.array("B", f.read(length))
+        return array.array("B", "")
+
+
 class InvalidAttributeException(INDXException):
     def __init__(self, value):
         super(InvalidAttributeException, self).__init__(value)
