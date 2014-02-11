@@ -117,4 +117,4 @@ INDXParse is released under the Apache 2.0 license.
 Contributors
 ------------
 
-  - Jerome Leseinne for identifying a bug in the is_valid constraits
+  - Jerome Leseinne for identifying a bug in the is_valid constraint and null blocks

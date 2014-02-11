@@ -32,6 +32,8 @@ from datetime import datetime
 import argparse
 global verbose
 
+INDEX_NODE_BLOCK_SIZE = 4096
+
 
 def parse_windows_timestamp(qword):
     # see http://integriography.wordpress.com/2010/01/16/using-phython-to-parse-and-present-windows-64-bit-timestamps/
@@ -53,11 +55,11 @@ def align(offset, alignment):
 def debug(message):
     global verbose
     if verbose:
-        print "# [d] %s" % (message)
+        print("# [d] %s" % (message))
 
 
 def warning(message):
-    print "# [w] %s" % (message)
+    print("# [w] %s" % (message))
 
 
 class INDXException(Exception):
@@ -284,11 +286,11 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
         _magic = self.unpack_string(0, 4)
         if _magic != "INDX":
-            off=0x0
-            while off < len(buf)-offset:
+            off = 0x0
+            while off < min(len(buf) - offset, INDEX_NODE_BLOCK_SIZE):
                 if self.unpack_byte(off) != 0:
                     raise ParseException("Invalid INDX ID at beginning of block at %r bytes of stream, and non-null data encountered %r bytes into the block." % (offset, off))
-                off = off+1
+                off = off + 1
             warning("Null block encountered at offset %r." % offset)
             self._is_null_block = True
 
@@ -360,7 +362,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
     def end_offset(self):
         if self._is_null_block:
-            return self.offset() + len(self._buf)
+            return self.offset() + INDEX_NODE_BLOCK_SIZE
         else:
             return self.offset() + self.entry_allocated_size()
 
@@ -808,19 +810,19 @@ if __name__ == '__main__':
         (not results.csv and not results.bodyfile)
 
     if(results.bodyfile and results.index_type != "dir"):
-        print 'Only "dir" type supports bodyfile output'
+        print('Only "dir" type supports bodyfile output')
         sys.exit(1)
     elif(results.deleted and  results.index_type != "dir"):
-        print 'For now, only "dir" type supports slackspace entries'
+        print('For now, only "dir" type supports slackspace entries')
         sys.exit(1)
 
     if do_csv:
         if results.index_type == "dir":
-            print "FILENAME,\tPHYSICAL SIZE,\tLOGICAL SIZE,\tMODIFIED TIME,\tACCESSED TIME,\tCHANGED TIME,\tCREATED TIME"
+            print("FILENAME,\tPHYSICAL SIZE,\tLOGICAL SIZE,\tMODIFIED TIME,\tACCESSED TIME,\tCHANGED TIME,\tCREATED TIME")
         if results.index_type == "sdh":
-            print "SDH KEY,\tSDH DATA,\tSECURITY ID KEY,\tSECURITY ID DATA,\tSDS SECURITY DESCRIPTOR OFFSET,\tSDS SECURITY DESCRIPTOR SIZE"
+            print("SDH KEY,\tSDH DATA,\tSECURITY ID KEY,\tSECURITY ID DATA,\tSDS SECURITY DESCRIPTOR OFFSET,\tSDS SECURITY DESCRIPTOR SIZE")
         if results.index_type == "sii":
-            print "SDH DATA,\tSECURITY ID KEY,\tSECURITY ID DATA,\tSDS SECURITY DESCRIPTOR OFFSET,\tSDS SECURITY DESCRIPTOR SIZE"
+            print("SDH DATA,\tSECURITY ID KEY,\tSECURITY ID DATA,\tSDS SECURITY DESCRIPTOR OFFSET,\tSDS SECURITY DESCRIPTOR SIZE")
 
     with open(results.filename, "rb") as f:
         b = array.array("B", f.read())
@@ -831,32 +833,32 @@ if __name__ == '__main__':
         for e in h.entries(results.index_type):
             if do_csv:
                 if results.index_type == "sdh":
-                    print entry_SDH_csv(e)
+                    print(entry_SDH_csv(e))
                 if results.index_type == "sii":
-                    print entry_SII_csv(e)
+                    print(entry_SII_csv(e))
                 if results.index_type == "dir":
                     try:
-                        print entry_dir_csv(e)
+                        print(entry_dir_csv(e))
                     except UnicodeEncodeError:
-                        print entry_dir_csv(e, e.filename().encode("ascii", "replace") + " (error decoding filename)")
+                        print(entry_dir_csv(e, e.filename().encode("ascii", "replace") + " (error decoding filename)"))
             elif results.bodyfile:
                 try:
-                    print entry_bodyfile(e)
+                    print(entry_bodyfile(e))
                 except UnicodeEncodeError:
-                    print entry_bodyfile(e, e.filename().encode("ascii", "replace") + " (error decoding filename)")
+                    print(entry_bodyfile(e, e.filename().encode("ascii", "replace") + " (error decoding filename)"))
         if results.deleted:
             for e in h.deleted_entries():
                 fn = e.filename() + " (slack at %s)" % (hex(e.offset()))
                 bad_fn = e.filename().encode("ascii", "replace") + " (slack at %s)(error decoding filename)" % (hex(e.offset()))
                 if do_csv:
                     try:
-                        print entry_dir_csv(e, fn)
+                        print(entry_dir_csv(e, fn))
                     except UnicodeEncodeError:
-                        print entry_dir_csv(e, bad_fn)
+                        print(entry_dir_csv(e, bad_fn))
                 elif results.bodyfile:
                     try:
-                        print entry_bodyfile(e, fn)
+                        print(entry_bodyfile(e, fn))
                     except UnicodeEncodeError:
-                        print entry_bodyfile(e, bad_fn)
+                        print(entry_bodyfile(e, bad_fn))
 
-        off = align(h.end_offset(), 4096)
+        off = align(h.end_offset(), INDEX_NODE_BLOCK_SIZE)

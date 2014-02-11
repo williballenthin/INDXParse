@@ -35,6 +35,7 @@ from BinaryParser import OverrunBufferException
 from BinaryParser import read_byte
 from BinaryParser import read_word
 from BinaryParser import read_dword
+from Progress import NullProgress
 
 
 logging.basicConfig(filename="mft.py")
@@ -873,7 +874,7 @@ class MFTRecord(FixupBlock):
     def __init__(self, buf, offset, parent, inode=None):
         super(MFTRecord, self).__init__(buf, offset, parent)
         logging.debug("MFTRECORD @ %s.", hex(offset))
-        self.inode = inode or 0
+
         self.declare_field("dword", "magic")
         self.declare_field("word",  "usa_offset")
         self.declare_field("word",  "usa_count")
@@ -888,6 +889,7 @@ class MFTRecord(FixupBlock):
         self.declare_field("word",  "next_attr_instance")
         self.declare_field("word",  "reserved")
         self.declare_field("dword", "mft_record_number")
+        self.inode = inode or self.mft_record_number()
 
         self.fixup(self.usa_count(), self.usa_offset())
 
@@ -921,7 +923,7 @@ class MFTRecord(FixupBlock):
         This function returns the attribute with the most complete name,
           that is, it tends towards Win32, then POSIX, and then 8.3.
         """
-        fn = False
+        fn = None
         for a in self.attributes():
             # TODO optimize to self._buf here
             if a.type() == ATTR_TYPE.FILENAME_INFORMATION:
@@ -941,8 +943,8 @@ class MFTRecord(FixupBlock):
         try:
             attr = self.attribute(ATTR_TYPE.STANDARD_INFORMATION)
             return StandardInformation(attr.value(), 0, self)
-        except AttributeError as e:
-            return False
+        except AttributeError:
+            return None
 
     def data_attribute(self):
         """
@@ -952,18 +954,17 @@ class MFTRecord(FixupBlock):
             if attr.type() == ATTR_TYPE.DATA and attr.name() == "":
                 return attr
 
+    def slack_data(self):
+        """
+        Returns A binary string containing the MFT record slack.
+        """
+        return self._buf[self.offset()+self.bytes_in_use():self.offset() + 1024].tostring()
 
-class InvalidAttributeException(INDXException):
-    def __init__(self, value):
-        super(InvalidAttributeException, self).__init__(value)
-
-    def __str__(self):
-        return "Invalid attribute Exception(%s)" % (self._value)
-
-
-class InvalidMFTRecordNumber(Exception):
-    def __init__(self, value):
-        self.value = value
+    def active_data(self):
+        """
+        Returns A binary string containing the MFT record slack.
+        """
+        return self._buf[self.offset():self.offset() + self.bytes_in_use()].tostring()
 
 
 class NTFSFile():
@@ -1131,6 +1132,19 @@ class NTFSFile():
         return array.array("B", "")
 
 
+class InvalidAttributeException(INDXException):
+    def __init__(self, value):
+        super(InvalidAttributeException, self).__init__(value)
+
+    def __str__(self):
+        return "Invalid attribute Exception(%s)" % (self._value)
+
+
+class InvalidMFTRecordNumber(Exception):
+    def __init__(self, value):
+        self.value = value
+
+
 class MFTOperationNotImplementedError(Exception):
     def __init__(self, msg):
         super(MFTOperationNotImplementedError, self).__init__(msg)
@@ -1197,6 +1211,9 @@ class MFTEnumerator(object):
         self._record_cache = record_cache
         self._path_cache = path_cache
 
+    def len(self):
+        return len(self._buf) / MFT_RECORD_SIZE
+
     def get_record_buf(self, record_num):
         """
         @raises OverrunBufferException: if the record_num is beyond the end of the MFT
@@ -1222,7 +1239,7 @@ class MFTEnumerator(object):
         if read_dword(record_buf, 0x0) != 0x454C4946:
             raise InvalidRecordException("record_num: %d" % record_num)
 
-        record = MFTRecord(record_buf, 0, False)
+        record = MFTRecord(record_buf, 0, False, inode=record_num)
         self._record_cache.insert(record_num, record)
         return record
 
@@ -1292,7 +1309,7 @@ class MFTEnumerator(object):
 
         try:
             parent_record = self.get_record(parent_record_num)
-        except OverrunBufferException, InvalidRecordException:
+        except (OverrunBufferException, InvalidRecordException):
             return ORPHAN_ENTRY + FILE_SEP + record_filename
 
         if parent_record.sequence_number() != parent_seq_num:
@@ -1325,14 +1342,20 @@ class MFTTreeNode(object):
     def get_filename(self):
         return self._filename
 
+    def get_parent(self):
+        return self._nodes[self._parent_record_number]
+
     def add_child_record_number(self, child_record_number):
         self._children_record_numbers.append(child_record_number)
 
-    def get_children(self):
+    def get_children_nodes(self):
         return map(lambda n: self._nodes[n], self._children_record_numbers)
 
-    def get_parent(self):
-        return self._nodes[self._parent_record_number]
+    def get_child_node(self, filename):
+        for child in self.get_children_nodes():
+            if child.get_filename() == filename:
+                return child
+        raise KeyError("Failed to find filename: " + filename)
 
 
 ROOT_INDEX = 5
@@ -1357,9 +1380,10 @@ class MFTTree(object):
         fn = record.filename_information()
         if not fn:
             # then there's no filename, or parent reference
-            # there could be some standard information (timestamps), or named streams
+            # there could be some standard information (timestamps),
+            # or named streams
             # but still no parent link.
-            # so lets bail
+            # ...so lets bail
             return
 
         parent_record_num = MREF(fn.mft_parent_reference())
@@ -1367,7 +1391,7 @@ class MFTTree(object):
 
         try:
             parent_record = mft_enumerator.get_record(parent_record_num)
-        except OverrunBufferException, InvalidRecordException:
+        except (OverrunBufferException, InvalidRecordException):
             parent_record_num = MFTTree.ORPHAN_INDEX
             parent_record = None
 
@@ -1389,7 +1413,8 @@ class MFTTree(object):
         if parent_node:
             parent_node.add_child_record_number(record_num)
 
-    def build(self, record_cache=None, path_cache=None):
+    def build(self, record_cache=None,
+              path_cache=None, progress_class=NullProgress):
         DEFAULT_CACHE_SIZE = 1024
         if record_cache is None:
             record_cache = Cache(size_limit=DEFAULT_CACHE_SIZE)
@@ -1400,8 +1425,14 @@ class MFTTree(object):
 
         self._nodes[MFTTree.ORPHAN_INDEX] = MFTTreeNode(self._nodes, MFTTree.ORPHAN_INDEX,
                                                         ORPHAN_ENTRY, ROOT_INDEX)
+
+        count = 0
+        progress = progress_class(len(self._buf) / 1024)
         for record in enum.enumerate_records():
             self._add_record(enum, record)
+            count += 1
+            progress.set_current(count)
+        progress.set_complete()
 
     def get_root(self):
         return self._nodes[ROOT_INDEX]
