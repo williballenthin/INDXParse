@@ -105,12 +105,12 @@ def get_timeline_entries(record):
         for e in irh.node_header().entries():
             fn = e.filename_information()
             fn_filename = fn.filename()
-            entries.extend(create_safe_timeline_entries(attr, "INDX", fn_filename))
+            entries.extend(create_safe_timeline_entries(fn, "INDX", fn_filename))
 
         for e in irh.node_header().slack_entries():
             fn = e.filename_information()
             fn_filename = fn.filename()
-            entries.extend(create_safe_timeline_entries(attr, "slack-INDX", fn_filename))
+            entries.extend(create_safe_timeline_entries(fn, "slack-INDX", fn_filename))
 
     return sorted(entries, key=lambda x: x["timestamp"])
 
