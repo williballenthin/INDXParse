@@ -38,9 +38,6 @@ from BinaryParser import read_dword
 from Progress import NullProgress
 
 
-logging.basicConfig(filename="mft.py")
-
-
 class INDXException(Exception):
     """
     Base Exception class for INDX parsing.
