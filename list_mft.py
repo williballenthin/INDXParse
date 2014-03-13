@@ -298,7 +298,7 @@ def main():
         progress = progress_cls(enum.len())
         if use_default_output:
             for record, record_path in enum.enumerate_paths():
-                output_mft_record(enum, record, results.prefix)
+                output_mft_record(enum, record, results.prefix[0])
                 progress.set_current(record.inode)
         elif results.json:
             class MFTEncoder(json.JSONEncoder):
