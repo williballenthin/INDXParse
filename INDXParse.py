@@ -348,7 +348,21 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         else:
             raise INDXException("Unsupported index type: %r." % indext)
 
-        e = entry_class(self._buf, self.entry_offset(), self)
+        # it appears in some cases, the .entry_offset field is relative
+        #  from the NTATTR_STANDARD_INDEX_HEADER (thing that starts
+        #  with "INDX"), and others (maybe often volume root directories?)
+        #  relative from the INDEX_HEADER (first field is entries_offset).
+        # to check, we look for an empty value where the parent directory
+        #  reference should be.
+        # TODO: this only works for directory indices (depends on
+        #  parent reference field interpretation)
+        if ("\x00" * 8) == self._buf[self.entry_offset():self.entry_offset() + 8].tostring():
+            # 0x18 is relative offset from NTATTR_STANARD_INDEX_HEADER to
+            #  the INDEX_HEADER sub-struct
+            e = entry_class(self._buf, 0x18 + self.entry_offset(), self)
+        else:
+            e = entry_class(self._buf, self.entry_offset(), self)
+
         yield e
 
         while e.has_next():
@@ -716,6 +730,7 @@ class NTATTR_DIRECTORY_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
         return self.unpack_qword(self._logical_size_offset)
 
     def filename(self):
+        print self._filename_offset, self.unpack_byte(self._filename_length_offset)
         try:
             return self.unpack_wstring(self._filename_offset, self.unpack_byte(self._filename_length_offset))
         except UnicodeDecodeError:
