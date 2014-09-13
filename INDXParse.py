@@ -730,7 +730,6 @@ class NTATTR_DIRECTORY_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
         return self.unpack_qword(self._logical_size_offset)
 
     def filename(self):
-        print self._filename_offset, self.unpack_byte(self._filename_length_offset)
         try:
             return self.unpack_wstring(self._filename_offset, self.unpack_byte(self._filename_length_offset))
         except UnicodeDecodeError:
