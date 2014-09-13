@@ -1,3 +1,5 @@
 v1.3
         - fix bug in parsing INDX_ALLOCATION attributes with an embedded null block reported by Jerome Leseinne
         - add fuse-mft.py MFT FUSE driver
+v1.3.1
+        - fix bug in parsing INDX_ALLOCATION attributes for some volume root directories, as reported by Andrew Case
