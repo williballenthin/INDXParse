@@ -109,15 +109,14 @@ class RegularFH(FH):
             return self._record.standard_information.logical_size()
 
 
-def get_meta_for_file(record, path, buf):
+def get_meta_for_file(record, path):
     """
     Given an MFT record, print out metadata about the relevant file.
     @type record: MFT.MFTRecord
     @type path: str
-    @type buf: str
     @rtype: str
     """
-    return format_record(record, path, buf)
+    return format_record(record, path)
 
 
 class MetaFH(FH):
@@ -131,7 +130,7 @@ class MetaFH(FH):
         self._record_buf = record_buf
 
     def get_data(self):
-        return get_meta_for_file(self._record, self._path, self._record_buf)
+        return get_meta_for_file(self._record, self._path)
 
     def get_size(self):
         return len(self.get_data())
@@ -231,7 +230,7 @@ class MFTFuseOperations(Operations):
             if special == "meta":
                 node = self._get_node(working_path)
                 record_buf = self._enumerator.get_record_buf(node.get_record_number())
-                size = len(get_meta_for_file(record, working_path, record_buf))
+                size = len(get_meta_for_file(record, working_path))
         else:
             data_attribute = record.data_attribute()
             if data_attribute is not None:
