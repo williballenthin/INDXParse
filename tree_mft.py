@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 from MFT import MFTEnumerator
 
 import mmap
