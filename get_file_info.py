@@ -397,12 +397,19 @@ def main():
         enum = MFTEnumerator(buf,
                              record_cache=record_cache,
                              path_cache=path_cache)
+
+        should_use_inode = False
         try:
             record_num = int(results.record_or_path)
+            should_use_inode = True
+        except ValueError:
+            should_use_inode = False
+
+        if should_use_inode:
             record = enum.get_record(record_num)
             path = results.prefix + enum.get_path(record)
             print_indx_info(record, path)
-        except ValueError:
+        else:
             path = results.record_or_path
             record = enum.get_record_by_path(path)
             print_indx_info(record, results.prefix + path)
