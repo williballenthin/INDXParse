@@ -832,10 +832,10 @@ class Block(object):
         """
         try:
             return self._buf[self._offset + offset:self._offset + offset + \
-                             2 * length].tostring().decode("utf16")
+                             2 * length].tostring().decode("utf-16le")
         except AttributeError: # already a 'str' ?
             return self._buf[self._offset + offset:self._offset + offset + \
-                             2 * length].decode("utf16")
+                             2 * length].decode("utf-16le")
 
     def unpack_dosdate(self, offset):
         """
