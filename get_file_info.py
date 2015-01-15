@@ -123,7 +123,7 @@ def make_filename_information_model(attr):
 
     return {
         "type": ["POSIX", "WIN32", "DOS 8.3", "WIN32 + DOS 8.3"][attr.filename_type()],
-        "name": str(attr.filename()),
+        "name": attr.filename(),
         "flags": get_flags(attr.flags()),
         "logical_size": attr.logical_size(),
         "physical_size": attr.physical_size(),
