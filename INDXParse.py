@@ -299,7 +299,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
             g_logger.debug("Fixup verified at %x, patched from %x to %x.",
                     self.offset() + fixup_offset,
                     fixup_value,
-                    check_value))
+                    check_value)
 
     def entry_offset(self):
         string_end =  self.offset()
@@ -685,7 +685,8 @@ class NTATTR_DIRECTORY_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
         try:
             return self.parse_time(offset)
         except ValueError:
-            g_logger.debug("Timestamp is invalid, using a default.")
+            g_logger.warning("%x: Invalid timestamp, using Epoch timestamp.",
+                    self.absolute_offset(offset))
             return datetime(1970, 1, 1, 0, 0, 0)
 
     def created_time_safe(self):
@@ -801,29 +802,29 @@ def entry_bodyfile(entry, filename=False):
     else:
         fn = entry.filename()
 
-    DEFAULT_TIME = unixtime(datetime(1970, 1, 1, 0, 0, 0)))
+    DEFAULT_TIME = unixtime(datetime(1970, 1, 1, 0, 0, 0))
     modified = DEFAULT_TIME
     accessed = DEFAULT_TIME
     changed = DEFAULT_TIME
     created = DEFAULT_TIME
 
     try:
-        modified = unixtime(entry.modified_time_safe()))
+        modified = unixtime(entry.modified_time_safe())
     except ValueError:
         pass
 
     try:
-        accessed = unixtime(entry.accessed_time_safe()))
+        accessed = unixtime(entry.accessed_time_safe())
     except ValueError:
         pass
 
     try:
-        changed = unixtime(entry.changed_time_safe()))
+        changed = unixtime(entry.changed_time_safe())
     except ValueError:
         pass
 
     try:
-        created = unixtime(entry.created_time_safe()))
+        created = unixtime(entry.created_time_safe())
     except ValueError:
         pass
 
