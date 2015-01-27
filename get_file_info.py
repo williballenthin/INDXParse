@@ -86,13 +86,10 @@ def create_safe_timeline_entries(attr, source, path):
 def get_timeline_entries(record):
     entries = []
     si = record.standard_information()
-    if si is None:
-        return entries
     fn = record.filename_information()
-    if fn is None:
-        return entries
     filename = fn.filename()
-    entries.extend(create_safe_timeline_entries(si, "$SI", filename))
+    if si:
+        entries.extend(create_safe_timeline_entries(si, "$SI", filename))
 
     for b in record.attributes():
         if b.type() != ATTR_TYPE.FILENAME_INFORMATION:
