@@ -21,12 +21,13 @@
 #   Bibliography:
 #   Mentions of "NTFSdoc" in code comments refer to: Richard Russon and Yuval Fledel.  "NTFS Documentation," apparent publication in March 2008.  Retrieved from: http://dubeyko.com/development/FileSystems/NTFS/ntfsdoc.pdf.  Last checked Mar. 2013.
 
-__version__ = "1.1.8"
+__version__ = "1.1.9"
 
 import sys
-import struct
 import time
 import array
+import struct
+import logging
 from datetime import datetime
 
 import argparse
@@ -63,46 +64,19 @@ def warning(message):
 
 
 class INDXException(Exception):
-    """
-    Base Exception class for INDX parsing.
-    """
-    def __init__(self, value):
-        """
-        Constructor.
-        Arguments:
-        - `value`: A string description.
-        """
-        super(INDXException, self).__init__()
-        self._value = value
-
-    def __str__(self):
-        return "INDX Exception: %s" % (self._value)
+    pass
 
 
 class ParseException(INDXException):
-    """
-    An exception to be thrown during NTFS INDX parsing, such as
-    when an invalid header is encountered.
-    """
-    def __init__(self, value):
-        """
-        Constructor.
-        Arguments:
-        - `value`: A string description.
-        """
-        super(ParseException, self).__init__(value)
-
-    def __str__(self):
-        return "INDX Parse Exception(%s)" % (self._value)
+    pass
 
 
 class OverrunBufferException(ParseException):
     def __init__(self, readOffs, bufLen):
-        tvalue = "read: %s, buffer length: %s" % (hex(readOffs), hex(bufLen))
-        super(ParseException, self).__init__(tvalue)
-
-    def __str__(self):
-        return "Tried to parse beyond the end of the file (%s)" % (self._value)
+        tvalue = "read: {read}, buffer length: {length}".format(
+                read=readOffs,
+                length=bufLen)
+        super(OverrunBufferException, self).__init__(tvalue)
 
 
 class Block(object):
@@ -113,6 +87,7 @@ class Block(object):
     def __init__(self, buf, offset, parent):
         """
         Constructor.
+
         Arguments:
         - `buf`: Byte string containing NTFS INDX file.
         - `offset`: The offset into the buffer at which the block starts.
@@ -125,6 +100,7 @@ class Block(object):
     def unpack_byte(self, offset):
         """
         Returns a little-endian unsigned byte from the relative offset.
+
         Arguments:
         - `offset`: The relative offset from the start of the block.
         Throws:
@@ -139,6 +115,7 @@ class Block(object):
     def unpack_word(self, offset):
         """
         Returns a little-endian WORD (2 bytes) from the relative offset.
+
         Arguments:
         - `offset`: The relative offset from the start of the block.
         Throws:
@@ -153,6 +130,7 @@ class Block(object):
     def pack_word(self, offset, word):
         """
         Applies the little-endian WORD (2 bytes) to the relative offset.
+
         Arguments:
         - `offset`: The relative offset from the start of the block.
         - `word`: The data to apply.
@@ -163,6 +141,7 @@ class Block(object):
     def unpack_dword(self, offset):
         """
         Returns a little-endian DWORD (4 bytes) from the relative offset.
+
         Arguments:
         - `offset`: The relative offset from the start of the block.
         Throws:
@@ -176,7 +155,9 @@ class Block(object):
 
     def unpack_int(self, offset):
         """
-        Returns a little-endian signed integer (4 bytes) from the relative offset.
+        Returns a little-endian signed integer (4 bytes) from
+          the relative offset.
+
         Arguments:
         - `offset`: The relative offset from the start of the block.
         Throws:
@@ -191,6 +172,7 @@ class Block(object):
     def unpack_qword(self, offset):
         """
         Returns a little-endian QWORD (8 bytes) from the relative offset.
+
         Arguments:
         - `offset`: The relative offset from the start of the block.
         Throws:
@@ -205,6 +187,7 @@ class Block(object):
     def unpack_string(self, offset, length):
         """
         Returns a string from the relative offset with the given length.
+
         Arguments:
         - `offset`: The relative offset from the start of the block.
         - `length`: The length of the string.
@@ -220,18 +203,22 @@ class Block(object):
     def unpack_wstring(self, offset, length):
         """
         Returns a string from the relative offset with the given length,
-        where each character is a wchar (2 bytes)
+          where each character is a wchar (2 bytes)
+
         Arguments:
         - `offset`: The relative offset from the start of the block.
         - `length`: The length of the string.
         Throws:
         - `UnicodeDecodeError`
         """
-        return self._buf[self._offset + offset:self._offset + offset + 2 * length].tostring().decode("utf16")
+        start = self._offset + offset
+        end = start + 2 * length
+        return self._buf[start:end].tostring().decode("utf16")
 
     def absolute_offset(self, offset):
         """
         Get the absolute offset from an offset relative to this block
+
         Arguments:
         - `offset`: The relative offset into this block.
         """
@@ -239,13 +226,15 @@ class Block(object):
 
     def parent(self):
         """
-        Get the parent block. See the class documentation for what the parent link is.
+        Get the parent block. See the class documentation for
+          what the parent link is.
         """
         return self._parent
 
     def offset(self):
         """
-        Equivalent to self.absolute_offset(0x0), which is the starting offset of this block.
+        Equivalent to self.absolute_offset(0x0), which is the
+          starting offset of this block.
         """
         return self._offset
 
@@ -425,10 +414,12 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         Arguments:
         - `buf`: Byte string containing NTFS INDX file
         - `offset`: The offset into the buffer at which the block starts.
-        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, which links to this block.
+        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block,
+             which links to this block.
         """
         debug("ENTRY at %s." % (hex(offset)))
-        super(NTATTR_STANDARD_INDEX_ENTRY, self).__init__(buf, offset, parent)
+        super(NTATTR_STANDARD_INDEX_ENTRY, self).__init__(buf,
+                offset, parent)
 
         self._size_offset = 0x08
         self._size_of_stream_offset = 0x0A
@@ -448,7 +439,8 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
             raise ParseException("Non-positive index entry size presented to generic end_offset()")
 
     def has_next(self):
-        return self.end_offset() - self.parent().offset() <= self.parent().entry_size()
+        entries_length = self.end_offset() - self.parent().offset()
+        return entries_length <= self.parent().entry_size()
 
     def next(self):
         """
@@ -456,6 +448,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         """
         assert self.has_next()
         return self.__class__(self._buf, self.end_offset(), self.parent())
+
 
 class NTATTR_SDH_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
 #Security Descriptor Hash ($SDH) Index
@@ -485,7 +478,8 @@ class NTATTR_SDH_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
         Arguments:
         - `buf`: Byte string containing NTFS INDX file
         - `offset`: The offset into the buffer at which the block starts.
-        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, which links to this block.
+        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block,
+             which links to this block.
         """
         debug("ENTRY at %s." % (hex(offset)))
         super(NTATTR_SDH_INDEX_ENTRY, self).__init__(buf, offset, parent)
@@ -500,7 +494,8 @@ class NTATTR_SDH_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
         self._sds_security_descriptor_size_offset = 0x28
 
         #TODO assert magic number
-        #TODO assert hard-coded values are what we expect, e.g. is padding null?
+        #TODO assert hard-coded values are what we expect,
+        #  e.g. is padding null?
 
     def security_descriptor_hash_key(self):
         return self.unpack_dword(self._security_descriptor_hash_key_offset)
@@ -519,6 +514,7 @@ class NTATTR_SDH_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
 
     def security_descriptor_size(self):
         return self.unpack_dword(self._sds_security_descriptor_size_offset)
+
 
 class NTATTR_SII_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
 #Security Id Index ($SII)
@@ -546,7 +542,8 @@ class NTATTR_SII_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
         Arguments:
         - `buf`: Byte string containing NTFS INDX file
         - `offset`: The offset into the buffer at which the block starts.
-        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, which links to this block.
+        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block,
+             which links to this block.
         """
         debug("ENTRY at %s." % (hex(offset)))
         super(NTATTR_SII_INDEX_ENTRY, self).__init__(buf, offset, parent)
@@ -598,6 +595,7 @@ class NTATTR_SII_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
     def security_descriptor_size(self):
         return self.unpack_dword(self._sds_security_descriptor_size_offset)
 
+
 class NTATTR_DIRECTORY_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
 # 0x0    LONGLONG mftReference;
 
@@ -630,7 +628,8 @@ class NTATTR_DIRECTORY_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
         Arguments:
         - `buf`: Byte string containing NTFS INDX file
         - `offset`: The offset into the buffer at which the block starts.
-        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, which links to this block.
+        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, 
+             which links to this block.
         """
         debug("ENTRY at %s." % (hex(offset)))
         super(NTATTR_DIRECTORY_INDEX_ENTRY, self).__init__(buf, offset, parent)
@@ -647,9 +646,8 @@ class NTATTR_DIRECTORY_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
         self._filename_type_offset = 0x51
         self._filename_offset = 0x52
 
-        # doesn't work with -d (slack entries)
-#        if self.unpack_byte(self._filename_type_offset) > 4:
-#            warning("Invalid INDX record entry filename type at 0x%s" % (hex(self.offset() + self._filename_type_offset)))
+        # through empirical testing, recovering the filename type
+        #   of slack entries doesn't work well
 
     def end_offset(self):
         """
@@ -743,9 +741,11 @@ class NTATTR_DIRECTORY_INDEX_SLACK_ENTRY(NTATTR_DIRECTORY_INDEX_ENTRY):
         Arguments:
         - `buf`: Byte string containing NTFS INDX file
         - `offset`: The offset into the buffer at which the block starts.
-        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, which links to this block.
+        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, 
+             which links to this block.
         """
-        super(NTATTR_DIRECTORY_INDEX_SLACK_ENTRY, self).__init__(buf, offset, parent)
+        super(NTATTR_DIRECTORY_INDEX_SLACK_ENTRY, self).__init__(buf,
+                offset, parent)
 
     def is_valid(self):
         recent_date = datetime(1990, 1, 1, 0, 0, 0)
@@ -762,20 +762,39 @@ def entry_dir_csv(entry, filename=False):
     else:
         fn = entry.filename()
 
-    return u"%s,\t%s,\t%s,\t%s,\t%s,\t%s,\t%s" % (fn, entry.physical_size(),
-                                                  entry.logical_size(), entry.modified_time_safe(),
-                                                  entry.accessed_time_safe(), entry.changed_time_safe(),
-                                                  entry.created_time_safe())
+    return u"{filename},\t{psize},\t{lsize},\t{modified},\t{accessed},\t{changed},\t{created}".format(
+        filename=fn,
+        psize=entry.physical_size(),
+        lsize=entry.logical_size(),
+        modified=entry.modified_time_safe(),
+        accessed=entry.accessed_time_safe(),
+        changed=entry.changed_time_safe(),
+        created=entry.created_time_safe())
+
 
 def entry_SDH_csv(entry):
-    return "%d,\t%d,\t%d,\t%d,\t%d,\t%d" % (entry.security_descriptor_hash_key(), entry.security_descriptor_hash_data(),
-                                       entry.security_ID_key(), entry.security_ID_data(), entry.security_descriptor_offset(),
-                                       entry.security_descriptor_size())
+    return "{hkey},\t{hdata},\t{ikey},\t{idata},\t{offset},\t{size}".format(
+            hkey=entry.security_descriptor_hash_key(),
+            hdata=entry.security_descriptor_hash_data(),
+            ikey=entry.security_ID_key(),
+            idata=entry.security_ID_data(),
+            offset=entry.security_descriptor_offset(),
+            size=entry.security_descriptor_size())
+
 
 def entry_SII_csv(entry):
-    return "%d,\t%d,\t%d,\t%d,\t%d" % (entry.security_descriptor_hash_data(),
-                                   entry.security_ID_key(), entry.security_ID_data(), entry.security_descriptor_offset(),
-                                   entry.security_descriptor_size())
+    return "{hdata},\t{ikey},\t{idata},\t{offset},\t{size}".format(
+            hdata=entry.security_descriptor_hash_data(),
+            ikey=entry.security_ID_key(),
+            idata=entry.security_ID_data(),
+            offset=entry.security_descriptor_offset(),
+            size=entry.security_descriptor_size())
+
+
+def unixtime(ts):
+    """convert from datetime.datetime to UNIX epoch int timestamp"""
+    return int(time.mktime(ts.timetuple()))
+
 
 def entry_bodyfile(entry, filename=False):
     if filename:
@@ -783,38 +802,58 @@ def entry_bodyfile(entry, filename=False):
     else:
         fn = entry.filename()
 
-    try:
-        modified = int(time.mktime(entry.modified_time_safe().timetuple()))
-    except ValueError:
-        modified = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
+    DEFAULT_TIME = unixtime(datetime(1970, 1, 1, 0, 0, 0)))
+    modified = DEFAULT_TIME
+    accessed = DEFAULT_TIME
+    changed = DEFAULT_TIME
+    created = DEFAULT_TIME
 
     try:
-        accessed = int(time.mktime(entry.accessed_time_safe().timetuple()))
+        modified = unixtime(entry.modified_time_safe()))
     except ValueError:
-        accessed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
+        pass
 
     try:
-        changed = int(time.mktime(entry.changed_time_safe().timetuple()))
+        accessed = unixtime(entry.accessed_time_safe()))
     except ValueError:
-        changed = int(time.mktime(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
+        pass
 
     try:
-        created = int(time.mktime(entry.created_time_safe().timetuple()))
+        changed = unixtime(entry.changed_time_safe()))
     except ValueError:
-        created = int(time.mktime(datetime.min.timetuple()))
+        pass
 
-    return u"0|%s|0|0|0|0|%s|%s|%s|%s|%s" % (fn, entry.logical_size(), accessed, modified, changed, created)
+    try:
+        created = unixtime(entry.created_time_safe()))
+    except ValueError:
+        pass
+
+    return u"0|{filename}|0|0|0|0|{lsize}|{accessed}|{modified}|{changed}|{created}".format(
+            filename=fn,
+            lsize=entry.logical_size(),
+            accessed=accessed,
+            modified=modified,
+            changed=changed,
+            created=created)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Parse NTFS INDX files.')
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('-c', action="store_true", dest="csv", default=False, help="Output CSV")
-    group.add_argument('-b', action="store_true", dest="bodyfile", default=False, help="Output Bodyfile")
-    parser.add_argument('-d', action="store_true", dest="deleted", help="Find entries in slack space")
-    parser.add_argument('-v', action="store_true", dest="verbose", help="Print debugging information")
-    parser.add_argument('-t', action="store", choices=["dir", "sdh", "sii"], default="dir", dest="index_type", help="Choose index type (dir, sdh, or sii)")
-    parser.add_argument('filename', action="store", help="Input INDX file path")
+    group.add_argument('-c', action="store_true",
+            dest="csv", default=False, help="Output CSV")
+    group.add_argument('-b', action="store_true",
+            dest="bodyfile", default=False, help="Output Bodyfile")
+    parser.add_argument('-d', action="store_true",
+            dest="deleted", help="Find entries in slack space")
+    parser.add_argument('-v', action="store_true",
+            dest="verbose", help="Print debugging information")
+    parser.add_argument('-t', action="store",
+            choices=["dir", "sdh", "sii"],
+            default="dir", dest="index_type",
+            help="Choose index type (dir, sdh, or sii)")
+    parser.add_argument('filename', action="store",
+            help="Input INDX file path")
     results = parser.parse_args()
 
     global verbose
