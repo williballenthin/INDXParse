@@ -87,8 +87,9 @@ def get_timeline_entries(record):
     entries = []
     si = record.standard_information()
     fn = record.filename_information()
-    filename = fn.filename()
-    if si:
+    
+    if si and fn:
+        filename = fn.filename()        
         entries.extend(create_safe_timeline_entries(si, "$SI", filename))
 
     for b in record.attributes():
