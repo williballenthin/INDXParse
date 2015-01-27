@@ -31,8 +31,9 @@ import logging
 from datetime import datetime
 
 import argparse
-global verbose
 
+
+g_logger = logging.getLogger("INDXParse")
 INDEX_NODE_BLOCK_SIZE = 4096
 
 
@@ -51,16 +52,6 @@ def align(offset, alignment):
     if offset % alignment == 0:
         return offset
     return offset + (alignment - (offset % alignment))
-
-
-def debug(message):
-    global verbose
-    if verbose:
-        print("# [d] %s" % (message))
-
-
-def warning(message):
-    print("# [w] %s" % (message))
 
 
 class INDXException(Exception):
@@ -266,7 +257,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         - `offset`: The offset into the buffer at which the block starts.
         - `parent`: The parent block, which links to this block.
         """
-        debug("HEADER @ %s." % (hex(offset)))
+        g_logger.debug("HEADER @ %s.", hex(offset))
         super(NTATTR_STANDARD_INDEX_HEADER, self).__init__(buf, offset, parent)
 
         #At times, a block of all-null bytes may be included in the index.
@@ -280,7 +271,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
                 if self.unpack_byte(off) != 0:
                     raise ParseException("Invalid INDX ID at beginning of block at %r bytes of stream, and non-null data encountered %r bytes into the block." % (offset, off))
                 off = off + 1
-            warning("Null block encountered at offset %r." % offset)
+            g_logger.warn("Null block encountered at offset %r.", offset)
             self._is_null_block = True
 
         self._entry_size_offset = 0x1C
@@ -298,18 +289,22 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
             check_value = self.unpack_word(fixup_offset)
 
             if check_value != fixup_value:
-                warning("Bad fixup at %s" % (hex(self.offset() + fixup_offset)))
+                g_logger.warn("Bad fixup at %x", self.offset() + fixup_offset)
                 continue
 
             new_value = self.unpack_word(self._fixup_array_offset + 2 * i)
             self.pack_word(fixup_offset, new_value)
 
             check_value = self.unpack_word(fixup_offset)
-            debug("Fixup verified at %s and patched from %s to %s." % (hex(self.offset() + fixup_offset),
-                  hex(fixup_value), hex(check_value)))
+            g_logger.debug("Fixup verified at %x, patched from %x to %x.",
+                    self.offset() + fixup_offset,
+                    fixup_value,
+                    check_value))
 
     def entry_offset(self):
-        string_end = self.offset() + self._fixup_array_offset + 2 * self.unpack_word(self._num_fixups_offset)
+        string_end =  self.offset()
+        string_end += self._fixup_array_offset
+        string_end += 2 * self.unpack_word(self._num_fixups_offset)
         return align(string_end, 8)
 
     def entry_size(self):
@@ -320,10 +315,11 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
     def entries(self, indext):
         """
-        A generator that returns each INDX entry associated with this header.
+        A generator that returns each INDX entry associated with
+          this header.
         """
         if self.entry_offset() - self.offset() >= self.entry_size():
-            debug("No entries in this allocation block.")
+            g_logger.debug("No entries in this allocation block.")
             return
 
         #Translate indext to class
@@ -355,13 +351,15 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         yield e
 
         while e.has_next():
-            debug("Entry has another entry after it.")
+            g_logger.debug("Entry has another entry after it.")
             e = e.next()
             yield e
-        debug("No more entries.")
+        g_logger.debug("No more entries.")
 
     def slack(self):
-        return self._buf[self.offset() + self.entry_size():self.offset() + self.entry_allocated_size()]
+        start = self.offset() + self.entry_size()
+        end = self.offset() + self.entry_allocated_size()
+        return self._buf[start:end]
 
     def end_offset(self):
         if self._is_null_block:
@@ -382,20 +380,21 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         try:
             while off < self.offset() + self.entry_allocated_size() - 0x52:
                 try:
-                    debug("Trying to find slack entry at %s." % (hex(off)))
-                    e = NTATTR_DIRECTORY_INDEX_SLACK_ENTRY(self._buf, off, self)
+                    g_logger.debug("Trying to find slack entry at %x.", off)
+                    e = NTATTR_DIRECTORY_INDEX_SLACK_ENTRY(self._buf,
+                            off, self)
                     if e.is_valid():
-                        debug("Slack entry is valid.")
+                        g_logger.debug("Slack entry is valid.")
                         off = e.end_offset()
                         yield e
                     else:
-                        debug("Slack entry is invalid.")
+                        g_logger.debug("Slack entry is invalid.")
                         raise ParseException("Not a deleted entry")
                 except ParseException:
-                    debug("Scanning one byte forward.")
+                    g_logger.debug("Scanning one byte forward.")
                     off += 1
         except struct.error:
-            debug("Slack entry parsing overran buffer.")
+            g_logger.debug("Slack entry parsing overran buffer.")
             pass
 
 
@@ -417,7 +416,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block,
              which links to this block.
         """
-        debug("ENTRY at %s." % (hex(offset)))
+        g_logger.debug("ENTRY at %x.", offset)
         super(NTATTR_STANDARD_INDEX_ENTRY, self).__init__(buf,
                 offset, parent)
 
@@ -481,7 +480,7 @@ class NTATTR_SDH_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
         - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block,
              which links to this block.
         """
-        debug("ENTRY at %s." % (hex(offset)))
+        g_logger.debug("ENTRY at %x.", offset)
         super(NTATTR_SDH_INDEX_ENTRY, self).__init__(buf, offset, parent)
 
         self._size_offset = 0x08
@@ -545,7 +544,7 @@ class NTATTR_SII_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
         - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block,
              which links to this block.
         """
-        debug("ENTRY at %s." % (hex(offset)))
+        g_logger.debug("ENTRY at %x.", offset)
         super(NTATTR_SII_INDEX_ENTRY, self).__init__(buf, offset, parent)
 
         self._offset_to_data_offset = 0x00
@@ -628,10 +627,10 @@ class NTATTR_DIRECTORY_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
         Arguments:
         - `buf`: Byte string containing NTFS INDX file
         - `offset`: The offset into the buffer at which the block starts.
-        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block, 
+        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block,
              which links to this block.
         """
-        debug("ENTRY at %s." % (hex(offset)))
+        g_logger.debug("ENTRY at %x.", offset)
         super(NTATTR_DIRECTORY_INDEX_ENTRY, self).__init__(buf, offset, parent)
 
         self._created_time_offset = 0x18
@@ -686,7 +685,7 @@ class NTATTR_DIRECTORY_INDEX_ENTRY(NTATTR_STANDARD_INDEX_ENTRY):
         try:
             return self.parse_time(offset)
         except ValueError:
-            debug("Timestamp is invalid, using a default.")
+            g_logger.debug("Timestamp is invalid, using a default.")
             return datetime(1970, 1, 1, 0, 0, 0)
 
     def created_time_safe(self):
@@ -856,8 +855,12 @@ if __name__ == '__main__':
             help="Input INDX file path")
     results = parser.parse_args()
 
-    global verbose
-    verbose = results.verbose
+    if results.verbose:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
+
+    # TODO: the following logic is a mess. please clean it up.
 
     do_csv = results.csv or \
         (not results.csv and not results.bodyfile)
