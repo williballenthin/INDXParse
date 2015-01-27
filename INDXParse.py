@@ -1,4 +1,4 @@
-#!/usr/bin/python
+
 
 #    This file is part of INDXParse.
 #
@@ -19,7 +19,10 @@
 #
 #
 #   Bibliography:
-#   Mentions of "NTFSdoc" in code comments refer to: Richard Russon and Yuval Fledel.  "NTFS Documentation," apparent publication in March 2008.  Retrieved from: http://dubeyko.com/development/FileSystems/NTFS/ntfsdoc.pdf.  Last checked Mar. 2013.
+#   Mentions of "NTFSdoc" in code comments refer to: Richard Russon and
+#     Yuval Fledel.  "NTFS Documentation," apparent publication in
+#     March 2008.  Retrieved from:
+#     http://dubeyko.com/development/FileSystems/NTFS/ntfsdoc.pdf.  Last checked Mar. 2013.
 
 __version__ = "1.1.9"
 
@@ -201,10 +204,26 @@ class Block(object):
         - `length`: The length of the string.
         Throws:
         - `UnicodeDecodeError`
+        - `OverrunBufferException`
         """
         start = self._offset + offset
         end = start + 2 * length
         return self._buf[start:end].tostring().decode("utf16")
+
+    def unpack_binary(self, offset, length):
+        """
+        Returns a bytestring string from the relative offset with
+          the given length.
+
+        Arguments:
+        - `offset`: The relative offset from the start of the block.
+        - `length`: The length of the bytestring.
+        Throws:
+        - `OverrunBufferException`
+        """
+        start = self._offset + offset
+        end = start + length
+        return self._buf[start:end]
 
     def absolute_offset(self, offset):
         """
@@ -284,6 +303,11 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         num_fixups = self.unpack_word(self._num_fixups_offset)
         fixup_value = self.unpack_word(self._fixup_value_offset)
 
+        self._valid_fixups = True
+        if self.unpack_binary(self._fixup_array_offset, (num_fixups - 1) * 2) == "\x00\x00" * (num_fixups - 1):
+            self._valid_fixups = False
+            g_logger.warning("Fixup array is empty")
+
         for i in range(0, num_fixups - 1):
             fixup_offset = 512 * (i + 1) - 2
             check_value = self.unpack_word(fixup_offset)
@@ -322,6 +346,10 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
             g_logger.debug("No entries in this allocation block.")
             return
 
+        if not self._valid_fixups:
+            g_logger.debug("No fixups, so assuming no valid entries in allocation block.")
+            return
+
         #Translate indext to class
         entry_class = None
         if indext == "sdh":
@@ -357,12 +385,13 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         g_logger.debug("No more entries.")
 
     def slack(self):
+        # TODO: do we treat all data as slack when  _valid_fixups==False?
         start = self.offset() + self.entry_size()
         end = self.offset() + self.entry_allocated_size()
         return self._buf[start:end]
 
     def end_offset(self):
-        if self._is_null_block:
+        if self._is_null_block or not self._valid_fixups:
             return self.offset() + INDEX_NODE_BLOCK_SIZE
         else:
             return self.offset() + self.entry_allocated_size()
@@ -918,4 +947,11 @@ if __name__ == '__main__':
                     except UnicodeEncodeError:
                         print(entry_bodyfile(e, bad_fn))
 
-        off = align(h.end_offset(), INDEX_NODE_BLOCK_SIZE)
+        if h.end_offset() != 0:
+            # this is the normal case.
+            off = align(h.end_offset(), INDEX_NODE_BLOCK_SIZE)
+        else:
+            # this is the exceptional case.
+            #   if we encounter a weird header, and its at offset 0, then align
+            #   will make a mistake here and align back to 0
+            off = INDEX_NODE_BLOCK_SIZE
