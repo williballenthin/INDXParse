@@ -1,3 +1,4 @@
   - Phill Moore, for reporting a bug in list_mft.py that prevent users from providing a path prefix
   - Glenn Edwards, for reporing and providing fixes to multiple bugs
   - Andrew Case, for reporting an issue when parsing empty INDX allocation attributes
+  - Jacob Garner, for providing the INDXFind.py script
