@@ -1321,7 +1321,7 @@ class MFTEnumerator(object):
         for record, record_path in self.enumerate_paths():
             if lower_path == record_path.lower():
                 return record
-        raise KeyError("Path not found: " % path)
+        raise KeyError("Path not found: %s" % path)
 
 
 class MFTTreeNode(object):
