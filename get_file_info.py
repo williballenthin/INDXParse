@@ -112,7 +112,7 @@ def get_timeline_entries(record):
             fn_filename = fn.filename()
             entries.extend(create_safe_timeline_entries(fn, "slack-INDX", fn_filename))
 
-    return sorted(entries, key=lambda x: x["timestamp"])
+    return sorted(entries, key=lambda x: x["timestamp"] or datetime.datetime(1970, 1, 1, 0, 0, 0))
 
 
 def make_filename_information_model(attr):
