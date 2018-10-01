@@ -40,6 +40,10 @@ g_logger = logging.getLogger("INDXParse")
 INDEX_NODE_BLOCK_SIZE = 4096
 
 
+if sys.version_info[0] > 2:
+    raise RuntimeError("INDXParse only runs on Python 2.7. See issue #26.")
+
+
 def parse_windows_timestamp(qword):
     # see http://integriography.wordpress.com/2010/01/16/using-phython-to-parse-and-present-windows-64-bit-timestamps/
     return datetime.utcfromtimestamp(float(qword) * 1e-7 - 11644473600)
