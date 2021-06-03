@@ -782,7 +782,7 @@ class NTATTR_DIRECTORY_INDEX_SLACK_ENTRY(NTATTR_DIRECTORY_INDEX_ENTRY):
 
     def is_valid(self):
         recent_date = datetime(1990, 1, 1, 0, 0, 0)
-        near_date = datetime(2020, 1, 1, 0, 0, 0)
+        near_date = datetime(2024, 1, 1, 0, 0, 0)
         return near_date > self.modified_time_safe() > recent_date and \
                 near_date > self.accessed_time_safe() > recent_date and \
                 near_date > self.changed_time_safe() > recent_date and \
