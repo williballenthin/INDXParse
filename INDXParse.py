@@ -380,7 +380,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
         while e.has_next():
             g_logger.debug("Entry has another entry after it.")
-            e = e.next()
+            e = next(e)
             yield e
         g_logger.debug("No more entries.")
 
@@ -470,7 +470,7 @@ class NTATTR_STANDARD_INDEX_ENTRY(Block):
         entries_length = self.end_offset() - self.parent().offset()
         return entries_length <= self.parent().entry_size()
 
-    def next(self):
+    def __next__(self):
         """
         return the next entry after this one.
         """
@@ -791,7 +791,7 @@ def entry_dir_csv(entry, filename=False):
     else:
         fn = entry.filename()
 
-    return u"{filename},\t{psize},\t{lsize},\t{modified},\t{accessed},\t{changed},\t{created}".format(
+    return "{filename},\t{psize},\t{lsize},\t{modified},\t{accessed},\t{changed},\t{created}".format(
         filename=fn,
         psize=entry.physical_size(),
         lsize=entry.logical_size(),
@@ -857,7 +857,7 @@ def entry_bodyfile(entry, filename=False):
     except ValueError:
         pass
 
-    return u"0|{filename}|0|0|0|0|{lsize}|{accessed}|{modified}|{changed}|{created}".format(
+    return "0|{filename}|0|0|0|0|{lsize}|{accessed}|{modified}|{changed}|{created}".format(
             filename=fn,
             lsize=entry.logical_size(),
             accessed=accessed,
@@ -919,33 +919,33 @@ if __name__ == '__main__':
         for e in h.entries(results.index_type):
             if do_csv:
                 if results.index_type == "sdh":
-                    print(entry_SDH_csv(e))
+                    print((entry_SDH_csv(e)))
                 if results.index_type == "sii":
-                    print(entry_SII_csv(e))
+                    print((entry_SII_csv(e)))
                 if results.index_type == "dir":
                     try:
-                        print(entry_dir_csv(e))
+                        print((entry_dir_csv(e)))
                     except UnicodeEncodeError:
-                        print(entry_dir_csv(e, e.filename().encode("ascii", "replace") + " (error decoding filename)"))
+                        print((entry_dir_csv(e, e.filename().encode("ascii", "replace") + " (error decoding filename)")))
             elif results.bodyfile:
                 try:
-                    print(entry_bodyfile(e))
+                    print((entry_bodyfile(e)))
                 except UnicodeEncodeError:
-                    print(entry_bodyfile(e, e.filename().encode("ascii", "replace") + " (error decoding filename)"))
+                    print((entry_bodyfile(e, e.filename().encode("ascii", "replace") + " (error decoding filename)")))
         if results.deleted:
             for e in h.deleted_entries():
                 fn = e.filename() + " (slack at %s)" % (hex(e.offset()))
                 bad_fn = e.filename().encode("ascii", "replace") + " (slack at %s)(error decoding filename)" % (hex(e.offset()))
                 if do_csv:
                     try:
-                        print(entry_dir_csv(e, fn))
+                        print((entry_dir_csv(e, fn)))
                     except UnicodeEncodeError:
-                        print(entry_dir_csv(e, bad_fn))
+                        print((entry_dir_csv(e, bad_fn)))
                 elif results.bodyfile:
                     try:
-                        print(entry_bodyfile(e, fn))
+                        print((entry_bodyfile(e, fn)))
                     except UnicodeEncodeError:
-                        print(entry_bodyfile(e, bad_fn))
+                        print((entry_bodyfile(e, bad_fn)))
 
         if h.end_offset() != 0:
             # this is the normal case.

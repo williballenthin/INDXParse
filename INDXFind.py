@@ -21,8 +21,8 @@
 
 import sys
 if sys.argv[1] == "-h":
-	print "\tpython ./INDXfind.py <ewfmount'd drive>"
-	print "\tex:\tpython ./INDXfind.py /mnt/ewf/ewf1"
+	print("\tpython ./INDXfind.py <ewfmount'd drive>")
+	print("\tex:\tpython ./INDXfind.py /mnt/ewf/ewf1")
 	sys.exit()
 
 f = open(sys.argv[1], 'rb')			# ewfmount'd drive expected as first argument on command line
@@ -32,9 +32,9 @@ byteChunk="go" 					# cheap do-while
 recordsFound = 0 				# for progress
 outFile = open("INDX_records.raw", 'wb')	# output file
 
-print	"\n\tRunning... progress will output every GigaByte. In testing this was every 15-20 seconds.\n" \
+print("\n\tRunning... progress will output every GigaByte. In testing this was every 15-20 seconds.\n" \
 	"\tThe output file is named \"INDX_records.raw\".\n" \
-	"\tINDX_records.raw should be parsed with INDXparser.py which can be found at:\thttps://github.com/williballenthin/INDXParse\n" 
+	"\tINDX_records.raw should be parsed with INDXparser.py which can be found at:\thttps://github.com/williballenthin/INDXParse\n") 
 
 while byteChunk != "":
 	byteChunk = f.read(4096)	# Only searching for cluster aligned (4096 on Windows Server 2003) INDX records... records all appear to be 4096 bytes
@@ -47,6 +47,6 @@ while byteChunk != "":
 
 	# Progress
 	if offset % 1073741824 == 0:
-		print "Processed: %d GB. INDX records found: %d" % ((offset / 1073741824), recordsFound)
+		print("Processed: %d GB. INDX records found: %d" % ((offset / 1073741824), recordsFound))
 
 outFile.close()

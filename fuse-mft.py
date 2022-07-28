@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from __future__ import with_statement
+
 
 import os
 import sys
@@ -257,7 +257,7 @@ class MFTFuseOperations(Operations):
     def readdir(self, path, fh):
         dirents = ['.', '..']
         record = self._get_node(path)
-        dirents.extend(map(lambda r: r.get_filename(), record.get_children_nodes()))
+        dirents.extend([r.get_filename() for r in record.get_children_nodes()])
         for r in dirents:
             yield r
 
@@ -321,7 +321,7 @@ class MFTFuseOperations(Operations):
         The caller must be careful to handle race conditions.
         @rtype: int
         """
-        for i in xrange(65534):
+        for i in range(65534):
             if i not in self._opened_files:
                 return i
 

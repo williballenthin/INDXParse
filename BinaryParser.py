@@ -22,7 +22,7 @@ import struct
 import sys
 from datetime import datetime
 import types
-import cPickle
+import pickle
 
 verbose = False
 
@@ -50,19 +50,19 @@ class Mmap(object):
 def debug(*message):
     global verbose
     if verbose:
-        print "# [d] %s" % (", ".join(map(str, message)))
+        print("# [d] %s" % (", ".join(map(str, message))))
 
 
 def warning(message):
-    print "# [w] %s" % (message)
+    print("# [w] %s" % (message))
 
 
 def info(message):
-    print "# [i] %s" % (message)
+    print("# [i] %s" % (message))
 
 
 def error(message):
-    print "# [e] %s" % (message)
+    print("# [e] %s" % (message))
     sys.exit(-1)
 
 
@@ -91,7 +91,7 @@ def hex_dump(src, start_addr=0):
         num_spaces = (start_addr % length)
         num_chars = length - (start_addr % length)
 
-        spaces = " ".join(["  " for i in xrange(num_spaces)])
+        spaces = " ".join(["  " for i in range(num_spaces)])
         s = src[0:num_chars]
         hexa = ' '.join(["%02X" % ord(x) for x in s])
         printable = s.translate(FILTER)
@@ -103,7 +103,7 @@ def hex_dump(src, start_addr=0):
         src = src[num_chars:]
         remainder_start_addr = base_addr + length
 
-    for i in xrange(0, len(src), length):
+    for i in range(0, len(src), length):
         s = src[i:i + length]
         hexa = ' '.join(["%02X" % ord(x) for x in s])
         printable = s.translate(FILTER)
@@ -134,7 +134,7 @@ class memoize(decoratorargs):
             self.newer = newer
 
     def __init__(self, func, capacity=1000,
-                 keyfunc=lambda *args, **kwargs: cPickle.dumps((args,
+                 keyfunc=lambda *args, **kwargs: pickle.dumps((args,
                                                                 kwargs))):
         if not isinstance(func, property):
             self.func = func
@@ -418,10 +418,10 @@ class Block(object):
             is_generator = False
 
         if count < 0:
-            raise "Count must be greater than 0."
+            raise ValueError("Count must be greater than 0.")
 
         if length is not None and count > 1:
-            raise "Cannot specify both `length` and `count`."
+            raise ValueError("Cannot specify both `length` and `count`.")
 
         if offset is None:
             offset = self._implicit_offset
@@ -490,7 +490,7 @@ class Block(object):
                     temp = type_(self._buf, self.absolute_offset(offset), self)
 
                     self._implicit_offset = offset + len(temp)
-        elif isinstance(type_, basestring):
+        elif isinstance(type_, str):
             typename = type_
 
             if count == 0:
@@ -903,7 +903,7 @@ class Block(object):
             raise OverrunBufferException(o, len(self._buf))
 
         # Yeah, this is ugly
-        h = map(ord, _bin)
+        h = list(map(ord, _bin))
         return "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x" % \
             (h[3], h[2], h[1], h[0],
              h[5], h[4],
