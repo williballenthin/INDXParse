@@ -634,7 +634,7 @@ class RecordPane(scrolled.ScrolledPanel):
         super(RecordPane, self).__del__(*args, **kwargs)
 
     def update(self, event):
-        print "Warning: Unbound Record Pane update"
+        print("Warning: Unbound Record Pane update")
 
 ascii_byte = " !\"#\$%&\'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~"
 
@@ -653,7 +653,7 @@ def unicode_strings(buf, n=4):
         try:
             yield match.group().decode("utf-16")
         except UnicodeDecodeError:
-            print "unicode find error: " + str(match.group())
+            print("unicode find error: " + str(match.group()))
             pass
 
 
@@ -673,13 +673,13 @@ class DataPane(wx.Panel):
         panel_left = wx.Panel(vsplitter, -1)
         self._text = wx.TextCtrl(panel_left, -1, style=wx.TE_MULTILINE)
         self._text.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
-                                   wx.NORMAL, False, u'Courier'))
+                                   wx.NORMAL, False, 'Courier'))
         _expand_into(panel_left, self._text)
 
         panel_right = wx.Panel(vsplitter, -1)
         self._strings = wx.TextCtrl(panel_right, -1, style=wx.TE_MULTILINE)
         self._strings.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
-                                      wx.NORMAL, False, u'Courier'))
+                                      wx.NORMAL, False, 'Courier'))
         _expand_into(panel_right, self._strings)
 
         vsplitter.SplitVertically(panel_left, panel_right, sashPosition=600)
@@ -690,7 +690,7 @@ class DataPane(wx.Panel):
 
     def update(self, data):
         self._data = data
-        hhex = unicode(_format_hex(data))
+        hhex = str(_format_hex(data))
         self._text.SetValue(hhex)
 
         strings_text = ""
@@ -1051,8 +1051,8 @@ class RecordDataPane(RecordPane):
                         value_view = wx.TextCtrl(self,
                                                  style=wx.TE_MULTILINE)
                         value_view.SetFont(wx.Font(8, wx.SWISS, wx.NORMAL,
-                                                 wx.NORMAL, False, u'Courier'))
-                        value_view.SetValue(unicode(_format_hex(attr.value())))
+                                                 wx.NORMAL, False, 'Courier'))
+                        value_view.SetValue(str(_format_hex(attr.value())))
                         self._sizer.Add(value_view,
                                         self.EXPAND_VERTICALLY, wx.EXPAND)
                 except ZeroDivisionError:

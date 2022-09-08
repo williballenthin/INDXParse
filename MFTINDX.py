@@ -51,7 +51,7 @@ def information_bodyfile(path, size, inode, owner_id, info, attributes=None):
     attributes_text = ""
     if len(attributes) > 0:
         attributes_text = " (%s)" % (", ".join(attributes))
-    return u"0|%s|%s|0|%d|0|%s|%s|%s|%s|%s\n" % (path + attributes_text, inode,
+    return "0|%s|%s|0|%d|0|%s|%s|%s|%s|%s\n" % (path + attributes_text, inode,
                                                  owner_id,
                                                  size, accessed, modified,
                                                  changed, created)
@@ -293,38 +293,38 @@ def print_indx_info(options):
     except ValueError:
         record = f.mft_get_record_by_path(options.infomode)
     if not record:
-        print "Did not find directory entry for " + options.infomode
+        print("Did not find directory entry for " + options.infomode)
         return
-    print "Found directory entry for: " + options.infomode
+    print("Found directory entry for: " + options.infomode)
 
     if record.magic() != 0x454c4946:
         if record.magic() == int("0xBAAD", 0x10):
-            print "BAAD Record"
+            print("BAAD Record")
         else:
-            print "Invalid magic header: ", hex(record.magic())
+            print("Invalid magic header: ", hex(record.magic()))
             return
 
-    print "Path: " + f.mft_record_build_path(record, {})
-    print "MFT Record: " + str(record.mft_record_number())
+    print("Path: " + f.mft_record_build_path(record, {}))
+    print("MFT Record: " + str(record.mft_record_number()))
 
-    print "Metadata: "
+    print("Metadata: ")
     if record.is_active():
-        print "  active file"
+        print("  active file")
     else:
-        print "  deleted file"
+        print("  deleted file")
 
     if record.is_directory():
-        print "  type: directory"
+        print("  type: directory")
     else:
-        print "  type: file"
+        print("  type: file")
 
     if not record.is_directory():
         data_attr = record.data_attribute()
         if data_attr and data_attr.non_resident() > 0:
-            print "  size: %d bytes" % (data_attr.data_size())
+            print("  size: %d bytes" % (data_attr.data_size()))
         else:
-            print "  size: %d bytes" % \
-                (record.filename_information().logical_size())
+            print("  size: %d bytes" % \
+                (record.filename_information().logical_size()))
 
     def get_flags(flags):
         attributes = []
@@ -364,144 +364,144 @@ def print_indx_info(options):
             attributes.append("has-view-index")
         return attributes
 
-    print "  attributes: " + \
-        ", ".join(get_flags(record.standard_information().attributes()))
+    print("  attributes: " + \
+        ", ".join(get_flags(record.standard_information().attributes())))
 
     crtime = record.standard_information().created_time().isoformat("T") + "Z"
     mtime = record.standard_information().modified_time().isoformat("T") + "Z"
     chtime = record.standard_information().changed_time().isoformat("T") + "Z"
     atime = record.standard_information().accessed_time().isoformat("T") + "Z"
 
-    print "  SI modified: %s" % (mtime)
-    print "  SI accessed: %s" % (atime)
-    print "  SI changed: %s" % (chtime)
-    print "  SI birthed: %s" % (crtime)
+    print("  SI modified: %s" % (mtime))
+    print("  SI accessed: %s" % (atime))
+    print("  SI changed: %s" % (chtime))
+    print("  SI birthed: %s" % (crtime))
 
     try:
         # since the fields are sequential, we can handle an exception half way through here
         #  and then ignore the remaining items. Dont have to worry about individual try/catches
-        print "  owner id (quota info): %d" % (record.standard_information().owner_id())
-        print "  security id: %d" % (record.standard_information().security_id())
-        print "  quota charged: %d" % (record.standard_information().quota_charged())
-        print "  USN: %d" % (record.standard_information().usn())
+        print("  owner id (quota info): %d" % (record.standard_information().owner_id()))
+        print("  security id: %d" % (record.standard_information().security_id()))
+        print("  quota charged: %d" % (record.standard_information().quota_charged()))
+        print("  USN: %d" % (record.standard_information().usn()))
     except StandardInformationFieldDoesNotExist:
         pass
 
-    print "Filenames:"
+    print("Filenames:")
     for b in record.attributes():
         if b.type() != ATTR_TYPE.FILENAME_INFORMATION:
             continue
         try:
             attr = FilenameAttribute(b.value(), 0, record)
             a = attr.filename_type()
-            print "  Type: %s" % (["POSIX", "WIN32", "DOS 8.3", "WIN32 + DOS 8.3"][a])
-            print "    name: %s" % (str(attr.filename()))
-            print "    attributes: " + \
-                ", ".join(get_flags(attr.flags()))
-            print "    logical size:  %d bytes" % (attr.logical_size())
-            print "    physical size: %d bytes" % (attr.physical_size())
+            print("  Type: %s" % (["POSIX", "WIN32", "DOS 8.3", "WIN32 + DOS 8.3"][a]))
+            print("    name: %s" % (str(attr.filename())))
+            print("    attributes: " + \
+                ", ".join(get_flags(attr.flags())))
+            print("    logical size:  %d bytes" % (attr.logical_size()))
+            print("    physical size: %d bytes" % (attr.physical_size()))
 
             crtime = attr.created_time().isoformat("T") + "Z"
             mtime = attr.modified_time().isoformat("T") + "Z"
             chtime = attr.changed_time().isoformat("T") + "Z"
             atime = attr.accessed_time().isoformat("T") + "Z"
 
-            print "    modified: %s" % (mtime)
-            print "    accessed: %s" % (atime)
-            print "    changed: %s" % (chtime)
-            print "    birthed: %s" % (crtime)
-            print "    parent ref: %d" % (MREF(attr.mft_parent_reference()))
-            print "    parent seq: %d" % (MSEQNO(attr.mft_parent_reference()))
+            print("    modified: %s" % (mtime))
+            print("    accessed: %s" % (atime))
+            print("    changed: %s" % (chtime))
+            print("    birthed: %s" % (crtime))
+            print("    parent ref: %d" % (MREF(attr.mft_parent_reference())))
+            print("    parent seq: %d" % (MSEQNO(attr.mft_parent_reference())))
         except ZeroDivisionError:
             continue
 
-    print "Attributes:"
+    print("Attributes:")
     for b in record.attributes():
-        print "  %s" % (Attribute.TYPES[b.type()])
-        print "    attribute name: %s" % (b.name() or "<none>")
-        print "    attribute flags: " + \
-            ", ".join(get_flags(attr.flags()))
+        print("  %s" % (Attribute.TYPES[b.type()]))
+        print("    attribute name: %s" % (b.name() or "<none>"))
+        print("    attribute flags: " + \
+            ", ".join(get_flags(attr.flags())))
         if b.non_resident() > 0:
-            print "    resident: no"
-            print "    data size: %d" % (b.data_size())
-            print "    allocated size: %d" % (b.allocated_size())
+            print("    resident: no")
+            print("    data size: %d" % (b.data_size()))
+            print("    allocated size: %d" % (b.allocated_size()))
 
             if b.allocated_size() > 0:
-                print "    runlist:"
+                print("    runlist:")
                 for (offset, length) in b.runlist().runs():
-                    print "      Cluster %s, length %s" % \
-                        (hex(offset), hex(length))
-                    print "        %s (%s) bytes for %s (%s) bytes" % \
+                    print("      Cluster %s, length %s" % \
+                        (hex(offset), hex(length)))
+                    print("        %s (%s) bytes for %s (%s) bytes" % \
                         (offset * options.clustersize,
                          hex(offset * options.clustersize),
                          length * options.clustersize,
-                         hex(length * options.clustersize))
+                         hex(length * options.clustersize)))
         else:
-            print "    resident: yes"
-            print "    size: %d bytes" % (b.value_length())
+            print("    resident: yes")
+            print("    size: %d bytes" % (b.value_length()))
 
     # INDX stuff
     indxroot = record.attribute(ATTR_TYPE.INDEX_ROOT)
     if not indxroot:
-        print "No INDX_ROOT attribute"
+        print("No INDX_ROOT attribute")
         return
-    print "Found INDX_ROOT attribute"
+    print("Found INDX_ROOT attribute")
     if indxroot.non_resident() != 0:
         # This shouldn't happen.
-        print "INDX_ROOT attribute is non-resident"
+        print("INDX_ROOT attribute is non-resident")
         for e in indxroot.runlist().entries():
-            print "Cluster %s, length %s" % (hex(e.offset()), hex(e.length()))
+            print("Cluster %s, length %s" % (hex(e.offset()), hex(e.length())))
     else:
-        print "INDX_ROOT attribute is resident"
+        print("INDX_ROOT attribute is resident")
         irh = IndexRootHeader(indxroot.value(), 0, False)
         someentries = False
         for e in irh.node_header().entries():
             if not someentries:
-                print "INDX_ROOT entries:"
+                print("INDX_ROOT entries:")
             someentries = True
-            print "  " + e.filename_information().filename()
-            print "    " + str(e.filename_information().logical_size()) + " bytes in size"
-            print "    b " + e.filename_information().created_time().isoformat("T") + "Z"
-            print "    m " + e.filename_information().modified_time().isoformat("T") + "Z"
-            print "    c " + e.filename_information().changed_time().isoformat("T") + "Z"
-            print "    a " + e.filename_information().accessed_time().isoformat("T") + "Z"
+            print("  " + e.filename_information().filename())
+            print("    " + str(e.filename_information().logical_size()) + " bytes in size")
+            print("    b " + e.filename_information().created_time().isoformat("T") + "Z")
+            print("    m " + e.filename_information().modified_time().isoformat("T") + "Z")
+            print("    c " + e.filename_information().changed_time().isoformat("T") + "Z")
+            print("    a " + e.filename_information().accessed_time().isoformat("T") + "Z")
 
         if not someentries:
-            print "INDX_ROOT entries: (none)"
+            print("INDX_ROOT entries: (none)")
         someentries = False
         for e in irh.node_header().slack_entries():
             if not someentries:
-                print "INDX_ROOT slack entries:"
+                print("INDX_ROOT slack entries:")
             someentries = True
-            print "  " + e.filename_information().filename()
+            print("  " + e.filename_information().filename())
         if not someentries:
-            print "INDX_ROOT slack entries: (none)"
+            print("INDX_ROOT slack entries: (none)")
         extractbuf = array.array("B")
         found_indxalloc = False
         for attr in record.attributes():
             if attr.type() != ATTR_TYPE.INDEX_ALLOCATION:
                 continue
             found_indxalloc = True
-            print "Found INDX_ALLOCATION attribute"
+            print("Found INDX_ALLOCATION attribute")
             if attr.non_resident() != 0:
-                print "INDX_ALLOCATION is non-resident"
+                print("INDX_ALLOCATION is non-resident")
                 for (offset, length) in attr.runlist().runs():
-                    print "Cluster %s, length %s" % (hex(offset), hex(length))
-                    print "  Using clustersize %s (%s) bytes and volume offset %s (%s) bytes: \n  %s (%s) bytes for %s (%s) bytes" % \
+                    print("Cluster %s, length %s" % (hex(offset), hex(length)))
+                    print("  Using clustersize %s (%s) bytes and volume offset %s (%s) bytes: \n  %s (%s) bytes for %s (%s) bytes" % \
                         (options.clustersize, hex(options.clustersize),
                          options.offset, hex(options.offset),
                          (offset * options.clustersize) + options.offset,
                          hex((offset * options.clustersize) + options.offset),
                          length * options.clustersize,
-                         hex(length * options.clustersize))
+                         hex(length * options.clustersize)))
                     ooff = offset * options.clustersize + options.offset
                     llen = length * options.clustersize
                     extractbuf += f.read(ooff, llen)
             else:
                 # This shouldn't happen.
-                print "INDX_ALLOCATION is resident"
+                print("INDX_ALLOCATION is resident")
         if not found_indxalloc:
-            print "No INDX_ALLOCATION attribute found"
+            print("No INDX_ALLOCATION attribute found")
             return
         if options.extract:
             with open(options.extract, "wb") as g:

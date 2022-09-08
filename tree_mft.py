@@ -57,7 +57,7 @@ def main():
         tree.build(record_cache=record_cache, path_cache=path_cache)
 
         def rec(node, prefix):
-            print prefix + node.get_filename()
+            print(prefix + node.get_filename())
             for child in node.get_children():
                 rec(child, prefix + "  ")
         

@@ -75,7 +75,7 @@ def format_bodyfile(path, size, inode, owner_id, info, attributes=None):
     attributes_text = ""
     if len(attributes) > 0:
         attributes_text = " (%s)" % (", ".join(attributes))
-    return u"0|%s|%s|0|%d|0|%s|%s|%s|%s|%s\n" % (path + attributes_text, inode,
+    return "0|%s|%s|0|%d|0|%s|%s|%s|%s|%s\n" % (path + attributes_text, inode,
                                                  owner_id,
                                                  size, accessed, modified,
                                                  changed, created)
@@ -149,9 +149,9 @@ def output_mft_record(mft_enumerator, record, prefix):
     # si
     if si:
         try:
-            print format_bodyfile(path, size, inode, si_index, si, tags),
+            print(format_bodyfile(path, size, inode, si_index, si, tags), end=' ')
         except UnicodeEncodeError:
-            print "# failed to print: %s" % (list(path))
+            print("# failed to print: %s" % (list(path)))
 
     # fn
     if fn:
@@ -159,9 +159,9 @@ def output_mft_record(mft_enumerator, record, prefix):
         if not record.is_active():
             tags.append("inactive")
         try:
-            print format_bodyfile(path, size, inode, si_index, fn, tags),
+            print(format_bodyfile(path, size, inode, si_index, fn, tags), end=' ')
         except UnicodeEncodeError:
-            print "# failed to print: %s" % (list(path))
+            print("# failed to print: %s" % (list(path)))
 
     # ADS
     for ads in ADSs:
@@ -169,24 +169,24 @@ def output_mft_record(mft_enumerator, record, prefix):
         if not record.is_active():
             tags.append("inactive")
         try:
-            print format_bodyfile(path + ":" + ads[0], ads[1], inode, si_index, si or {}, tags),
+            print(format_bodyfile(path + ":" + ads[0], ads[1], inode, si_index, si or {}, tags), end=' ')
         except UnicodeEncodeError:
-            print "# failed to print: %s" % (list(path))
+            print("# failed to print: %s" % (list(path)))
 
     # INDX
     for indx in indices:
         tags = ["indx"]
         try:
-            print format_bodyfile(path + "\\" + indx[0], indx[1], MREF(indx[2]), 0, indx[3], tags),
+            print(format_bodyfile(path + "\\" + indx[0], indx[1], MREF(indx[2]), 0, indx[3], tags), end=' ')
         except UnicodeEncodeError:
-            print "# failed to print: %s" % (list(path))
+            print("# failed to print: %s" % (list(path)))
 
     for indx in slack_indices:
         tags = ["indx", "slack"]
         try:
-            print format_bodyfile(path + "\\" + indx[0], indx[1], MREF(indx[2]), 0, indx[3], tags),
+            print(format_bodyfile(path + "\\" + indx[0], indx[1], MREF(indx[2]), 0, indx[3], tags), end=' ')
         except UnicodeEncodeError:
-            print "# failed to print: %s" % (list(path))
+            print("# failed to print: %s" % (list(path)))
 
 
 def unixtimestampformat(value):
@@ -311,7 +311,7 @@ def main():
             print("[")
             for record, record_path in enum.enumerate_paths():
                 m = make_model(record, record_path)
-                print(json.dumps(m, cls=MFTEncoder, indent=2) + ",")
+                print((json.dumps(m, cls=MFTEncoder, indent=2) + ","))
                 progress.set_current(record.inode)
             print("]")
         else:

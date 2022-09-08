@@ -52,7 +52,7 @@ def get_flags(flags):
     Get readable list of attribute flags.
     """
     attributes = []
-    for flag in Attribute.FLAGS.keys():
+    for flag in list(Attribute.FLAGS.keys()):
         if flags & flag:
             attributes.append(Attribute.FLAGS[flag])
     return attributes
@@ -364,7 +364,7 @@ Slack strings:
 
 
 def print_indx_info(record, path):
-    print format_record(record, path)
+    print(format_record(record, path))
 
 
 def main():

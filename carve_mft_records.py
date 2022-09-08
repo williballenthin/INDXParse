@@ -59,7 +59,7 @@ def output_record(record_offset, record):
     ret.append(hex(off))
     ret.append(hex(size))
 
-    print(','.join(ret))
+    print((','.join(ret)))
 
 
 def main(argv=None):

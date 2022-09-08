@@ -39,10 +39,10 @@ def main():
         with contextlib.closing(mmap.mmap(f.fileno(), 0,
                                           access=mmap.ACCESS_READ)) as buf:
             s = SDS(buf, 0, None)
-            print "SDS"
+            print("SDS")
             for e in s.sds_entries():
                 print("  SDS_ENTRY")
-                print(e.get_all_string(indent=2))
+                print((e.get_all_string(indent=2)))
 
 if __name__ == "__main__":
     main()

@@ -1346,7 +1346,7 @@ class MFTTreeNode(object):
         self._children_record_numbers.append(child_record_number)
 
     def get_children_nodes(self):
-        return map(lambda n: self._nodes[n], self._children_record_numbers)
+        return [self._nodes[n] for n in self._children_record_numbers]
 
     def get_child_node(self, filename):
         for child in self.get_children_nodes():
