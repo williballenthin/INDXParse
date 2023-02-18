@@ -208,7 +208,7 @@ class Block(object):
         """
         start = self._offset + offset
         end = start + 2 * length
-        return self._buf[start:end].tostring().decode("utf16")
+        return self._buf[start:end].tobytes().decode("utf16")
 
     def unpack_binary(self, offset, length):
         """
@@ -284,7 +284,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         self._is_null_block = False
 
         _magic = self.unpack_string(0, 4)
-        if _magic != "INDX":
+        if _magic != b'INDX':
             off = 0x0
             while off < min(len(buf) - offset, INDEX_NODE_BLOCK_SIZE):
                 if self.unpack_byte(off) != 0:
@@ -369,7 +369,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         #  reference should be.
         # TODO: this only works for directory indices (depends on
         #  parent reference field interpretation)
-        if ("\x00" * 8) == self._buf[self.entry_offset():self.entry_offset() + 8].tostring():
+        if ("\x00" * 8) == self._buf[self.entry_offset():self.entry_offset() + 8].tobytes():
             # 0x18 is relative offset from NTATTR_STANARD_INDEX_HEADER to
             #  the INDEX_HEADER sub-struct
             e = entry_class(self._buf, 0x18 + self.entry_offset(), self)
@@ -935,7 +935,7 @@ if __name__ == '__main__':
         if results.deleted:
             for e in h.deleted_entries():
                 fn = e.filename() + " (slack at %s)" % (hex(e.offset()))
-                bad_fn = e.filename().encode("ascii", "replace") + " (slack at %s)(error decoding filename)" % (hex(e.offset()))
+                bad_fn = (e.filename().encode("ascii", "replace")).decode('utf-8') + " (slack at %s)(error decoding filename)" % (hex(e.offset()))
                 if do_csv:
                     try:
                         print((entry_dir_csv(e, fn)))
