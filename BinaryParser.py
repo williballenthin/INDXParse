@@ -326,7 +326,7 @@ class OverrunBufferException(ParseException):
             (self._value)
 
 
-def read_byte(buf, offset):
+def read_byte(buf: bytes, offset: int) -> int:
     """
     Returns a little-endian unsigned byte from the relative offset of the given buffer.
     Arguments:
@@ -341,7 +341,7 @@ def read_byte(buf, offset):
         raise OverrunBufferException(offset, len(buf))
 
 
-def read_word(buf, offset):
+def read_word(buf: bytes, offset: int) -> int:
     """
     Returns a little-endian unsigned word from the relative offset of the given buffer.
     Arguments:
@@ -356,7 +356,7 @@ def read_word(buf, offset):
         raise OverrunBufferException(offset, len(buf))
 
 
-def read_dword(buf, offset):
+def read_dword(buf: bytes, offset: int) -> int:
     """
     Returns a little-endian unsigned dword from the relative offset of the given buffer.
     Arguments:
@@ -622,7 +622,7 @@ class Block(object):
     def current_field_offset(self):
         return self._implicit_offset
 
-    def unpack_byte(self, offset):
+    def unpack_byte(self, offset: int) -> int:
         """
         Returns a little-endian unsigned byte from the relative offset.
         Arguments:
@@ -632,7 +632,7 @@ class Block(object):
         """
         return read_byte(self._buf, self._offset + offset)
 
-    def unpack_int8(self, offset):
+    def unpack_int8(self, offset: int) -> int:
         """
         Returns a little-endian signed byte from the relative offset.
         Arguments:
@@ -646,7 +646,7 @@ class Block(object):
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
-    def unpack_word(self, offset):
+    def unpack_word(self, offset: int) -> int:
         """
         Returns a little-endian unsigned WORD (2 bytes) from the
           relative offset.
@@ -657,7 +657,7 @@ class Block(object):
         """
         return read_word(self._buf, self._offset + offset)
 
-    def unpack_word_be(self, offset):
+    def unpack_word_be(self, offset: int) -> int:
         """
         Returns a big-endian unsigned WORD (2 bytes) from the
           relative offset.
@@ -672,7 +672,7 @@ class Block(object):
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
-    def unpack_int16(self, offset):
+    def unpack_int16(self, offset: int) -> int:
         """
         Returns a little-endian signed WORD (2 bytes) from the
           relative offset.
@@ -697,7 +697,7 @@ class Block(object):
         o = self._offset + offset
         return struct.pack_into("<H", self._buf, o, word)
 
-    def unpack_dword(self, offset):
+    def unpack_dword(self, offset: int) -> int:
         """
         Returns a little-endian DWORD (4 bytes) from the relative offset.
         Arguments:
@@ -707,7 +707,7 @@ class Block(object):
         """
         return read_dword(self._buf, self._offset + offset)
 
-    def unpack_dword_be(self, offset):
+    def unpack_dword_be(self, offset: int) -> int:
         """
         Returns a big-endian DWORD (4 bytes) from the relative offset.
         Arguments:
@@ -721,7 +721,7 @@ class Block(object):
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
-    def unpack_int32(self, offset):
+    def unpack_int32(self, offset: int) -> int:
         """
         Returns a little-endian signed integer (4 bytes) from the
           relative offset.
@@ -736,7 +736,7 @@ class Block(object):
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
-    def unpack_qword(self, offset):
+    def unpack_qword(self, offset: int) -> int:
         """
         Returns a little-endian QWORD (8 bytes) from the relative offset.
         Arguments:
@@ -750,7 +750,7 @@ class Block(object):
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
-    def unpack_int64(self, offset):
+    def unpack_int64(self, offset: int) -> int:
         """
         Returns a little-endian signed 64-bit integer (8 bytes) from
           the relative offset.
@@ -765,7 +765,7 @@ class Block(object):
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
-    def unpack_float(self, offset):
+    def unpack_float(self, offset: int) -> float:
         """
         Returns a single-precision float (4 bytes) from
           the relative offset.  IEEE 754 format.
@@ -780,7 +780,7 @@ class Block(object):
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
-    def unpack_double(self, offset):
+    def unpack_double(self, offset: int) -> float:
         """
         Returns a double-precision float (8 bytes) from
           the relative offset.  IEEE 754 format.
@@ -813,7 +813,7 @@ class Block(object):
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
-    def unpack_string(self, offset, length):
+    def unpack_string(self, offset: int, length: int) -> bytes:
         """
         Returns a string from the relative offset with the given length.
         Arguments:
@@ -824,7 +824,7 @@ class Block(object):
         """
         return self.unpack_binary(offset, length)
 
-    def unpack_wstring(self, offset, length):
+    def unpack_wstring(self, offset: int, length: int) -> bytes:
         """
         Returns a string from the relative offset with the given length,
         where each character is a wchar (2 bytes)
@@ -841,7 +841,7 @@ class Block(object):
             return self._buf[self._offset + offset:self._offset + offset + \
                              2 * length].decode("utf-16le")
 
-    def unpack_dosdate(self, offset):
+    def unpack_dosdate(self, offset: int) -> datetime:
         """
         Returns a datetime from the DOSDATE and DOSTIME starting at
         the relative offset.
@@ -856,7 +856,7 @@ class Block(object):
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
-    def unpack_filetime(self, offset):
+    def unpack_filetime(self, offset: int):
         """
         Returns a datetime from the QWORD Windows timestamp starting at
         the relative offset.
@@ -887,7 +887,7 @@ class Block(object):
                                  parts[4], parts[5],
                                  parts[6], parts[7])
 
-    def unpack_guid(self, offset):
+    def unpack_guid(self, offset: int) -> str:
         """
         Returns a string containing a GUID starting at the relative offset.
         Arguments:
