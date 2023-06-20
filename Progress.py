@@ -54,7 +54,7 @@ class NullProgress(Progress):
 
 class ProgressBarProgress(Progress):
     def __init__(self, max_):
-        from progressbar import Bar
+        from progressbar import Bar # type: ignore
         from progressbar import ETA
         from progressbar import ProgressBar
         super(ProgressBarProgress, self).__init__(max_)
