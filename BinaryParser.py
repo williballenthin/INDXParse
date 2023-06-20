@@ -867,7 +867,7 @@ class Block(object):
         """
         return parse_filetime(self.unpack_qword(offset))
 
-    def unpack_systemtime(self, offset):
+    def unpack_systemtime(self, offset: int) -> datetime:
         """
         Returns a datetime from the QWORD Windows SYSTEMTIME timestamp
           starting at the relative offset.
@@ -882,7 +882,7 @@ class Block(object):
             parts = struct.unpack_from("<WWWWWWWW", self._buf, o)
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
-        return datetime.datetime(parts[0], parts[1],
+        return datetime(parts[0], parts[1],
                                  parts[3],  # skip part 2 (day of week)
                                  parts[4], parts[5],
                                  parts[6], parts[7])
