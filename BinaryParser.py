@@ -238,30 +238,34 @@ def align(offset, alignment):
     return offset + (alignment - (offset % alignment))
 
 
-def dosdate(dosdate, dostime):
+def dosdate(dosdate: bytes, dostime: bytes) -> datetime:
     """
     `dosdate`: 2 bytes, little endian.
     `dostime`: 2 bytes, little endian.
     returns: datetime.datetime or datetime.datetime.min on error
     """
+    assert len(dosdate) == 2
+    assert len(dostime) == 2
+    t: int
+
     try:
-        t  = ord(dosdate[1]) << 8
-        t |= ord(dosdate[0])
+        t  = dosdate[1] << 8
+        t |= dosdate[0]
         day   = t & 0b0000000000011111
         month = (t & 0b0000000111100000) >> 5
         year  = (t & 0b1111111000000000) >> 9
         year += 1980
 
-        t  = ord(dostime[1]) << 8
-        t |= ord(dostime[0])
+        t  = dostime[1] << 8
+        t |= dostime[0]
         sec     = t & 0b0000000000011111
         sec    *= 2
         minute  = (t & 0b0000011111100000) >> 5
         hour    = (t & 0b1111100000000000) >> 11
 
-        return datetime.datetime(year, month, day, hour, minute, sec)
+        return datetime(year, month, day, hour, minute, sec)
     except:
-        return datetime.datetime.min
+        return datetime.min
 
 
 def parse_filetime(qword):
