@@ -799,7 +799,7 @@ class Block(object):
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
-    def unpack_binary(self, offset, length=False):
+    def unpack_binary(self, offset: int, length=0) -> bytes:
         """
         Returns raw binary data from the relative offset with the given length.
         Arguments:
@@ -810,7 +810,7 @@ class Block(object):
         - `OverrunBufferException`
         """
         if not length:
-            return ""
+            return b""
         o = self._offset + offset
         try:
             return struct.unpack_from("<%ds" % (length), self._buf, o)[0]
