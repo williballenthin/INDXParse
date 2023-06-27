@@ -26,15 +26,13 @@
 
 __version__ = "1.1.9"
 
+import argparse
+import array
+import logging
+import struct
 import sys
 import time
-import array
-import struct
-import logging
 from datetime import datetime
-
-import argparse
-
 
 g_logger = logging.getLogger("INDXParse")
 INDEX_NODE_BLOCK_SIZE = 4096

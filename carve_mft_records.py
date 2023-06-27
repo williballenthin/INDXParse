@@ -5,17 +5,15 @@ Carve MFT records from arbitrary binary data.
 author: Willi Ballenthin
 email: william.ballenthin@fireeye.com
 '''
+import argparse
+import array
+import contextlib
+import logging
+import mmap
 import os
 import sys
-import mmap
-import array
-import logging
-import contextlib
-
-import argparse
 
 import MFT
-
 
 logger = logging.getLogger(__name__)
 

@@ -20,6 +20,7 @@
 #   limitations under the License.
 
 import sys
+
 if sys.argv[1] == "-h":
 	print("\tpython ./INDXfind.py <ewfmount'd drive>")
 	print("\tex:\tpython ./INDXfind.py /mnt/ewf/ewf1")

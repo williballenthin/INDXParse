@@ -1,25 +1,17 @@
 #! /usr/bin/env python
 
-from MFT import MFTEnumerator
-
-import array
-import re
-import logging
-import datetime
-
 import argparse
+import array
+import datetime
+import logging
+import re
+
 from jinja2 import Template
 
 from BinaryParser import Mmap
-from MFT import Cache
-from MFT import ATTR_TYPE
-from MFT import MREF
-from MFT import MSEQNO
-from MFT import IndexRootHeader
-from MFT import Attribute
-from MFT import FilenameAttribute
-from MFT import StandardInformationFieldDoesNotExist
-
+from MFT import (ATTR_TYPE, MREF, MSEQNO, Attribute, Cache, FilenameAttribute,
+                 IndexRootHeader, MFTEnumerator,
+                 StandardInformationFieldDoesNotExist)
 
 ASCII_BYTE = " !\"#\$%&\'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~"
 
