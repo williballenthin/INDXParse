@@ -18,13 +18,8 @@
 #   limitations under the License.
 #
 #   Version v.1.2
-from BinaryParser import Block
-from BinaryParser import Nestable
-from BinaryParser import ParseException
-from BinaryParser import align
-from BinaryParser import read_byte
-from BinaryParser import read_word
-from BinaryParser import read_dword
+from BinaryParser import (Block, Nestable, ParseException, align, read_byte,
+                          read_dword, read_word)
 
 
 class NULL_OBJECT(object):
@@ -445,9 +440,9 @@ class SDS(Block):
 
 
 def main():
-    import sys
-    import mmap
     import contextlib
+    import mmap
+    import sys
 
     with open(sys.argv[1], 'r') as f:
         with contextlib.closing(mmap.mmap(f.fileno(), 0,

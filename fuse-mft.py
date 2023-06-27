@@ -2,22 +2,19 @@
 
 
 
-import os
-import sys
-import stat
+import calendar
 import errno
 import inspect
-import calendar
+import os
+import stat
+import sys
 
 from fuse import FUSE, FuseOSError, Operations, fuse_get_context
 
-from Progress import ProgressBarProgress
 from BinaryParser import Mmap
-from MFT import MFTTree
-from MFT import Cache
-from MFT import MFTEnumerator
 from get_file_info import format_record
-
+from MFT import Cache, MFTEnumerator, MFTTree
+from Progress import ProgressBarProgress
 
 PERMISSION_ALL_READ = int("444", 8)
 

@@ -1,14 +1,13 @@
 #!/usr/bin/python
 
 import sys
-from struct import unpack_from as old_unpack_from
-from struct import unpack_from as old_unpack
-from struct import calcsize
-
 from collections import OrderedDict
+from struct import calcsize
+from struct import unpack_from as old_unpack
+from struct import unpack_from as old_unpack_from
+
 # From: http://code.activestate.com/recipes/577197-sortedcollection/
 from SortedCollection import SortedCollection
-
 
 MEGABYTE = 1024 * 1024
 

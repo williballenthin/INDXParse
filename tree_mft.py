@@ -1,16 +1,12 @@
 #! /usr/bin/env python
 
-from MFT import MFTEnumerator
-
-import mmap
-import logging
+import argparse
 import calendar
+import logging
+import mmap
 from datetime import datetime
 
-import argparse
-
-from MFT import Cache
-from MFT import MFTTree
+from MFT import Cache, MFTEnumerator, MFTTree
 
 
 class Mmap(object):
