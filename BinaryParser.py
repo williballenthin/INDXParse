@@ -18,11 +18,11 @@
 #
 #   Version v.0.1
 import mmap
+import pickle
 import struct
 import sys
-from datetime import datetime
 import types
-import pickle
+from datetime import datetime
 
 verbose = False
 

@@ -18,12 +18,10 @@
 #   limitations under the License.
 #
 #   Version v.1.2.0
-from MFT import *
-from BinaryParser import info
-from BinaryParser import warning
-from BinaryParser import debug
-from BinaryParser import error
 import calendar
+
+from BinaryParser import debug, error, info, warning
+from MFT import *
 
 verbose = False
 import argparse

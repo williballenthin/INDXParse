@@ -20,11 +20,12 @@
 #   Version v.1.2
 from SDS import SDS
 
+
 def main():
-    import sys
-    import mmap
-    import contextlib
     import argparse
+    import contextlib
+    import mmap
+    import sys
 
     parser = argparse.ArgumentParser(description='Get an SDS record by index.')
     parser.add_argument('-v', action="store_true", dest="verbose",

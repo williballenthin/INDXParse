@@ -28,26 +28,21 @@
 #   - use logging instead of #-prefixed comment lines
 #   - display inactive record tags
 
-import types
-import sys
-import logging
+import argparse
 import calendar
-import json
 import datetime
+import json
+import logging
+import sys
+import types
 
 from jinja2 import Environment
-import argparse
 
 from BinaryParser import Mmap
-from MFT import Cache
-from MFT import MFTEnumerator
-from MFT import ATTR_TYPE
-from MFT import MREF
-from MFT import IndexRootHeader
-from MFT import StandardInformationFieldDoesNotExist
 from get_file_info import make_model
-from Progress import NullProgress
-from Progress import ProgressBarProgress
+from MFT import (ATTR_TYPE, MREF, Cache, IndexRootHeader, MFTEnumerator,
+                 StandardInformationFieldDoesNotExist)
+from Progress import NullProgress, ProgressBarProgress
 
 
 def format_bodyfile(path, size, inode, owner_id, info, attributes=None):

@@ -19,22 +19,16 @@
 #
 #   Version v.1.1.8
 import array
-import os
-import sys
-import struct
 import logging
-from datetime import datetime
+import os
+import struct
+import sys
 from collections import OrderedDict  # python 2.7 only
+from datetime import datetime
 
-from BinaryParser import Block
-from BinaryParser import Nestable
-from BinaryParser import memoize
-from BinaryParser import align
-from BinaryParser import ParseException
-from BinaryParser import OverrunBufferException
-from BinaryParser import read_byte
-from BinaryParser import read_word
-from BinaryParser import read_dword
+from BinaryParser import (Block, Nestable, OverrunBufferException,
+                          ParseException, align, memoize, read_byte,
+                          read_dword, read_word)
 from Progress import NullProgress
 
 
