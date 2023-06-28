@@ -817,7 +817,7 @@ class Block(object):
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
-    def unpack_string(self, offset: int, length: int) -> bytes:
+    def unpack_string(self, offset: int, length: int):
         """
         Returns a string from the relative offset with the given length.
         Arguments:
@@ -828,7 +828,7 @@ class Block(object):
         """
         return self.unpack_binary(offset, length)
 
-    def unpack_wstring(self, offset: int, length: int) -> bytes:
+    def unpack_wstring(self, offset: int, length: int):
         """
         Returns a string from the relative offset with the given length,
         where each character is a wchar (2 bytes)
