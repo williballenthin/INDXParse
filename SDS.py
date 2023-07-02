@@ -69,7 +69,7 @@ class SID_IDENTIFIER_AUTHORITY(Block, Nestable):
         return SID_IDENTIFIER_AUTHORITY.structure_size(self._buf, self.absolute_offset(0x0), None)
 
     def __str__(self):
-        return "%s" % (self.high_part() << 32 + self.low_part())
+        return "%s" % ((self.high_part() << 32) + self.low_part())
 
 
 class SID(Block, Nestable):
