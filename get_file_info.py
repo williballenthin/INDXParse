@@ -13,11 +13,11 @@ from MFT import (ATTR_TYPE, MREF, MSEQNO, Attribute, Cache, FilenameAttribute,
                  IndexRootHeader, MFTEnumerator,
                  StandardInformationFieldDoesNotExist)
 
-ASCII_BYTE = " !\"#\$%&\'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~"
+ASCII_BYTE = b" !\"#\$%&\'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~"
 
 
 def ascii_strings(buf, n=4):
-    reg = "([%s]{%d,})" % (ASCII_BYTE, n)
+    reg = b"([%s]{%d,})" % (ASCII_BYTE, n)
     ascii_re = re.compile(reg)
     for match in ascii_re.finditer(buf):
         if isinstance(match.group(), array.array):
