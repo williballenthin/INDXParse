@@ -15,10 +15,4 @@
 
 __version__ = "1.1.9"
 
-from . import BinaryParser
-from . import FileMap
-from . import MFT
-from . import Progress
-from . import SDS
-from . import SortedCollection
-from . import get_file_info
+from . import MFT, SDS, BinaryParser, FileMap, Progress, SortedCollection, get_file_info

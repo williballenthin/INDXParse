@@ -41,9 +41,17 @@ import sys
 from collections import OrderedDict  # python 2.7 only
 from datetime import datetime
 
-from INDXParse.BinaryParser import (Block, Nestable, OverrunBufferException,
-                          ParseException, align, memoize, read_byte,
-                          read_dword, read_word)
+from INDXParse.BinaryParser import (
+    Block,
+    Nestable,
+    OverrunBufferException,
+    ParseException,
+    align,
+    memoize,
+    read_byte,
+    read_dword,
+    read_word,
+)
 from INDXParse.Progress import NullProgress
 
 

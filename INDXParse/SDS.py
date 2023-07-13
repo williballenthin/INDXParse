@@ -34,8 +34,15 @@
 #
 #
 #   Version v.1.2
-from INDXParse.BinaryParser import (Block, Nestable, ParseException, align, read_byte,
-                          read_dword, read_word)
+from INDXParse.BinaryParser import (
+    Block,
+    Nestable,
+    ParseException,
+    align,
+    read_byte,
+    read_dword,
+    read_word,
+)
 
 
 class NULL_OBJECT(object):

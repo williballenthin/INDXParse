@@ -55,8 +55,14 @@ from jinja2 import Environment
 
 from INDXParse.BinaryParser import Mmap
 from INDXParse.get_file_info import make_model
-from INDXParse.MFT import (ATTR_TYPE, MREF, Cache, IndexRootHeader, MFTEnumerator,
-                 StandardInformationFieldDoesNotExist)
+from INDXParse.MFT import (
+    ATTR_TYPE,
+    MREF,
+    Cache,
+    IndexRootHeader,
+    MFTEnumerator,
+    StandardInformationFieldDoesNotExist,
+)
 from INDXParse.Progress import NullProgress, ProgressBarProgress
 
 

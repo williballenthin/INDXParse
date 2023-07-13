@@ -43,8 +43,14 @@ import wx.lib.newevent
 import wx.lib.scrolledpanel as scrolled
 from wx.lib.evtmgr import eventManager
 
-from INDXParse.MFT import (ATTR_TYPE, FilenameAttribute, IndexRootHeader,
-                 InvalidMFTRecordNumber, MFTRecord, NTFSFile)
+from INDXParse.MFT import (
+    ATTR_TYPE,
+    FilenameAttribute,
+    IndexRootHeader,
+    InvalidMFTRecordNumber,
+    MFTRecord,
+    NTFSFile,
+)
 
 verbose = False
 

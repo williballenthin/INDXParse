@@ -23,9 +23,17 @@ import re
 from jinja2 import Template
 
 from INDXParse.BinaryParser import Mmap
-from INDXParse.MFT import (ATTR_TYPE, MREF, MSEQNO, Attribute, Cache, FilenameAttribute,
-                 IndexRootHeader, MFTEnumerator,
-                 StandardInformationFieldDoesNotExist)
+from INDXParse.MFT import (
+    ATTR_TYPE,
+    MREF,
+    MSEQNO,
+    Attribute,
+    Cache,
+    FilenameAttribute,
+    IndexRootHeader,
+    MFTEnumerator,
+    StandardInformationFieldDoesNotExist,
+)
 
 ASCII_BYTE = " !\"#\$%&\'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~"
 
