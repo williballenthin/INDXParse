@@ -1,3 +1,4 @@
+
 #   Portions of this file contributed by NIST are governed by the
 #   following statement:
 #
@@ -12,7 +13,12 @@
 #
 #   We would appreciate acknowledgement if the software is used.
 
-import setuptools
+__version__ = "1.1.9"
 
-if __name__ == "__main__":
-    setuptools.setup()
+from . import BinaryParser
+from . import FileMap
+from . import MFT
+from . import Progress
+from . import SDS
+from . import SortedCollection
+from . import get_file_info

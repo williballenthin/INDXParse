@@ -18,13 +18,26 @@
 #   limitations under the License.
 #
 #
+#   Portions of this file contributed by NIST are governed by the
+#   following statement:
+#
+#   This software was developed at the National Institute of Standards
+#   and Technology by employees of the Federal Government in the course
+#   of their official duties. Pursuant to title 17 Section 105 of the
+#   United States Code this software is not subject to copyright
+#   protection and is in the public domain. NIST assumes no
+#   responsibility whatsoever for its use by other parties, and makes
+#   no guarantees, expressed or implied, about its quality,
+#   reliability, or any other characteristic.
+#
+#   We would appreciate acknowledgement if the software is used.
+#
+#
 #   Bibliography:
 #   Mentions of "NTFSdoc" in code comments refer to: Richard Russon and
 #     Yuval Fledel.  "NTFS Documentation," apparent publication in
 #     March 2008.  Retrieved from:
 #     http://dubeyko.com/development/FileSystems/NTFS/ntfsdoc.pdf.  Last checked Mar. 2013.
-
-__version__ = "1.1.9"
 
 import argparse
 import array
@@ -864,7 +877,7 @@ def entry_bodyfile(entry, filename=False):
             created=created)
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='Parse NTFS INDX files.')
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-c', action="store_true",
@@ -953,3 +966,7 @@ if __name__ == '__main__':
             #   if we encounter a weird header, and its at offset 0, then align
             #   will make a mistake here and align back to 0
             off = INDEX_NODE_BLOCK_SIZE
+
+
+if __name__ == '__main__':
+    main()

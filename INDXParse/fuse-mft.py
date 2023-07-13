@@ -1,5 +1,18 @@
 #!/usr/bin/env python
 
+#   Portions of this file contributed by NIST are governed by the
+#   following statement:
+#
+#   This software was developed at the National Institute of Standards
+#   and Technology by employees of the Federal Government in the course
+#   of their official duties. Pursuant to title 17 Section 105 of the
+#   United States Code this software is not subject to copyright
+#   protection and is in the public domain. NIST assumes no
+#   responsibility whatsoever for its use by other parties, and makes
+#   no guarantees, expressed or implied, about its quality,
+#   reliability, or any other characteristic.
+#
+#   We would appreciate acknowledgement if the software is used.
 
 
 import calendar
@@ -11,10 +24,10 @@ import sys
 
 from fuse import FUSE, FuseOSError, Operations, fuse_get_context
 
-from BinaryParser import Mmap
-from get_file_info import format_record
-from MFT import Cache, MFTEnumerator, MFTTree
-from Progress import ProgressBarProgress
+from INDXParse.BinaryParser import Mmap
+from INDXParse.get_file_info import format_record
+from INDXParse.MFT import Cache, MFTEnumerator, MFTTree
+from INDXParse.Progress import ProgressBarProgress
 
 PERMISSION_ALL_READ = int("444", 8)
 
@@ -375,7 +388,9 @@ class MFTFuseOperations(Operations):
         return errno.EPERM
 
 
-def main(mft_filename, mountpoint):
+def main():
+    mft_filename = sys.argv[1]
+    mountpoint = sys.argv[2]
     with Mmap(mft_filename) as buf:
         tree = MFTTree(buf)
         tree.build(progress_class=ProgressBarProgress)
@@ -383,4 +398,4 @@ def main(mft_filename, mountpoint):
         FUSE(handler, mountpoint, foreground=True)
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2])
+    main()

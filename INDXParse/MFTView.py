@@ -17,6 +17,22 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #
+#
+#   Portions of this file contributed by NIST are governed by the
+#   following statement:
+#
+#   This software was developed at the National Institute of Standards
+#   and Technology by employees of the Federal Government in the course
+#   of their official duties. Pursuant to title 17 Section 105 of the
+#   United States Code this software is not subject to copyright
+#   protection and is in the public domain. NIST assumes no
+#   responsibility whatsoever for its use by other parties, and makes
+#   no guarantees, expressed or implied, about its quality,
+#   reliability, or any other characteristic.
+#
+#   We would appreciate acknowledgement if the software is used.
+#
+#
 #   Version v.2.0.0
 import array
 import re
@@ -27,7 +43,7 @@ import wx.lib.newevent
 import wx.lib.scrolledpanel as scrolled
 from wx.lib.evtmgr import eventManager
 
-from MFT import (ATTR_TYPE, FilenameAttribute, IndexRootHeader,
+from INDXParse.MFT import (ATTR_TYPE, FilenameAttribute, IndexRootHeader,
                  InvalidMFTRecordNumber, MFTRecord, NTFSFile)
 
 verbose = False
@@ -1305,9 +1321,14 @@ class MFTFileViewer(wx.Frame):
     def OnClose(self, event):
         sys.exit(0)
 
-if __name__ == "__main__":
+
+def main():
     app = wx.App(False)
     filename = sys.argv[1]
     frame = MFTFileViewer(None, filename)
     frame.Show()
     app.MainLoop()
+
+
+if __name__ == "__main__":
+    main()
