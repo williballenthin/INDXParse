@@ -666,7 +666,7 @@ class Runentry(Block, Nestable):
         count = 0
         ret = 0
         for b in binary:
-            ret += ord(b) << (8 * count)
+            ret += b << (8 * count)
             count += 1
         return ret
 
@@ -675,11 +675,11 @@ class Runentry(Block, Nestable):
         ret = 0
         working = []
 
-        is_negative = (ord(binary[-1]) & (1 << 7) != 0)
+        is_negative = (binary[-1] & (1 << 7) != 0)
         if is_negative:
-            working = [ord(b) ^ 0xFF for b in binary]
+            working = [b ^ 0xFF for b in binary]
         else:
-            working = [ord(b) for b in binary]
+            working = [b for b in binary]
         for b in working:
             ret += b << (8 * count)
             count += 1
