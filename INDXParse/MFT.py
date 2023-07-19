@@ -348,7 +348,7 @@ class INDEX(Block, Nestable):
             pass
 
 
-def INDEX_ROOT(Block, Nestable):
+class INDEX_ROOT(Block, Nestable):
     def __init__(self, buf, offset, parent):
         super(INDEX_ROOT, self).__init__(buf, offset)
         self.declare_field("dword", "type", 0x0)
