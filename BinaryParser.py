@@ -495,7 +495,6 @@ class Block(object):
 
                     self._implicit_offset = offset + len(temp)
         elif isinstance(type_, str):
-            typename = type_
 
             if count == 0:
                 def no_basic_handler():
@@ -544,15 +543,15 @@ class Block(object):
 
         setattr(self, name, handler)
         setattr(self, "_off_" + name, offset)
-        self.add_explicit_field(offset, typename, name, length, count)
+        self.add_explicit_field(offset, type_, name, length, count)
 
         try:
-            debug("(%s) %s\t@ %s\t: %s" % (typename.upper(),
+            debug("(%s) %s\t@ %s\t: %s" % (type_.upper(),
                                            name,
                                            hex(self.absolute_offset(offset)),
                                            str(handler())[:0x20]))
         except ValueError: # invalid Windows timestamp
-            debug("(%s) %s\t@ %s\t: %s" % (typename.upper(),
+            debug("(%s) %s\t@ %s\t: %s" % (type_.upper(),
                                            name,
                                            hex(self.absolute_offset(offset)),
                                            "<<error>>"))
