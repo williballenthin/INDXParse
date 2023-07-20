@@ -23,6 +23,7 @@ import logging
 import os
 import struct
 import sys
+import typing
 from collections import OrderedDict  # python 2.7 only
 from datetime import datetime
 
@@ -867,19 +868,34 @@ class MFTRecord(FixupBlock):
         logging.debug("MFTRECORD @ %s.", hex(offset))
 
         self.declare_field("dword", "magic")
+
         self.declare_field("word",  "usa_offset")
+
         self.declare_field("word",  "usa_count")
+
         self.declare_field("qword", "lsn")
+
         self.declare_field("word",  "sequence_number")
+
         self.declare_field("word",  "link_count")
+
         self.declare_field("word",  "attrs_offset")
+
         self.declare_field("word",  "flags")
+
         self.declare_field("dword", "bytes_in_use")
+        self.bytes_in_use: typing.Callable[[], int]
+
         self.declare_field("dword", "bytes_allocated")
+
         self.declare_field("qword", "base_mft_record")
+
         self.declare_field("word",  "next_attr_instance")
+
         self.declare_field("word",  "reserved")
+
         self.declare_field("dword", "mft_record_number")
+
         self.inode = inode or self.mft_record_number()
 
         self.fixup(self.usa_count(), self.usa_offset())
@@ -945,17 +961,17 @@ class MFTRecord(FixupBlock):
             if attr.type() == ATTR_TYPE.DATA and attr.name() == "":
                 return attr
 
-    def slack_data(self):
+    def slack_data(self) -> bytes:
         """
         Returns A binary string containing the MFT record slack.
         """
-        return self._buf[self.offset()+self.bytes_in_use():self.offset() + 1024].tostring()
+        return self._buf[self.offset()+self.bytes_in_use():self.offset() + 1024].tobytes()
 
-    def active_data(self):
+    def active_data(self) -> bytes:
         """
         Returns A binary string containing the MFT record slack.
         """
-        return self._buf[self.offset():self.offset() + self.bytes_in_use()].tostring()
+        return self._buf[self.offset():self.offset() + self.bytes_in_use()].tobytes()
 
 
 class NTFSFile():
