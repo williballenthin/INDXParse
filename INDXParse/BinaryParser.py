@@ -832,7 +832,7 @@ class Block(object):
         """
         return self.unpack_binary(offset, length)
 
-    def unpack_wstring(self, offset: int, length: int):
+    def unpack_wstring(self, offset: int, length: int) -> str:
         """
         Returns a string from the relative offset with the given length,
         where each character is a wchar (2 bytes)
