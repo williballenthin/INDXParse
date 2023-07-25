@@ -25,7 +25,6 @@
 #   Version v.1.2.0
 import calendar
 
-from indxparse.BinaryParser import debug, error, warning
 from indxparse.MFT import *
 
 verbose = False
@@ -229,7 +228,9 @@ def try_write(s):
     try:
         sys.stdout.write(s)
     except (UnicodeEncodeError, UnicodeDecodeError):
-        warning("Failed to write string " "due to encoding issue: " + str(list(s)))
+        logging.warning(
+            "Failed to write string " "due to encoding issue: " + str(list(s))
+        )
 
 
 def print_nonresident_indx_bodyfile(options, buf, basepath=""):
@@ -258,15 +259,17 @@ def print_bodyfile(options):
         if options.filter:
             refilter = re.compile(options.filter)
         for record in f.record_generator():
-            debug("Considering MFT record %s" % (record.mft_record_number()))
+            logging.debug("Considering MFT record %s" % (record.mft_record_number()))
             try:
                 if record.magic() != 0x454C4946:
-                    debug("Record has a bad magic value")
+                    logging.debug("Record has a bad magic value")
                     continue
                 if options.filter:
                     path = f.mft_record_build_path(record, {})
                     if not refilter.search(path):
-                        debug("Skipping listing path " "due to regex filter: " + path)
+                        logging.debug(
+                            "Skipping listing path " "due to regex filter: " + path
+                        )
                         continue
                 if record.is_active() and options.mftlist:
                     try_write(record_bodyfile(f, record))
@@ -720,18 +723,18 @@ def main():
     if results.mftlist:
         logging.info("Asked to list active file entries in the MFT")
         if results.filetype == "indx":
-            error("Cannot list MFT entries of an INDX record")
+            logging.error("Cannot list MFT entries of an INDX record")
 
     if results.deleted:
         logging.info("Asked to list deleted file entries in the MFT")
         if results.filetype == "indx":
-            error("Cannot list MFT entries of an INDX record")
+            logging.error("Cannot list MFT entries of an INDX record")
 
     if results.infomode:
         results.infomode = results.infomode[0]
         logging.info("Asked to list information about path " + results.infomode)
         if results.indxlist or results.slack or results.mftlist or results.deleted:
-            error(
+            logging.error(
                 "Information mode (-i) cannot be run "
                 "with file entry list modes (-l/-s/-m/-d)"
             )
@@ -744,10 +747,14 @@ def main():
             )
 
     if results.extract and not results.infomode:
-        warning("Extract (-e) doesn't make sense " "without information mode (-i)")
+        logging.warning(
+            "Extract (-e) doesn't make sense " "without information mode (-i)"
+        )
 
     if results.extract and not results.filetype == "image":
-        error("Cannot extract non-resident attributes " "from anything but an image")
+        logging.error(
+            "Cannot extract non-resident attributes " "from anything but an image"
+        )
 
     if not (
         results.indxlist
@@ -756,7 +763,7 @@ def main():
         or results.deleted
         or results.infomode
     ):
-        error("You must choose a mode (-i/-l/-s/-m/-d)")
+        logging.error("You must choose a mode (-i/-l/-s/-m/-d)")
 
     if results.filter:
         results.filter = results.filter[0]
@@ -765,7 +772,7 @@ def main():
             "for paths matching the regular expression: " + results.filter
         )
         if results.infomode:
-            warning("This filter has no meaning with information mode (-i)")
+            logging.warning("This filter has no meaning with information mode (-i)")
 
     if results.infomode:
         print_indx_info(results)
