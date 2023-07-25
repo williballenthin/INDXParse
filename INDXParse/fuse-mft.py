@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+#   are not subject to US Copyright.
 
 
 import calendar
@@ -11,10 +13,10 @@ import sys
 
 from fuse import FUSE, FuseOSError, Operations, fuse_get_context
 
-from BinaryParser import Mmap
-from get_file_info import format_record
-from MFT import Cache, MFTEnumerator, MFTTree
-from Progress import ProgressBarProgress
+from INDXParse.BinaryParser import Mmap
+from INDXParse.get_file_info import format_record
+from INDXParse.MFT import Cache, MFTEnumerator, MFTTree
+from INDXParse.Progress import ProgressBarProgress
 
 PERMISSION_ALL_READ = int("444", 8)
 
@@ -375,7 +377,9 @@ class MFTFuseOperations(Operations):
         return errno.EPERM
 
 
-def main(mft_filename, mountpoint):
+def main():
+    mft_filename = sys.argv[1]
+    mountpoint = sys.argv[2]
     with Mmap(mft_filename) as buf:
         tree = MFTTree(buf)
         tree.build(progress_class=ProgressBarProgress)
@@ -383,4 +387,4 @@ def main(mft_filename, mountpoint):
         FUSE(handler, mountpoint, foreground=True)
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2])
+    main()

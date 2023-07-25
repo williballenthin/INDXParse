@@ -1,4 +1,6 @@
 *~
 *pyc
+*.egg-info
 *.zip
 .idea/*
+build

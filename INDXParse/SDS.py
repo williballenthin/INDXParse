@@ -17,9 +17,21 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #
+#
+#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+#   are not subject to US Copyright.
+#
+#
 #   Version v.1.2
-from BinaryParser import (Block, Nestable, ParseException, align, read_byte,
-                          read_dword, read_word)
+from INDXParse.BinaryParser import (
+    Block,
+    Nestable,
+    ParseException,
+    align,
+    read_byte,
+    read_dword,
+    read_word,
+)
 
 
 class NULL_OBJECT(object):

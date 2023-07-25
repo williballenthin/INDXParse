@@ -17,6 +17,11 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #
+#
+#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+#   are not subject to US Copyright.
+#
+#
 #   Version v.1.1.8
 import array
 import logging
@@ -27,10 +32,18 @@ import typing
 from collections import OrderedDict  # python 2.7 only
 from datetime import datetime
 
-from BinaryParser import (Block, Nestable, OverrunBufferException,
-                          ParseException, align, memoize, read_byte,
-                          read_dword, read_word)
-from Progress import NullProgress
+from INDXParse.BinaryParser import (
+    Block,
+    Nestable,
+    OverrunBufferException,
+    ParseException,
+    align,
+    memoize,
+    read_byte,
+    read_dword,
+    read_word,
+)
+from INDXParse.Progress import NullProgress
 
 
 class INDXException(Exception):
