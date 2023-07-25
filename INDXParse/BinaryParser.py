@@ -22,11 +22,13 @@
 #
 #
 #   Version v.0.1
+import array
 import mmap
 import pickle
 import struct
 import sys
 import types
+import typing
 from datetime import datetime
 
 verbose = False
@@ -243,7 +245,7 @@ def align(offset, alignment):
     return offset + (alignment - (offset % alignment))
 
 
-def dosdate(dosdate: bytes, dostime: bytes) -> datetime:
+def dosdate(dosdate: array.array, dostime: array.array) -> datetime:
     """
     `dosdate`: 2 bytes, little endian.
     `dostime`: 2 bytes, little endian.
@@ -335,7 +337,10 @@ class OverrunBufferException(ParseException):
             (self._value)
 
 
-def read_byte(buf: bytes, offset: int) -> int:
+def read_byte(
+    buf: array.array,
+    offset: int,
+)-> int:
     """
     Returns a little-endian unsigned byte from the relative offset of the given buffer.
     Arguments:
@@ -350,7 +355,10 @@ def read_byte(buf: bytes, offset: int) -> int:
         raise OverrunBufferException(offset, len(buf))
 
 
-def read_word(buf: bytes, offset: int) -> int:
+def read_word(
+    buf: array.array,
+    offset: int,
+) -> int:
     """
     Returns a little-endian unsigned word from the relative offset of the given buffer.
     Arguments:
@@ -365,7 +373,10 @@ def read_word(buf: bytes, offset: int) -> int:
         raise OverrunBufferException(offset, len(buf))
 
 
-def read_dword(buf: bytes, offset: int) -> int:
+def read_dword(
+    buf: array.array,
+    offset: int,
+) -> int:
     """
     Returns a little-endian unsigned dword from the relative offset of the given buffer.
     Arguments:
@@ -385,7 +396,11 @@ class Block(object):
     Base class for structure blocks in binary parsing.
     A block is associated with a offset into a byte-string.
     """
-    def __init__(self, buf, offset):
+    def __init__(
+        self,
+        buf: array.array,
+        offset: int
+    ) -> None:
         """
         Constructor.
         Arguments:
@@ -397,7 +412,7 @@ class Block(object):
         self._implicit_offset = 0
         # list of dict(offset:number, type:string, name:string,
         #              length:number, count:number)
-        self._declared_fields = []
+        self._declared_fields: typing.List[typing.Dict[str, typing.Union[str, int]]] = []
 
     def __repr__(self):
         return "Block(buf=%r, offset=%r)" % (self._buf, self._offset)
@@ -803,7 +818,7 @@ class Block(object):
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
-    def unpack_binary(self, offset: int, length=0) -> bytes:
+    def unpack_binary(self, offset: int, length=0) -> array.array:
         """
         Returns raw binary data from the relative offset with the given length.
         Arguments:
@@ -814,10 +829,10 @@ class Block(object):
         - `OverrunBufferException`
         """
         if not length:
-            return b""
+            return array.array("B", b"")
         o = self._offset + offset
         try:
-            return struct.unpack_from("<%ds" % (length), self._buf, o)[0]
+            return array.array("B", struct.unpack_from("<%ds" % (length), self._buf, o)[0])
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
@@ -843,7 +858,7 @@ class Block(object):
         - `UnicodeDecodeError`
         """
         return self._buf[self._offset + offset:self._offset + offset + \
-                             2 * length].decode("utf-16le")
+                             2 * length].tobytes().decode("utf-16le")
 
     def unpack_dosdate(self, offset: int) -> datetime:
         """
@@ -938,11 +953,19 @@ class Nestable(object):
     `structure_size` staticmethod.  This enables the parent Block to
     seek among its children.
     """
-    def __init__(self, buf, offset):
+    def __init__(
+        self,
+        buf: array.array,
+        offset: int,
+    ) -> None:
         super(Nestable, self).__init__()
 
     @staticmethod
-    def structure_size(buf, offset, parent):
+    def structure_size(
+        buf: array.array,
+        offset: int,
+        parent,
+    ) -> int:
         """
         This staticmethod should return the size of a block located at the
           specified location in the given buffer.  This method should do the
