@@ -25,7 +25,7 @@
 #   Version v.1.2.0
 import calendar
 
-from indxparse.BinaryParser import debug, error, info, warning
+from indxparse.BinaryParser import debug, error, warning
 from indxparse.MFT import *
 
 verbose = False
@@ -650,7 +650,7 @@ def main():
 
     if results.filetype and results.filetype != "auto":
         results.filetype = results.filetype[0].lower()
-        info("Asked to process a file with type: " + results.filetype)
+        logging.info("Asked to process a file with type: " + results.filetype)
     else:
         with open(results.filename, "rb") as f:
             b = f.read(1024)
@@ -660,76 +660,76 @@ def main():
                 results.filetype = "indx"
             else:
                 results.filetype = "image"
-        info("Auto-detected input file type: " + results.filetype)
+        logging.info("Auto-detected input file type: " + results.filetype)
 
     if results.clustersize:
         results.clustersize = results.clustersize[0]
-        info(
+        logging.info(
             "Using explicit file system cluster size %s (%s) bytes"
             % (str(results.clustersize), hex(results.clustersize))
         )
     else:
         results.clustersize = 4096
-        info(
+        logging.info(
             "Assuming file system cluster size %s (%s) bytes"
             % (str(results.clustersize), hex(results.clustersize))
         )
 
     if results.offset:
         results.offset = results.offset[0]
-        info(
+        logging.info(
             "Using explicit volume offset %s (%s) bytes"
             % (str(results.offset), hex(results.offset))
         )
     else:
         results.offset = 32256
-        info(
+        logging.info(
             "Assuming volume offset %s (%s) bytes"
             % (str(results.offset), hex(results.offset))
         )
 
     if results.prefix:
         results.prefix = results.prefix[0]
-        info("Using path prefix " + results.prefix)
+        logging.info("Using path prefix " + results.prefix)
 
     if results.indxlist:
-        info("Asked to list entries in INDX records")
+        logging.info("Asked to list entries in INDX records")
         if results.filetype == "mft":
-            info(
+            logging.info(
                 "  Note, only resident INDX records can be processed "
                 "with an MFT input file"
             )
-            info(
+            logging.info(
                 "  If you find an interesting record, "
                 "use -i to identify the relevant INDX record clusters"
             )
         elif results.filetype == "indx":
-            info("  Note, only records in this INDX record will be listed")
+            logging.info("  Note, only records in this INDX record will be listed")
         elif results.filetype == "image":
             pass
         else:
             pass
 
     if results.slack:
-        info("Asked to list slack entries in INDX records")
-        info(
+        logging.info("Asked to list slack entries in INDX records")
+        logging.info(
             "  Note, this uses a scanning heuristic to identify records. "
             "These records may be corrupt or out-of-date."
         )
 
     if results.mftlist:
-        info("Asked to list active file entries in the MFT")
+        logging.info("Asked to list active file entries in the MFT")
         if results.filetype == "indx":
             error("Cannot list MFT entries of an INDX record")
 
     if results.deleted:
-        info("Asked to list deleted file entries in the MFT")
+        logging.info("Asked to list deleted file entries in the MFT")
         if results.filetype == "indx":
             error("Cannot list MFT entries of an INDX record")
 
     if results.infomode:
         results.infomode = results.infomode[0]
-        info("Asked to list information about path " + results.infomode)
+        logging.info("Asked to list information about path " + results.infomode)
         if results.indxlist or results.slack or results.mftlist or results.deleted:
             error(
                 "Information mode (-i) cannot be run "
@@ -738,7 +738,7 @@ def main():
 
         if results.extract:
             results.extract = results.extract[0]
-            info(
+            logging.info(
                 "Asked to extract INDX_ALLOCATION attribute "
                 "for the path " + results.infomode
             )
@@ -760,7 +760,7 @@ def main():
 
     if results.filter:
         results.filter = results.filter[0]
-        info(
+        logging.info(
             "Asked to only list file entry information "
             "for paths matching the regular expression: " + results.filter
         )
