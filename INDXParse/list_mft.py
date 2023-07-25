@@ -18,6 +18,10 @@
 # limitations under the License.
 #
 #
+# Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+# are not subject to US Copyright.
+#
+#
 # This is a straightforward script; the complexity comes about in supporting
 #  a variety of output formats. The default output (Bodyfile), is by far
 #  the fastest (by a factor of about two). The user defined formats are
@@ -38,11 +42,17 @@ import types
 
 from jinja2 import Environment
 
-from BinaryParser import Mmap
-from get_file_info import make_model
-from MFT import (ATTR_TYPE, MREF, Cache, IndexRootHeader, MFTEnumerator,
-                 StandardInformationFieldDoesNotExist)
-from Progress import NullProgress, ProgressBarProgress
+from INDXParse.BinaryParser import Mmap
+from INDXParse.get_file_info import make_model
+from INDXParse.MFT import (
+    ATTR_TYPE,
+    MREF,
+    Cache,
+    IndexRootHeader,
+    MFTEnumerator,
+    StandardInformationFieldDoesNotExist,
+)
+from INDXParse.Progress import NullProgress, ProgressBarProgress
 
 
 def format_bodyfile(path, size, inode, owner_id, info, attributes=None):

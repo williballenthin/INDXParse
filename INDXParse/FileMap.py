@@ -1,5 +1,8 @@
 #!/usr/bin/python
 
+# Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+# are not subject to US Copyright.
+
 import sys
 from collections import OrderedDict
 from struct import calcsize
@@ -7,7 +10,7 @@ from struct import unpack_from as old_unpack
 from struct import unpack_from as old_unpack_from
 
 # From: http://code.activestate.com/recipes/577197-sortedcollection/
-from SortedCollection import SortedCollection
+from INDXParse.SortedCollection import SortedCollection
 
 MEGABYTE = 1024 * 1024
 

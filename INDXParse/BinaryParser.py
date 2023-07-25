@@ -16,6 +16,11 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #
+#
+#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+#   are not subject to US Copyright.
+#
+#
 #   Version v.0.1
 import mmap
 import pickle
@@ -827,7 +832,7 @@ class Block(object):
         """
         return self.unpack_binary(offset, length)
 
-    def unpack_wstring(self, offset: int, length: int):
+    def unpack_wstring(self, offset: int, length: int) -> str:
         """
         Returns a string from the relative offset with the given length,
         where each character is a wchar (2 bytes)
