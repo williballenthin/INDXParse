@@ -1,4 +1,8 @@
 #!/usr/bin/env python2
+
+#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+#   are not subject to US Copyright.
+
 '''
 Carve MFT records from arbitrary binary data.
 
@@ -13,7 +17,7 @@ import mmap
 import os
 import sys
 
-import MFT
+import INDXParse.MFT
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +102,7 @@ def main(argv=None):
                     continue
 
                 buf = array.array('B', m[offset:offset+1024])
-                record = MFT.MFTRecord(buf, 0, None)
+                record = INDXParse.MFT.MFTRecord(buf, 0, None)
                 output_record(offset, record)
                 count += 1
 
