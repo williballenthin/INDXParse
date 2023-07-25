@@ -23,7 +23,7 @@
 #
 #
 #   Version v.1.2
-from INDXParse.BinaryParser import (
+from indxparse.BinaryParser import (
     Block,
     Nestable,
     ParseException,

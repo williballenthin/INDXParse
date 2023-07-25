@@ -23,7 +23,7 @@
 #
 #
 #   Version v.1.2
-from INDXParse.SDS import SDS
+from indxparse.SDS import SDS
 
 
 def main():

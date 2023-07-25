@@ -32,7 +32,7 @@ import typing
 from collections import OrderedDict  # python 2.7 only
 from datetime import datetime
 
-from INDXParse.BinaryParser import (
+from indxparse.BinaryParser import (
     Block,
     Nestable,
     OverrunBufferException,
@@ -43,7 +43,7 @@ from INDXParse.BinaryParser import (
     read_dword,
     read_word,
 )
-from INDXParse.Progress import NullProgress
+from indxparse.Progress import NullProgress
 
 
 class INDXException(Exception):

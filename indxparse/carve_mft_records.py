@@ -17,7 +17,7 @@ import mmap
 import os
 import sys
 
-import INDXParse.MFT
+import indxparse.MFT
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +102,7 @@ def main(argv=None):
                     continue
 
                 buf = array.array('B', m[offset:offset+1024])
-                record = INDXParse.MFT.MFTRecord(buf, 0, None)
+                record = indxparse.MFT.MFTRecord(buf, 0, None)
                 output_record(offset, record)
                 count += 1
 

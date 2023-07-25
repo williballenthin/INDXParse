@@ -13,10 +13,10 @@ import sys
 
 from fuse import FUSE, FuseOSError, Operations, fuse_get_context
 
-from INDXParse.BinaryParser import Mmap
-from INDXParse.get_file_info import format_record
-from INDXParse.MFT import Cache, MFTEnumerator, MFTTree
-from INDXParse.Progress import ProgressBarProgress
+from indxparse.BinaryParser import Mmap
+from indxparse.get_file_info import format_record
+from indxparse.MFT import Cache, MFTEnumerator, MFTTree
+from indxparse.Progress import ProgressBarProgress
 
 PERMISSION_ALL_READ = int("444", 8)
 
