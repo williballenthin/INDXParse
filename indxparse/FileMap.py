@@ -10,7 +10,7 @@ from struct import unpack_from as old_unpack
 from struct import unpack_from as old_unpack_from
 
 # From: http://code.activestate.com/recipes/577197-sortedcollection/
-from INDXParse.SortedCollection import SortedCollection
+from indxparse.SortedCollection import SortedCollection
 
 MEGABYTE = 1024 * 1024
 

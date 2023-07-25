@@ -42,9 +42,9 @@ import types
 
 from jinja2 import Environment
 
-from INDXParse.BinaryParser import Mmap
-from INDXParse.get_file_info import make_model
-from INDXParse.MFT import (
+from indxparse.BinaryParser import Mmap
+from indxparse.get_file_info import make_model
+from indxparse.MFT import (
     ATTR_TYPE,
     MREF,
     Cache,
@@ -52,7 +52,7 @@ from INDXParse.MFT import (
     MFTEnumerator,
     StandardInformationFieldDoesNotExist,
 )
-from INDXParse.Progress import NullProgress, ProgressBarProgress
+from indxparse.Progress import NullProgress, ProgressBarProgress
 
 
 def format_bodyfile(path, size, inode, owner_id, info, attributes=None):

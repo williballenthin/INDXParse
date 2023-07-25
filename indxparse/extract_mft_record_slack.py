@@ -22,8 +22,8 @@
 #   are not subject to US Copyright.
 import sys
 
-from INDXParse.BinaryParser import Mmap
-from INDXParse.MFT import MFTEnumerator
+from indxparse.BinaryParser import Mmap
+from indxparse.MFT import MFTEnumerator
 
 
 def main():

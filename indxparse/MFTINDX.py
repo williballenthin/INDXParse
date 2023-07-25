@@ -25,8 +25,8 @@
 #   Version v.1.2.0
 import calendar
 
-from INDXParse.BinaryParser import debug, error, info, warning
-from INDXParse.MFT import *
+from indxparse.BinaryParser import debug, error, info, warning
+from indxparse.MFT import *
 
 verbose = False
 import argparse

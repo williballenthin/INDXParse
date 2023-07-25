@@ -9,7 +9,7 @@ import logging
 import mmap
 from datetime import datetime
 
-from INDXParse.MFT import Cache, MFTEnumerator, MFTTree
+from indxparse.MFT import Cache, MFTEnumerator, MFTTree
 
 
 class Mmap(object):

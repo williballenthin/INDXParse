@@ -11,8 +11,8 @@ import re
 
 from jinja2 import Template
 
-from INDXParse.BinaryParser import Mmap
-from INDXParse.MFT import (
+from indxparse.BinaryParser import Mmap
+from indxparse.MFT import (
     ATTR_TYPE,
     MREF,
     MSEQNO,
