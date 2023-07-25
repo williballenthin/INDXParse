@@ -1,5 +1,8 @@
 #! /usr/bin/env python
 
+#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+#   are not subject to US Copyright.
+
 import argparse
 import array
 import datetime
@@ -8,10 +11,18 @@ import re
 
 from jinja2 import Template
 
-from BinaryParser import Mmap
-from MFT import (ATTR_TYPE, MREF, MSEQNO, Attribute, Cache, FilenameAttribute,
-                 IndexRootHeader, MFTEnumerator,
-                 StandardInformationFieldDoesNotExist)
+from INDXParse.BinaryParser import Mmap
+from INDXParse.MFT import (
+    ATTR_TYPE,
+    MREF,
+    MSEQNO,
+    Attribute,
+    Cache,
+    FilenameAttribute,
+    IndexRootHeader,
+    MFTEnumerator,
+    StandardInformationFieldDoesNotExist,
+)
 
 ASCII_BYTE = b" !\"#\$%&\'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~"
 

@@ -17,11 +17,16 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #
+#
+#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+#   are not subject to US Copyright.
+#
+#
 #   Version v.1.2.0
 import calendar
 
-from BinaryParser import debug, error, info, warning
-from MFT import *
+from INDXParse.BinaryParser import debug, error, info, warning
+from INDXParse.MFT import *
 
 verbose = False
 import argparse
