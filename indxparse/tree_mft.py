@@ -1,12 +1,15 @@
 #! /usr/bin/env python
 
+#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+#   are not subject to US Copyright.
+
 import argparse
 import calendar
 import logging
 import mmap
 from datetime import datetime
 
-from MFT import Cache, MFTEnumerator, MFTTree
+from indxparse.MFT import Cache, MFTEnumerator, MFTTree
 
 
 class Mmap(object):

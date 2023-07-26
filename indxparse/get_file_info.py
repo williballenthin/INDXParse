@@ -1,5 +1,8 @@
 #! /usr/bin/env python
 
+#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+#   are not subject to US Copyright.
+
 import argparse
 import array
 import datetime
@@ -8,8 +11,8 @@ import re
 
 from jinja2 import Template
 
-from BinaryParser import Mmap
-from MFT import (
+from indxparse.BinaryParser import Mmap
+from indxparse.MFT import (
     ATTR_TYPE,
     MREF,
     MSEQNO,
@@ -21,11 +24,11 @@ from MFT import (
     StandardInformationFieldDoesNotExist,
 )
 
-ASCII_BYTE = " !\"#\$%&'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~"
+ASCII_BYTE = b" !\"#\$%&'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~"
 
 
 def ascii_strings(buf, n=4):
-    reg = "([%s]{%d,})" % (ASCII_BYTE, n)
+    reg = b"([%s]{%d,})" % (ASCII_BYTE, n)
     ascii_re = re.compile(reg)
     for match in ascii_re.finditer(buf):
         if isinstance(match.group(), array.array):

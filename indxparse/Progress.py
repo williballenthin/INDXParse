@@ -15,6 +15,10 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+#
+#
+#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+#   are not subject to US Copyright.
 
 
 class Progress(object):

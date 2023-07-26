@@ -17,6 +17,11 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #
+#
+#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+#   are not subject to US Copyright.
+#
+#
 #   Version v.2.0.0
 import array
 import re
@@ -27,7 +32,7 @@ import wx.lib.newevent
 import wx.lib.scrolledpanel as scrolled
 from wx.lib.evtmgr import eventManager
 
-from MFT import (
+from indxparse.MFT import (
     ATTR_TYPE,
     FilenameAttribute,
     IndexRootHeader,
@@ -1397,9 +1402,13 @@ class MFTFileViewer(wx.Frame):
         sys.exit(0)
 
 
-if __name__ == "__main__":
+def main():
     app = wx.App(False)
     filename = sys.argv[1]
     frame = MFTFileViewer(None, filename)
     frame.Show()
     app.MainLoop()
+
+
+if __name__ == "__main__":
+    main()

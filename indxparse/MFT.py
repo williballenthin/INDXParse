@@ -17,6 +17,11 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #
+#
+#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+#   are not subject to US Copyright.
+#
+#
 #   Version v.1.1.8
 import array
 import logging
@@ -27,7 +32,7 @@ import typing
 from collections import OrderedDict  # python 2.7 only
 from datetime import datetime
 
-from BinaryParser import (
+from indxparse.BinaryParser import (
     Block,
     Nestable,
     OverrunBufferException,
@@ -38,7 +43,7 @@ from BinaryParser import (
     read_dword,
     read_word,
 )
-from Progress import NullProgress
+from indxparse.Progress import NullProgress
 
 
 class INDXException(Exception):
@@ -60,7 +65,12 @@ class INDXException(Exception):
 
 
 class FixupBlock(Block):
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         super(FixupBlock, self).__init__(buf, offset)
 
     def fixup(self, num_fixups, fixup_value_offset):
@@ -97,7 +107,12 @@ class INDEX_ENTRY_FLAGS:
 
 
 class INDEX_ENTRY_HEADER(Block, Nestable):
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         super(INDEX_ENTRY_HEADER, self).__init__(buf, offset)
         self.declare_field("word", "length", 0x8)
         self.declare_field("word", "key_length")
@@ -105,7 +120,11 @@ class INDEX_ENTRY_HEADER(Block, Nestable):
         self.declare_field("word", "reserved")
 
     @staticmethod
-    def structure_size(buf, offset, parent):
+    def structure_size(
+        buf: array.array,
+        offset,
+        parent,
+    ) -> int:
         return 0x10
 
     def __len__(self):
@@ -126,7 +145,12 @@ class MFT_INDEX_ENTRY_HEADER(INDEX_ENTRY_HEADER):
     Index used by the MFT for INDX attributes.
     """
 
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         super(MFT_INDEX_ENTRY_HEADER, self).__init__(buf, offset, parent)
         self.declare_field("qword", "mft_reference", 0x0)
 
@@ -136,7 +160,12 @@ class SECURE_INDEX_ENTRY_HEADER(INDEX_ENTRY_HEADER):
     Index used by the $SECURE file indices SII and SDH
     """
 
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         super(SECURE_INDEX_ENTRY_HEADER, self).__init__(buf, offset, parent)
         self.declare_field("word", "data_offset", 0x0)
         self.declare_field("word", "data_length")
@@ -149,7 +178,12 @@ class INDEX_ENTRY(Block, Nestable):
       Probably do not instantiate.
     """
 
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         super(INDEX_ENTRY, self).__init__(buf, offset)
         self.declare_field(INDEX_ENTRY_HEADER, "header", 0x0)
         self.add_explicit_field(0x10, "string", "data")
@@ -160,7 +194,11 @@ class INDEX_ENTRY(Block, Nestable):
         return self._buf[start:end]
 
     @staticmethod
-    def structure_size(buf, offset, parent):
+    def structure_size(
+        buf: array.array,
+        offset,
+        parent,
+    ) -> int:
         return read_word(buf, offset + 0x8)
 
     def __len__(self):
@@ -175,13 +213,22 @@ class MFT_INDEX_ENTRY(Block, Nestable):
     Index entry for the MFT directory index $I30, attribute type 0x90.
     """
 
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         super(MFT_INDEX_ENTRY, self).__init__(buf, offset)
         self.declare_field(MFT_INDEX_ENTRY_HEADER, "header", 0x0)
         self.declare_field(FilenameAttribute, "filename_information")
 
     @staticmethod
-    def structure_size(buf, offset, parent):
+    def structure_size(
+        buf: array.array,
+        offset,
+        parent,
+    ) -> int:
         return read_word(buf, offset + 0x8)
 
     def __len__(self):
@@ -217,13 +264,22 @@ class SII_INDEX_ENTRY(Block, Nestable):
     Index entry for the $SECURE:$SII index.
     """
 
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         super(SII_INDEX_ENTRY, self).__init__(buf, offset)
         self.declare_field(SECURE_INDEX_ENTRY_HEADER, "header", 0x0)
         self.declare_field("dword", "security_id")
 
     @staticmethod
-    def structure_size(buf, offset, parent):
+    def structure_size(
+        buf: array.array,
+        offset,
+        parent,
+    ) -> int:
         return read_word(buf, offset + 0x8)
 
     def __len__(self):
@@ -241,14 +297,23 @@ class SDH_INDEX_ENTRY(Block, Nestable):
     Index entry for the $SECURE:$SDH index.
     """
 
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         super(SDH_INDEX_ENTRY, self).__init__(buf, offset)
         self.declare_field(SECURE_INDEX_ENTRY_HEADER, "header", 0x0)
         self.declare_field("dword", "hash")
         self.declare_field("dword", "security_id")
 
     @staticmethod
-    def structure_size(buf, offset, parent):
+    def structure_size(
+        buf: array.array,
+        offset,
+        parent,
+    ) -> int:
         return read_word(buf, offset + 0x8)
 
     def __len__(self):
@@ -270,16 +335,32 @@ class INDEX_HEADER_FLAGS:
 
 
 class INDEX_HEADER(Block, Nestable):
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         super(INDEX_HEADER, self).__init__(buf, offset)
+
         self.declare_field("dword", "entries_offset", 0x0)
+        self.entries_offset: typing.Callable[[], int]
+
         self.declare_field("dword", "index_length")
+        self.index_length: typing.Callable[[], int]
+
         self.declare_field("dword", "allocated_size")
+
         self.declare_field("byte", "index_header_flags")  # see INDEX_HEADER_FLAGS
+
         # then 3 bytes padding/reserved
 
     @staticmethod
-    def structure_size(buf, offset, parent):
+    def structure_size(
+        buf: array.array,
+        offset,
+        parent,
+    ) -> int:
         return 0x1C
 
     def __len__(self):
@@ -302,16 +383,31 @@ class INDEX_HEADER(Block, Nestable):
 
 
 class INDEX(Block, Nestable):
-    def __init__(self, buf, offset, parent, index_entry_class):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+        index_entry_class,
+    ) -> None:
         self._INDEX_ENTRY = index_entry_class
         super(INDEX, self).__init__(buf, offset)
+
         self.declare_field(INDEX_HEADER, "header", 0x0)
+        self.header: typing.Callable[[], INDEX_HEADER]
+
         self.add_explicit_field(self.header().entries_offset(), INDEX_ENTRY, "entries")
+
         slack_start = self.header().entries_offset() + self.header().index_length()
+
         self.add_explicit_field(slack_start, INDEX_ENTRY, "slack_entries")
 
     @staticmethod
-    def structure_size(buf, offset, parent):
+    def structure_size(
+        buf: array.array,
+        offset,
+        parent,
+    ) -> int:
         return read_dword(buf, offset + 0x8)
 
     def __len__(self):
@@ -359,7 +455,12 @@ class INDEX(Block, Nestable):
 
 
 class INDEX_ROOT(Block, Nestable):
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         super(INDEX_ROOT, self).__init__(buf, offset)
         self.declare_field("dword", "type", 0x0)
         self.declare_field("dword", "collation_rule")
@@ -375,7 +476,11 @@ class INDEX_ROOT(Block, Nestable):
         return INDEX(self._buf, self.offset(self._index_offset), self, MFT_INDEX_ENTRY)
 
     @staticmethod
-    def structure_size(buf, offset, parent):
+    def structure_size(
+        buf: array.array,
+        offset,
+        parent,
+    ) -> int:
         return 0x10 + INDEX.structure_size(buf, offset + 0x10, parent)
 
     def __len__(self):
@@ -383,13 +488,25 @@ class INDEX_ROOT(Block, Nestable):
 
 
 class NTATTR_STANDARD_INDEX_HEADER(Block):
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         logging.debug("INDEX NODE HEADER at %s.", hex(offset))
         super(NTATTR_STANDARD_INDEX_HEADER, self).__init__(buf, offset)
+
         self.declare_field("dword", "entry_list_start", 0x0)
+        self.entry_list_start: typing.Callable[[], int]
+
         self.declare_field("dword", "entry_list_end")
+
         self.declare_field("dword", "entry_list_allocation_end")
+        self.entry_list_allocation_end: typing.Callable[[], int]
+
         self.declare_field("dword", "flags")
+
         self.declare_field(
             "binary",
             "list_buffer",
@@ -435,7 +552,12 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 
 
 class IndexRootHeader(Block):
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         logging.debug("INDEX ROOT HEADER at %s.", hex(offset))
         super(IndexRootHeader, self).__init__(buf, offset)
         self.declare_field("dword", "type", 0x0)
@@ -454,14 +576,27 @@ class IndexRootHeader(Block):
 
 
 class IndexRecordHeader(FixupBlock):
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         logging.debug("INDEX RECORD HEADER at %s.", hex(offset))
         super(IndexRecordHeader, self).__init__(buf, offset, parent)
+
         self.declare_field("dword", "magic", 0x0)
+
         self.declare_field("word", "usa_offset")
+        self.usa_offset: typing.Callable[[], int]
+
         self.declare_field("word", "usa_count")
+        self.usa_count: typing.Callable[[], int]
+
         self.declare_field("qword", "lsn")
+
         self.declare_field("qword", "vcn")
+
         self._node_header_offset = self.current_field_offset()
         self.fixup(self.usa_count(), self.usa_offset())
 
@@ -472,20 +607,35 @@ class IndexRecordHeader(FixupBlock):
 
 
 class INDEX_ALLOCATION(FixupBlock):
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         """
 
         TODO(wb): figure out what we're doing with the fixups!
 
         """
         super(INDEX_ALLOCATION, self).__init__(buf, offset, parent)
+
         self.declare_field("dword", "magic", 0x0)
+
         self.declare_field("word", "usa_offset")
+        self.usa_offset: typing.Callable[[], int]
+
         self.declare_field("word", "usa_count")
+        self.usa_count: typing.Callable[[], int]
+
         self.declare_field("qword", "lsn")
+
         self.declare_field("qword", "vcn")
+
         self._index_offset = self.current_field_offset()
+
         self.add_explicit_field(self._index_offset, INDEX, "index")
+
         # TODO(wb): we do not want to modify data here.
         #   best to make a copy and use that.
         #   Until then, this is not a nestable structure.
@@ -495,7 +645,11 @@ class INDEX_ALLOCATION(FixupBlock):
         return INDEX(self._buf, self.offset(self._index_offset), self, MFT_INDEX_ENTRY)
 
     @staticmethod
-    def structure_size(buf, offset, parent):
+    def structure_size(
+        buf: array.array,
+        offset,
+        parent,
+    ) -> int:
         return 0x30 + INDEX.structure_size(buf, offset + 0x10, parent)
 
     def __len__(self):
@@ -503,19 +657,31 @@ class INDEX_ALLOCATION(FixupBlock):
 
 
 class IndexEntry(Block):
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         logging.debug("INDEX ENTRY at %s.", hex(offset))
         super(IndexEntry, self).__init__(buf, offset)
+
         self.declare_field("qword", "mft_reference", 0x0)
+
         self.declare_field("word", "length")
+
         self.declare_field("word", "filename_information_length")
+        self.filename_information_length: typing.Callable[[], int]
+
         self.declare_field("dword", "flags")
+
         self.declare_field(
             "binary",
             "filename_information_buffer",
             self.current_field_offset(),
             self.filename_information_length(),
         )
+
         self.declare_field(
             "qword", "child_vcn", align(self.current_field_offset(), 0x8)
         )
@@ -536,7 +702,12 @@ class StandardInformationFieldDoesNotExist(Exception):
 
 class StandardInformation(Block):
     # TODO(wb): implement sizing so we can make this nestable
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         logging.debug("STANDARD INFORMATION ATTRIBUTE at %s.", hex(offset))
         super(StandardInformation, self).__init__(buf, offset)
         self.declare_field("filetime", "created_time", 0x0)
@@ -605,24 +776,46 @@ class StandardInformation(Block):
 
 
 class FilenameAttribute(Block, Nestable):
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         logging.debug("FILENAME ATTRIBUTE at %s.", hex(offset))
         super(FilenameAttribute, self).__init__(buf, offset)
+
         self.declare_field("qword", "mft_parent_reference", 0x0)
+
         self.declare_field("filetime", "created_time")
+
         self.declare_field("filetime", "modified_time")
+
         self.declare_field("filetime", "changed_time")
+
         self.declare_field("filetime", "accessed_time")
+
         self.declare_field("qword", "physical_size")
+
         self.declare_field("qword", "logical_size")
+
         self.declare_field("dword", "flags")
+
         self.declare_field("dword", "reparse_value")
+
         self.declare_field("byte", "filename_length")
+        self.filename_length: typing.Callable[[], int]
+
         self.declare_field("byte", "filename_type")
+
         self.declare_field("wstring", "filename", 0x42, self.filename_length())
 
     @staticmethod
-    def structure_size(buf, offset, parent):
+    def structure_size(
+        buf: array.array,
+        offset,
+        parent,
+    ) -> int:
         return 0x42 + (read_byte(buf, offset + 0x40) * 2)
 
     def __len__(self):
@@ -630,7 +823,12 @@ class FilenameAttribute(Block, Nestable):
 
 
 class SlackIndexEntry(IndexEntry):
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         """
         Constructor.
         Arguments:
@@ -667,21 +865,35 @@ class SlackIndexEntry(IndexEntry):
 
 
 class Runentry(Block, Nestable):
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         super(Runentry, self).__init__(buf, offset)
         logging.debug("RUNENTRY @ %s.", hex(offset))
+
         self.declare_field("byte", "header")
+        self.header: typing.Callable[[], int]
+
         self._offset_length = self.header() >> 4
         self._length_length = self.header() & 0x0F
+
         self.declare_field(
             "binary", "length_binary", self.current_field_offset(), self._length_length
         )
+
         self.declare_field(
             "binary", "offset_binary", self.current_field_offset(), self._offset_length
         )
 
     @staticmethod
-    def structure_size(buf, offset, parent):
+    def structure_size(
+        buf: array.array,
+        offset,
+        parent,
+    ) -> int:
         b = read_byte(buf, offset)
         return (b >> 4) + (b & 0x0F) + 1
 
@@ -691,24 +903,24 @@ class Runentry(Block, Nestable):
     def is_valid(self):
         return self._offset_length > 0 and self._length_length > 0
 
-    def lsb2num(self, binary):
+    def lsb2num(self, binary: array.array):
         count = 0
         ret = 0
         for b in binary:
-            ret += ord(b) << (8 * count)
+            ret += b << (8 * count)
             count += 1
         return ret
 
-    def lsb2signednum(self, binary):
+    def lsb2signednum(self, binary: array.array):
         count = 0
         ret = 0
         working = []
 
-        is_negative = ord(binary[-1]) & (1 << 7) != 0
+        is_negative = binary[-1] & (1 << 7) != 0
         if is_negative:
-            working = [ord(b) ^ 0xFF for b in binary]
+            working = [b ^ 0xFF for b in binary]
         else:
-            working = [ord(b) for b in binary]
+            working = [b for b in binary]
         for b in working:
             ret += b << (8 * count)
             count += 1
@@ -727,12 +939,21 @@ class Runentry(Block, Nestable):
 
 
 class Runlist(Block):
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         super(Runlist, self).__init__(buf, offset)
         logging.debug("RUNLIST @ %s.", hex(offset))
 
     @staticmethod
-    def structure_size(buf, offset, parent):
+    def structure_size(
+        buf: array.array,
+        offset,
+        parent,
+    ) -> int:
         length = 0
         while True:
             b = read_byte(buf, offset + length)
@@ -819,43 +1040,80 @@ class Attribute(Block, Nestable):
         0x20000000: "has-view-index",
     }
 
-    def __init__(self, buf, offset, parent):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
         super(Attribute, self).__init__(buf, offset)
         logging.debug("ATTRIBUTE @ %s.", hex(offset))
+
         self.declare_field("dword", "type")
+
         self.declare_field(
             "dword", "size"
         )  # this value must rounded up to 0x8 byte alignment
+
         self.declare_field("byte", "non_resident")
+        self.non_resident: typing.Callable[[], int]
+
         self.declare_field("byte", "name_length")
+
         self.declare_field("word", "name_offset")
+
         self.declare_field("word", "flags")
+
         self.declare_field("word", "instance")
+
         if self.non_resident() > 0:
             self.declare_field("qword", "lowest_vcn", 0x10)
+
             self.declare_field("qword", "highest_vcn")
+
             self.declare_field("word", "runlist_offset")
+
             self.declare_field("byte", "compression_unit")
+
             self.declare_field("byte", "reserved1")
+
             self.declare_field("byte", "reserved2")
+
             self.declare_field("byte", "reserved3")
+
             self.declare_field("byte", "reserved4")
+
             self.declare_field("byte", "reserved5")
+
             self.declare_field("qword", "allocated_size")
+
             self.declare_field("qword", "data_size")
+
             self.declare_field("qword", "initialized_size")
+
             self.declare_field("qword", "compressed_size")
+
         else:
             self.declare_field("dword", "value_length", 0x10)
+            self.value_length: typing.Callable[[], int]
+
             self.declare_field("word", "value_offset")
+            self.value_offset: typing.Callable[[], int]
+
             self.declare_field("byte", "value_flags")
+
             self.declare_field("byte", "reserved")
+
             self.declare_field(
                 "binary", "value", self.value_offset(), self.value_length()
             )
 
     @staticmethod
-    def structure_size(buf, offset, parent):
+    def structure_size(
+        buf: array.array,
+        offset,
+        parent,
+    ) -> int:
         s = read_dword(buf, offset + 0x4)
         return s + (8 - (s % 8))
 
@@ -897,15 +1155,23 @@ class MFTRecord(FixupBlock):
     Implementation note: cannot be nestable due to fixups.
     """
 
-    def __init__(self, buf, offset, parent, inode=None):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+        inode=None,
+    ) -> None:
         super(MFTRecord, self).__init__(buf, offset, parent)
         logging.debug("MFTRECORD @ %s.", hex(offset))
 
         self.declare_field("dword", "magic")
 
         self.declare_field("word", "usa_offset")
+        self.usa_offset: typing.Callable[[], int]
 
         self.declare_field("word", "usa_count")
+        self.usa_count: typing.Callable[[], int]
 
         self.declare_field("qword", "lsn")
 
@@ -929,6 +1195,7 @@ class MFTRecord(FixupBlock):
         self.declare_field("word", "reserved")
 
         self.declare_field("dword", "mft_record_number")
+        self.mft_record_number: typing.Callable[[], int]
 
         self.inode = inode or self.mft_record_number()
 
@@ -1253,7 +1520,12 @@ CYCLE_ENTRY = "<CYCLE>"
 
 
 class MFTEnumerator(object):
-    def __init__(self, buf, record_cache=None, path_cache=None):
+    def __init__(
+        self,
+        buf: array.array,
+        record_cache=None,
+        path_cache=None,
+    ) -> None:
         DEFAULT_CACHE_SIZE = 1024
         if record_cache is None:
             record_cache = Cache(size_limit=DEFAULT_CACHE_SIZE)
@@ -1424,10 +1696,13 @@ ROOT_INDEX = 5
 class MFTTree(object):
     ORPHAN_INDEX = 12
 
-    def __init__(self, buf):
+    def __init__(
+        self,
+        buf: array.array,
+    ) -> None:
         super(MFTTree, self).__init__()
         self._buf = buf
-        self._nodes = {}  # array of MFTTreeNodes
+        self._nodes: typing.Dict[int, MFTTreeNode] = {}  # array of MFTTreeNodes
 
     def _add_record(self, mft_enumerator, record):
         record_num = record.mft_record_number()

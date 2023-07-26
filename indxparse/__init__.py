@@ -1,7 +1,6 @@
 #   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
 #   are not subject to US Copyright.
 
-import setuptools
+__version__ = "1.1.9"
 
-if __name__ == "__main__":
-    setuptools.setup()
+from . import MFT, SDS, BinaryParser, FileMap, Progress, SortedCollection, get_file_info

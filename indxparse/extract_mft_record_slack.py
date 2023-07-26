@@ -17,10 +17,13 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #
+#
+#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+#   are not subject to US Copyright.
 import sys
 
-from BinaryParser import Mmap
-from MFT import MFTEnumerator
+from indxparse.BinaryParser import Mmap
+from indxparse.MFT import MFTEnumerator
 
 
 def main():

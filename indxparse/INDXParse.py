@@ -16,13 +16,15 @@
 #   limitations under the License.
 #
 #
+#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+#   are not subject to US Copyright.
+#
+#
 #   Bibliography:
 #   Mentions of "NTFSdoc" in code comments refer to: Richard Russon and
 #     Yuval Fledel.  "NTFS Documentation," apparent publication in
 #     March 2008.  Retrieved from:
 #     http://dubeyko.com/development/FileSystems/NTFS/ntfsdoc.pdf.  Last checked Mar. 2013.
-
-__version__ = "1.1.9"
 
 import argparse
 import array
@@ -888,7 +890,7 @@ def entry_bodyfile(entry, filename=False):
     )
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Parse NTFS INDX files.")
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
@@ -1011,3 +1013,7 @@ if __name__ == "__main__":
             #   if we encounter a weird header, and its at offset 0, then align
             #   will make a mistake here and align back to 0
             off = INDEX_NODE_BLOCK_SIZE
+
+
+if __name__ == "__main__":
+    main()
