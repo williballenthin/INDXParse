@@ -25,6 +25,7 @@ class Progress(object):
     """
     An interface to things that track the progress of a long running task.
     """
+
     def __init__(self, max_):
         super(Progress, self).__init__()
         self._max = max_
@@ -49,6 +50,7 @@ class NullProgress(Progress):
     """
     A Progress class that ignores any updates.
     """
+
     def __init__(self, max_):
         super(NullProgress, self).__init__(max_)
 
@@ -59,11 +61,16 @@ class NullProgress(Progress):
 class ProgressBarProgress(Progress):
     def __init__(self, max_):
         from progressbar import ETA, Bar, ProgressBar  # type: ignore
+
         super(ProgressBarProgress, self).__init__(max_)
 
-        widgets = ["Progress: ",
-                   Bar(marker="=", left="[", right="]"), " ",
-                   ETA(), " ", ]
+        widgets = [
+            "Progress: ",
+            Bar(marker="=", left="[", right="]"),
+            " ",
+            ETA(),
+            " ",
+        ]
         self._pbar = ProgressBar(widgets=widgets, maxval=self._max)
         self._has_notified_started = False
 

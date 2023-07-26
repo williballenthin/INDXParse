@@ -45,6 +45,7 @@ class NULL_OBJECT(object):
     def __len__(self):
         return 0
 
+
 null_object = NULL_OBJECT()
 
 
@@ -78,7 +79,9 @@ class SID_IDENTIFIER_AUTHORITY(Block, Nestable):
         return 6
 
     def __len__(self):
-        return SID_IDENTIFIER_AUTHORITY.structure_size(self._buf, self.absolute_offset(0x0), None)
+        return SID_IDENTIFIER_AUTHORITY.structure_size(
+            self._buf, self.absolute_offset(0x0), None
+        )
 
     def __str__(self):
         return "%s" % ((self.high_part() << 32) + self.low_part())
@@ -112,6 +115,7 @@ class ACE_TYPES:
     """
     One byte.
     """
+
     ACCESS_MIN_MS_ACE_TYPE = 0
     ACCESS_ALLOWED_ACE_TYPE = 0
     ACCESS_DENIED_ACE_TYPE = 1
@@ -139,12 +143,13 @@ class ACE_FLAGS:
     """
     One byte.
     """
+
     OBJECT_INHERIT_ACE = 0x01
     CONTAINER_INHERIT_ACE = 0x02
     NO_PROPAGATE_INHERIT_ACE = 0x04
     INHERIT_ONLY_ACE = 0x08
     INHERITED_ACE = 0x10  # Win2k only.
-    VALID_INHERIT_FLAGS = 0x1f
+    VALID_INHERIT_FLAGS = 0x1F
 
     # The audit flags.
     SUCCESSFUL_ACCESS_ACE_FLAG = 0x40
@@ -155,6 +160,7 @@ class ACCESS_MASK:
     """
     DWORD.
     """
+
     FILE_READ_DATA = 0x00000001
     FILE_LIST_DIRECTORY = 0x00000001
     FILE_WRITE_DATA = 0x00000002
@@ -176,8 +182,8 @@ class ACCESS_MASK:
     STANDARD_RIGHTS_READ = 0x00020000
     STANDARD_RIGHTS_WRITE = 0x00020000
     STANDARD_RIGHTS_EXECUTE = 0x00020000
-    STANDARD_RIGHTS_REQUIRED = 0x000f0000
-    STANDARD_RIGHTS_ALL = 0x001f0000
+    STANDARD_RIGHTS_REQUIRED = 0x000F0000
+    STANDARD_RIGHTS_ALL = 0x001F0000
     ACCESS_SYSTEM_SECURITY = 0x01000000
     MAXIMUM_ALLOWED = 0x02000000
     GENERIC_ALL = 0x10000000
@@ -254,6 +260,7 @@ class OBJECT_ACE_FLAGS:
     """
     DWORD.
     """
+
     ACE_OBJECT_TYPE_PRESENT = 1
     ACE_INHERITED_OBJECT_TYPE_PRESENT = 2
 
@@ -327,6 +334,7 @@ class NULL_ACL(object):
     TODO(wb): Not actually sure what the NULL ACL is...
       just guessing at the values here.
     """
+
     def __init__(self):
         super(NULL_ACL, self).__init__()
 
@@ -456,14 +464,16 @@ def main():
     import mmap
     import sys
 
-    with open(sys.argv[1], 'r') as f:
-        with contextlib.closing(mmap.mmap(f.fileno(), 0,
-                                          access=mmap.ACCESS_READ)) as buf:
+    with open(sys.argv[1], "r") as f:
+        with contextlib.closing(
+            mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+        ) as buf:
             s = SDS(buf, 0, None)
             print("SDS")
             for e in s.sds_entries():
                 print("  SDS_ENTRY")
                 print((e.get_all_string(indent=2)))
+
 
 if __name__ == "__main__":
     main()

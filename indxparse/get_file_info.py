@@ -24,7 +24,7 @@ from indxparse.MFT import (
     StandardInformationFieldDoesNotExist,
 )
 
-ASCII_BYTE = b" !\"#\$%&\'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~"
+ASCII_BYTE = b" !\"#\$%&'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~"
 
 
 def ascii_strings(buf, n=4):
@@ -90,9 +90,9 @@ def get_timeline_entries(record):
     entries = []
     si = record.standard_information()
     fn = record.filename_information()
-    
+
     if si and fn:
-        filename = fn.filename()        
+        filename = fn.filename()
         entries.extend(create_safe_timeline_entries(si, "$SI", filename))
 
     for b in record.attributes():
@@ -115,7 +115,9 @@ def get_timeline_entries(record):
             fn_filename = fn.filename()
             entries.extend(create_safe_timeline_entries(fn, "slack-INDX", fn_filename))
 
-    return sorted(entries, key=lambda x: x["timestamp"] or datetime.datetime(1970, 1, 1, 0, 0, 0))
+    return sorted(
+        entries, key=lambda x: x["timestamp"] or datetime.datetime(1970, 1, 1, 0, 0, 0)
+    )
 
 
 def make_filename_information_model(attr):
@@ -140,24 +142,24 @@ def make_filename_information_model(attr):
 def make_standard_information_model(attr):
     if attr is None:
         return None
-#    if attr is None:
-#        default_time = datetime.datetime(1970, 1, 1, 0, 0, 0)
-#        return {
-#            "created": default_time,
-#            "modified": default_time,
-#            "changed": default_time,
-#            "accessed": default_time,
-#            "owner_id": 0,
-#            "security_id": "",
-#            "quota_charged": 0,
-#            "usn": 0
-#        }
+    #    if attr is None:
+    #        default_time = datetime.datetime(1970, 1, 1, 0, 0, 0)
+    #        return {
+    #            "created": default_time,
+    #            "modified": default_time,
+    #            "changed": default_time,
+    #            "accessed": default_time,
+    #            "owner_id": 0,
+    #            "security_id": "",
+    #            "quota_charged": 0,
+    #            "usn": 0
+    #        }
     ret = {
         "created": create_safe_datetime(attr.created_time),
         "modified": create_safe_datetime(attr.modified_time),
         "changed": create_safe_datetime(attr.changed_time),
         "accessed": create_safe_datetime(attr.accessed_time),
-        "flags": get_flags(attr.attributes())
+        "flags": get_flags(attr.attributes()),
     }
 
     # since the fields are sequential, we can handle an exception half way through here
@@ -190,11 +192,13 @@ def make_attribute_model(attr):
         ret["allocated_size"] = attr.allocated_size()
 
         if attr.allocated_size() > 0:
-            for (offset, length) in attr.runlist().runs():
-                ret["runs"].append({
-                    "offset": offset,
-                    "length": length,
-                })
+            for offset, length in attr.runlist().runs():
+                ret["runs"].append(
+                    {
+                        "offset": offset,
+                        "length": length,
+                    }
+                )
     else:
         ret["value_size"] = attr.value_length()
     return ret
@@ -210,8 +214,12 @@ def make_model(record, path):
         "is_active": record.is_active(),
         "is_directory": record.is_directory(),
         "size": 0,  # updated below
-        "standard_information": make_standard_information_model(record.standard_information()),
-        "filename_information": make_filename_information_model(record.filename_information()),
+        "standard_information": make_standard_information_model(
+            record.standard_information()
+        ),
+        "filename_information": make_filename_information_model(
+            record.filename_information()
+        ),
         "owner_id": 0,  # updated below
         "security_id": 0,  # updated below
         "quota_charged": 0,  # updated below
@@ -225,14 +233,14 @@ def make_model(record, path):
         "active_unicode_strings": unicode_strings(active_data),
         "slack_ascii_strings": ascii_strings(slack_data),
         "slack_unicode_strings": unicode_strings(slack_data),
-        }
+    }
 
     if not record.is_directory():
         data_attr = record.data_attribute()
         if data_attr and data_attr.non_resident() > 0:
             model["size"] = data_attr.data_size()
         elif record.filename_information() is not None:
-            model["size"] = record.filename_information().logical_size()            
+            model["size"] = record.filename_information().logical_size()
         else:
             model["size"] = 0
 
@@ -264,7 +272,7 @@ def make_model(record, path):
 
 def format_record(record, path):
     template = Template(
-"""\
+        """\
 MFT Record: {{ record.inode }}
 Path: {{ record.path }}
 Metadata:
@@ -362,7 +370,8 @@ Slack strings:
 {% for string in record.slack_unicode_strings %}\
     {{ string }}
 {% endfor %}\
-""")
+"""
+    )
     return template.render(record=make_model(record, path))
 
 
@@ -371,20 +380,32 @@ def print_indx_info(record, path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Inspect '
-                                     'a given MFT file record.')
-    parser.add_argument('-a', action="store", metavar="cache_size", type=int,
-                        dest="cache_size", default=1024,
-                        help="Size of cache.")
-    parser.add_argument('-p', action="store", metavar="prefix",
-                        nargs=1, dest="prefix", default="\\.",
-                        help="Prefix paths with `prefix` rather than \\.\\")
-    parser.add_argument('-v', action="store_true", dest="verbose",
-                        help="Print debugging information")
-    parser.add_argument('mft', action="store",
-                        help="Path to MFT")
-    parser.add_argument('record_or_path', action="store",
-                        help="MFT record or file path to inspect")
+    parser = argparse.ArgumentParser(description="Inspect " "a given MFT file record.")
+    parser.add_argument(
+        "-a",
+        action="store",
+        metavar="cache_size",
+        type=int,
+        dest="cache_size",
+        default=1024,
+        help="Size of cache.",
+    )
+    parser.add_argument(
+        "-p",
+        action="store",
+        metavar="prefix",
+        nargs=1,
+        dest="prefix",
+        default="\\.",
+        help="Prefix paths with `prefix` rather than \\.\\",
+    )
+    parser.add_argument(
+        "-v", action="store_true", dest="verbose", help="Print debugging information"
+    )
+    parser.add_argument("mft", action="store", help="Path to MFT")
+    parser.add_argument(
+        "record_or_path", action="store", help="MFT record or file path to inspect"
+    )
 
     results = parser.parse_args()
 
@@ -395,9 +416,7 @@ def main():
         record_cache = Cache(results.cache_size)
         path_cache = Cache(results.cache_size)
 
-        enum = MFTEnumerator(buf,
-                             record_cache=record_cache,
-                             path_cache=path_cache)
+        enum = MFTEnumerator(buf, record_cache=record_cache, path_cache=path_cache)
 
         should_use_inode = False
         try:
@@ -414,6 +433,7 @@ def main():
             path = results.record_or_path
             record = enum.get_record_by_path(path)
             print_indx_info(record, results.prefix + path)
+
 
 if __name__ == "__main__":
     main()

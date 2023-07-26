@@ -24,6 +24,7 @@ class LRUQueue(object):
     This is an example of a priority queue, ordered by
       insertion time, with explicit support for "touch".
     """
+
     def __init__(self, key=lambda n: n):
         """
         The `key` parameter may be provided if the
@@ -100,6 +101,7 @@ class BoundedLRUQueue(object):
 
     Otherwise, this class behaves just like the LRUQueue.
     """
+
     def __init__(self, capacity, key=lambda n: n):
         """
         The `key` parameter may be provided if the
@@ -181,9 +183,8 @@ class RangeCache(object):
       an efficient lookup for a single value that may be found within
       one of the ranges.
     """
-    def __init__(self, capacity,
-                 start_key=lambda o: o[0],
-                 length_key=lambda o: o[1]):
+
+    def __init__(self, capacity, start_key=lambda o: o[0], length_key=lambda o: o[1]):
         """
         @param key: A function that fetches the range start from an item.
         """
@@ -227,27 +228,35 @@ class RangeCache(object):
         q = RangeCache(2)
 
         x = None
-        try: x = q.get(0)
-        except ValueError: pass
+        try:
+            x = q.get(0)
+        except ValueError:
+            pass
         assert x is None
 
         x = None
-        try: x = q.get(1)
-        except ValueError: pass
+        try:
+            x = q.get(1)
+        except ValueError:
+            pass
         assert x is None
 
         q.push((1, 1, [0]))
 
         x = None
-        try: x = q.get(0)
-        except ValueError: pass
+        try:
+            x = q.get(0)
+        except ValueError:
+            pass
         assert x is None
 
         assert q.get(1) == (1, 1, [0])
         assert q.get(1.99) == (1, 1, [0])
         x = None
-        try: x = q.get(2.01)
-        except ValueError: pass
+        try:
+            x = q.get(2.01)
+        except ValueError:
+            pass
         assert x is None
 
         q.push((3, 1, [1]))
@@ -256,8 +265,10 @@ class RangeCache(object):
 
         q.push((5, 1, [2]))
         x = None
-        try: x = q.get(1)
-        except ValueError: pass
+        try:
+            x = q.get(1)
+        except ValueError:
+            pass
         assert x is None
 
         assert q.get(3) == (3, 1, [1])
@@ -269,8 +280,10 @@ class RangeCache(object):
         assert q.get(3) == (3, 1, [1])
         assert q.get(7) == (7, 1, [3])
         x = None
-        try: x = q.get(5)
-        except ValueError: pass
+        try:
+            x = q.get(5)
+        except ValueError:
+            pass
         assert x is None
 
         return True
@@ -289,8 +302,8 @@ class FileMap(object):
             eg. FileMap over ZipFile gives you a random access buffer
                   thats backed by a compressed image on the file system.
     """
-    def __init__(self, filelike, block_size=MEGABYTE,
-                 cache_size=10, size=None):
+
+    def __init__(self, filelike, block_size=MEGABYTE, cache_size=10, size=None):
         """
         If `size` is not provided, then `filelike` must have the
           `seek` and `tell` methods implemented.
@@ -298,6 +311,7 @@ class FileMap(object):
         super(FileMap, self).__init__()
         if size is None:
             import os
+
             filelike.seek(0, os.SEEK_END)
             size = filelike.tell()
         self._f = filelike
@@ -385,6 +399,7 @@ class FileMap(object):
     @staticmethod
     def test():
         from io import StringIO
+
         f = StringIO("0123abcd4567efgh")
         buf = FileMap(f, block_size=4, cache_size=2)
 
@@ -428,7 +443,7 @@ def unpack_from(fmt, buffer, off=0):
     if not isinstance(buffer, FileMap):
         return old_unpack_from(fmt, buffer, off)
     size = calcsize(fmt)
-    buf = buffer[off:off + size]
+    buf = buffer[off : off + size]
     return old_unpack_from(fmt, buf, 0x0)
 
 
@@ -445,6 +460,7 @@ def unpack(fmt, string):
 
 def struct_test():
     from io import StringIO
+
     f = StringIO("\x04\x03\x02\x01")
     buf = FileMap(f)
     assert unpack_from("<B", buf, 0x0)[0] == 0x04
