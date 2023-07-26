@@ -39,20 +39,26 @@ def information_bodyfile(path, size, inode, owner_id, info, attributes=None):
     except (ValueError, AttributeError):
         accessed = int(calendar.timegm(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
     try:
-        changed  = int(calendar.timegm(info.changed_time().timetuple()))
+        changed = int(calendar.timegm(info.changed_time().timetuple()))
     except (ValueError, AttributeError):
         changed = int(calendar.timegm(datetime(1970, 1, 1, 0, 0, 0).timetuple()))
     try:
-        created  = int(calendar.timegm(info.created_time().timetuple()))
+        created = int(calendar.timegm(info.created_time().timetuple()))
     except (ValueError, AttributeError):
         created = int(calendar.timegm(datetime.min.timetuple()))
     attributes_text = ""
     if len(attributes) > 0:
         attributes_text = " (%s)" % (", ".join(attributes))
-    return "0|%s|%s|0|%d|0|%s|%s|%s|%s|%s\n" % (path + attributes_text, inode,
-                                                 owner_id,
-                                                 size, accessed, modified,
-                                                 changed, created)
+    return "0|%s|%s|0|%d|0|%s|%s|%s|%s|%s\n" % (
+        path + attributes_text,
+        inode,
+        owner_id,
+        size,
+        accessed,
+        modified,
+        changed,
+        created,
+    )
 
 
 def record_bodyfile(ntfsfile, record, inode=None, attributes=None):
@@ -88,7 +94,7 @@ def record_bodyfile(ntfsfile, record, inode=None, attributes=None):
             size = attr.data_size()
         else:
             size = attr.value_length()
-#        sys.stderr.write("|%s, %s|\n" % (attr.name(), len(attr.name())))
+        #        sys.stderr.write("|%s, %s|\n" % (attr.name(), len(attr.name())))
         ADSs.append((attr.name(), size))
 
     if si:
@@ -96,24 +102,37 @@ def record_bodyfile(ntfsfile, record, inode=None, attributes=None):
             si_index = si.security_id()
         except StandardInformationFieldDoesNotExist:
             si_index = 0
-        ret += "%s" % (information_bodyfile(path, size, inode, si_index, si, attributes))
+        ret += "%s" % (
+            information_bodyfile(path, size, inode, si_index, si, attributes)
+        )
         for ads in ADSs:
-            ret += "%s" % (information_bodyfile(path + ":" + ads[0],
-                                                ads[1], inode, si_index, si, attributes))
+            ret += "%s" % (
+                information_bodyfile(
+                    path + ":" + ads[0], ads[1], inode, si_index, si, attributes
+                )
+            )
 
-#    sys.stderr.write(str(ADSs) + "\n")
+    #    sys.stderr.write(str(ADSs) + "\n")
     attributes.append("filename")
     if si:
         try:
             si_index = si.security_id()
         except StandardInformationFieldDoesNotExist:
             si_index = 0
-        ret += "%s" % (information_bodyfile(path, size, inode, si_index, fn,
-                                            attributes=attributes))
+        ret += "%s" % (
+            information_bodyfile(path, size, inode, si_index, fn, attributes=attributes)
+        )
         for ads in ADSs:
-            ret += "%s" % (information_bodyfile(path + ":" + ads[0], ads[1],
-                                                inode, si_index,  fn,
-                                                attributes=attributes))
+            ret += "%s" % (
+                information_bodyfile(
+                    path + ":" + ads[0],
+                    ads[1],
+                    inode,
+                    si_index,
+                    fn,
+                    attributes=attributes,
+                )
+            )
 
     return ret
 
@@ -130,18 +149,18 @@ def node_header_bodyfile(options, node_header, basepath):
             path = basepath + "\\" + e.filename_information().filename()
             size = e.filename_information().logical_size()
             inode = 0
-            ret += information_bodyfile(path, size, inode, 0,
-                                        e.filename_information(),
-                                        attributes=attrs)
+            ret += information_bodyfile(
+                path, size, inode, 0, e.filename_information(), attributes=attrs
+            )
     attrs.append("slack")
     if options.slack:
         for e in node_header.slack_entries():
             path = basepath + "\\" + e.filename_information().filename()
             size = e.filename_information().logical_size()
             inode = 0
-            ret += information_bodyfile(path, size, inode, 0,
-                                        e.filename_information(),
-                                        attributes=attrs)
+            ret += information_bodyfile(
+                path, size, inode, 0, e.filename_information(), attributes=attrs
+            )
     return ret
 
 
@@ -170,12 +189,11 @@ def record_indx_entries_bodyfile(options, ntfsfile, record):
         if attr.type() != ATTR_TYPE.INDEX_ALLOCATION:
             continue
         if attr.non_resident() != 0:
-            for (offset, length) in attr.runlist().runs():
+            for offset, length in attr.runlist().runs():
                 try:
                     ooff = offset * options.clustersize + options.offset
                     llen = length * options.clustersize
-                    extractbuf += f.read(ooff,
-                                         llen)
+                    extractbuf += f.read(ooff, llen)
                 except IOError:
                     pass
         else:
@@ -206,8 +224,7 @@ def try_write(s):
     try:
         sys.stdout.write(s)
     except (UnicodeEncodeError, UnicodeDecodeError):
-        warning("Failed to write string "
-                "due to encoding issue: " + str(list(s)))
+        warning("Failed to write string " "due to encoding issue: " + str(list(s)))
 
 
 def print_nonresident_indx_bodyfile(options, buf, basepath=""):
@@ -244,18 +261,15 @@ def print_bodyfile(options):
                 if options.filter:
                     path = f.mft_record_build_path(record, {})
                     if not refilter.search(path):
-                        debug("Skipping listing path "
-                              "due to regex filter: " + path)
+                        debug("Skipping listing path " "due to regex filter: " + path)
                         continue
                 if record.is_active() and options.mftlist:
                     try_write(record_bodyfile(f, record))
                 if options.indxlist or options.slack:
                     try_write(record_indx_entries_bodyfile(options, f, record))
                 elif (not record.is_active()) and options.deleted:
-                    try_write(record_bodyfile(f, record,
-                                              attributes=["deleted"]))
-                if options.filetype == "image" and \
-                   (options.indxlist or options.slack):
+                    try_write(record_bodyfile(f, record, attributes=["deleted"]))
+                if options.filetype == "image" and (options.indxlist or options.slack):
                     extractbuf = array.array("B")
                     found_indxalloc = False
                     for attr in record.attributes():
@@ -263,7 +277,7 @@ def print_bodyfile(options):
                             continue
                         found_indxalloc = True
                         if attr.non_resident() != 0:
-                            for (offset, length) in attr.runlist().runs():
+                            for offset, length in attr.runlist().runs():
                                 ooff = offset * options.clustersize + options.offset
                                 llen = length * options.clustersize
                                 extractbuf += f.read(ooff, llen)
@@ -271,9 +285,9 @@ def print_bodyfile(options):
                             pass  # This shouldn't happen.
                     if found_indxalloc and len(extractbuf) > 0:
                         path = f.mft_record_build_path(record, {})
-                        print_nonresident_indx_bodyfile(options,
-                                                        extractbuf,
-                                                        basepath=path)
+                        print_nonresident_indx_bodyfile(
+                            options, extractbuf, basepath=path
+                        )
             except InvalidAttributeException:
                 pass
     elif options.filetype == "indx":
@@ -295,7 +309,7 @@ def print_indx_info(options):
         return
     print("Found directory entry for: " + options.infomode)
 
-    if record.magic() != 0x454c4946:
+    if record.magic() != 0x454C4946:
         if record.magic() == int("0xBAAD", 0x10):
             print("BAAD Record")
         else:
@@ -321,8 +335,7 @@ def print_indx_info(options):
         if data_attr and data_attr.non_resident() > 0:
             print("  size: %d bytes" % (data_attr.data_size()))
         else:
-            print("  size: %d bytes" % \
-                (record.filename_information().logical_size()))
+            print("  size: %d bytes" % (record.filename_information().logical_size()))
 
     def get_flags(flags):
         attributes = []
@@ -362,8 +375,10 @@ def print_indx_info(options):
             attributes.append("has-view-index")
         return attributes
 
-    print("  attributes: " + \
-        ", ".join(get_flags(record.standard_information().attributes())))
+    print(
+        "  attributes: "
+        + ", ".join(get_flags(record.standard_information().attributes()))
+    )
 
     crtime = record.standard_information().created_time().isoformat("T") + "Z"
     mtime = record.standard_information().modified_time().isoformat("T") + "Z"
@@ -378,7 +393,9 @@ def print_indx_info(options):
     try:
         # since the fields are sequential, we can handle an exception half way through here
         #  and then ignore the remaining items. Dont have to worry about individual try/catches
-        print("  owner id (quota info): %d" % (record.standard_information().owner_id()))
+        print(
+            "  owner id (quota info): %d" % (record.standard_information().owner_id())
+        )
         print("  security id: %d" % (record.standard_information().security_id()))
         print("  quota charged: %d" % (record.standard_information().quota_charged()))
         print("  USN: %d" % (record.standard_information().usn()))
@@ -394,8 +411,7 @@ def print_indx_info(options):
             a = attr.filename_type()
             print("  Type: %s" % (["POSIX", "WIN32", "DOS 8.3", "WIN32 + DOS 8.3"][a]))
             print("    name: %s" % (str(attr.filename())))
-            print("    attributes: " + \
-                ", ".join(get_flags(attr.flags())))
+            print("    attributes: " + ", ".join(get_flags(attr.flags())))
             print("    logical size:  %d bytes" % (attr.logical_size()))
             print("    physical size: %d bytes" % (attr.physical_size()))
 
@@ -417,8 +433,7 @@ def print_indx_info(options):
     for b in record.attributes():
         print("  %s" % (Attribute.TYPES[b.type()]))
         print("    attribute name: %s" % (b.name() or "<none>"))
-        print("    attribute flags: " + \
-            ", ".join(get_flags(attr.flags())))
+        print("    attribute flags: " + ", ".join(get_flags(attr.flags())))
         if b.non_resident() > 0:
             print("    resident: no")
             print("    data size: %d" % (b.data_size()))
@@ -426,14 +441,17 @@ def print_indx_info(options):
 
             if b.allocated_size() > 0:
                 print("    runlist:")
-                for (offset, length) in b.runlist().runs():
-                    print("      Cluster %s, length %s" % \
-                        (hex(offset), hex(length)))
-                    print("        %s (%s) bytes for %s (%s) bytes" % \
-                        (offset * options.clustersize,
-                         hex(offset * options.clustersize),
-                         length * options.clustersize,
-                         hex(length * options.clustersize)))
+                for offset, length in b.runlist().runs():
+                    print("      Cluster %s, length %s" % (hex(offset), hex(length)))
+                    print(
+                        "        %s (%s) bytes for %s (%s) bytes"
+                        % (
+                            offset * options.clustersize,
+                            hex(offset * options.clustersize),
+                            length * options.clustersize,
+                            hex(length * options.clustersize),
+                        )
+                    )
         else:
             print("    resident: yes")
             print("    size: %d bytes" % (b.value_length()))
@@ -458,11 +476,21 @@ def print_indx_info(options):
                 print("INDX_ROOT entries:")
             someentries = True
             print("  " + e.filename_information().filename())
-            print("    " + str(e.filename_information().logical_size()) + " bytes in size")
-            print("    b " + e.filename_information().created_time().isoformat("T") + "Z")
-            print("    m " + e.filename_information().modified_time().isoformat("T") + "Z")
-            print("    c " + e.filename_information().changed_time().isoformat("T") + "Z")
-            print("    a " + e.filename_information().accessed_time().isoformat("T") + "Z")
+            print(
+                "    " + str(e.filename_information().logical_size()) + " bytes in size"
+            )
+            print(
+                "    b " + e.filename_information().created_time().isoformat("T") + "Z"
+            )
+            print(
+                "    m " + e.filename_information().modified_time().isoformat("T") + "Z"
+            )
+            print(
+                "    c " + e.filename_information().changed_time().isoformat("T") + "Z"
+            )
+            print(
+                "    a " + e.filename_information().accessed_time().isoformat("T") + "Z"
+            )
 
         if not someentries:
             print("INDX_ROOT entries: (none)")
@@ -483,15 +511,21 @@ def print_indx_info(options):
             print("Found INDX_ALLOCATION attribute")
             if attr.non_resident() != 0:
                 print("INDX_ALLOCATION is non-resident")
-                for (offset, length) in attr.runlist().runs():
+                for offset, length in attr.runlist().runs():
                     print("Cluster %s, length %s" % (hex(offset), hex(length)))
-                    print("  Using clustersize %s (%s) bytes and volume offset %s (%s) bytes: \n  %s (%s) bytes for %s (%s) bytes" % \
-                        (options.clustersize, hex(options.clustersize),
-                         options.offset, hex(options.offset),
-                         (offset * options.clustersize) + options.offset,
-                         hex((offset * options.clustersize) + options.offset),
-                         length * options.clustersize,
-                         hex(length * options.clustersize)))
+                    print(
+                        "  Using clustersize %s (%s) bytes and volume offset %s (%s) bytes: \n  %s (%s) bytes for %s (%s) bytes"
+                        % (
+                            options.clustersize,
+                            hex(options.clustersize),
+                            options.offset,
+                            hex(options.offset),
+                            (offset * options.clustersize) + options.offset,
+                            hex((offset * options.clustersize) + options.offset),
+                            length * options.clustersize,
+                            hex(length * options.clustersize),
+                        )
+                    )
                     ooff = offset * options.clustersize + options.offset
                     llen = length * options.clustersize
                     extractbuf += f.read(ooff, llen)
@@ -508,52 +542,101 @@ def print_indx_info(options):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Parse NTFS '
-                                     'filesystem structures.')
-    parser.add_argument('-t', action="store", metavar="type",
-                        nargs=1, dest="filetype",
-                        choices=["image", "MFT", "INDX", "auto"],
-                        default="auto",
-                        help="The type of data provided.")
-    parser.add_argument('-c', action="store", metavar="size",
-                        nargs=1, type=int, dest="clustersize",
-                        help="Use this cluster size in bytes "
-                        "(default 4096 bytes)")
-    parser.add_argument('-o', action="store", metavar="offset",
-                        nargs=1, type=int, dest="offset",
-                        help="Offset in bytes to volume in image "
-                        "(default 32256 bytes)")
-    parser.add_argument('-l', action="store_true", dest="indxlist",
-                        help="List file entries in INDX records")
-    parser.add_argument('-s', action="store_true", dest="slack",
-                        help="List file entries in INDX slack space")
-    parser.add_argument('-m', action="store_true", dest="mftlist",
-                        help="List file entries for active MFT records")
-    parser.add_argument('-d', action="store_true", dest="deleted",
-                        help="List file entries for MFT records "
-                        "marked as deleted")
-    parser.add_argument('-i', action="store", metavar="path|inode",
-                        nargs=1, dest="infomode",
-                        help="Print information about a path's INDX records")
-    parser.add_argument('-e', action="store", metavar="i30",
-                        nargs=1, dest="extract",
-                        help="Used with -i, extract INDX_ALLOCATION "
-                        "attribute to a file")
-    parser.add_argument('-f', action="store", metavar="regex",
-                        nargs=1, dest="filter",
-                        help="Only consider entries whose path "
-                        "matches this regular expression")
-    parser.add_argument('-p', action="store", metavar="prefix",
-                        nargs=1, dest="prefix",
-                        help="Prefix paths with `prefix` rather than \\.\\")
-    parser.add_argument('--progress', action="store_true",
-                        dest="progress",
-                        help="Update a status indicator on STDERR "
-                        "if STDOUT is redirected")
-    parser.add_argument('-v', action="store_true", dest="verbose",
-                        help="Print debugging information")
-    parser.add_argument('filename', action="store",
-                        help="Input INDX file path")
+    parser = argparse.ArgumentParser(description="Parse NTFS " "filesystem structures.")
+    parser.add_argument(
+        "-t",
+        action="store",
+        metavar="type",
+        nargs=1,
+        dest="filetype",
+        choices=["image", "MFT", "INDX", "auto"],
+        default="auto",
+        help="The type of data provided.",
+    )
+    parser.add_argument(
+        "-c",
+        action="store",
+        metavar="size",
+        nargs=1,
+        type=int,
+        dest="clustersize",
+        help="Use this cluster size in bytes " "(default 4096 bytes)",
+    )
+    parser.add_argument(
+        "-o",
+        action="store",
+        metavar="offset",
+        nargs=1,
+        type=int,
+        dest="offset",
+        help="Offset in bytes to volume in image " "(default 32256 bytes)",
+    )
+    parser.add_argument(
+        "-l",
+        action="store_true",
+        dest="indxlist",
+        help="List file entries in INDX records",
+    )
+    parser.add_argument(
+        "-s",
+        action="store_true",
+        dest="slack",
+        help="List file entries in INDX slack space",
+    )
+    parser.add_argument(
+        "-m",
+        action="store_true",
+        dest="mftlist",
+        help="List file entries for active MFT records",
+    )
+    parser.add_argument(
+        "-d",
+        action="store_true",
+        dest="deleted",
+        help="List file entries for MFT records " "marked as deleted",
+    )
+    parser.add_argument(
+        "-i",
+        action="store",
+        metavar="path|inode",
+        nargs=1,
+        dest="infomode",
+        help="Print information about a path's INDX records",
+    )
+    parser.add_argument(
+        "-e",
+        action="store",
+        metavar="i30",
+        nargs=1,
+        dest="extract",
+        help="Used with -i, extract INDX_ALLOCATION " "attribute to a file",
+    )
+    parser.add_argument(
+        "-f",
+        action="store",
+        metavar="regex",
+        nargs=1,
+        dest="filter",
+        help="Only consider entries whose path " "matches this regular expression",
+    )
+    parser.add_argument(
+        "-p",
+        action="store",
+        metavar="prefix",
+        nargs=1,
+        dest="prefix",
+        help="Prefix paths with `prefix` rather than \\.\\",
+    )
+    parser.add_argument(
+        "--progress",
+        action="store_true",
+        dest="progress",
+        help="Update a status indicator on STDERR " "if STDOUT is redirected",
+    )
+    parser.add_argument(
+        "-v", action="store_true", dest="verbose", help="Print debugging information"
+    )
+    parser.add_argument("filename", action="store", help="Input INDX file path")
 
     results = parser.parse_args()
 
@@ -576,21 +659,29 @@ def main():
 
     if results.clustersize:
         results.clustersize = results.clustersize[0]
-        info("Using explicit file system cluster size %s (%s) bytes" %
-             (str(results.clustersize), hex(results.clustersize)))
+        info(
+            "Using explicit file system cluster size %s (%s) bytes"
+            % (str(results.clustersize), hex(results.clustersize))
+        )
     else:
         results.clustersize = 4096
-        info("Assuming file system cluster size %s (%s) bytes" %
-             (str(results.clustersize), hex(results.clustersize)))
+        info(
+            "Assuming file system cluster size %s (%s) bytes"
+            % (str(results.clustersize), hex(results.clustersize))
+        )
 
     if results.offset:
         results.offset = results.offset[0]
-        info("Using explicit volume offset %s (%s) bytes" %
-             (str(results.offset), hex(results.offset)))
+        info(
+            "Using explicit volume offset %s (%s) bytes"
+            % (str(results.offset), hex(results.offset))
+        )
     else:
         results.offset = 32256
-        info("Assuming volume offset %s (%s) bytes" %
-             (str(results.offset), hex(results.offset)))
+        info(
+            "Assuming volume offset %s (%s) bytes"
+            % (str(results.offset), hex(results.offset))
+        )
 
     if results.prefix:
         results.prefix = results.prefix[0]
@@ -599,10 +690,14 @@ def main():
     if results.indxlist:
         info("Asked to list entries in INDX records")
         if results.filetype == "mft":
-            info("  Note, only resident INDX records can be processed "
-                 "with an MFT input file")
-            info("  If you find an interesting record, "
-                 "use -i to identify the relevant INDX record clusters")
+            info(
+                "  Note, only resident INDX records can be processed "
+                "with an MFT input file"
+            )
+            info(
+                "  If you find an interesting record, "
+                "use -i to identify the relevant INDX record clusters"
+            )
         elif results.filetype == "indx":
             info("  Note, only records in this INDX record will be listed")
         elif results.filetype == "image":
@@ -612,8 +707,10 @@ def main():
 
     if results.slack:
         info("Asked to list slack entries in INDX records")
-        info("  Note, this uses a scanning heuristic to identify records. "
-             "These records may be corrupt or out-of-date.")
+        info(
+            "  Note, this uses a scanning heuristic to identify records. "
+            "These records may be corrupt or out-of-date."
+        )
 
     if results.mftlist:
         info("Asked to list active file entries in the MFT")
@@ -628,48 +725,48 @@ def main():
     if results.infomode:
         results.infomode = results.infomode[0]
         info("Asked to list information about path " + results.infomode)
-        if results.indxlist or \
-           results.slack or \
-           results.mftlist or \
-           results.deleted:
-            error("Information mode (-i) cannot be run "
-                  "with file entry list modes (-l/-s/-m/-d)")
+        if results.indxlist or results.slack or results.mftlist or results.deleted:
+            error(
+                "Information mode (-i) cannot be run "
+                "with file entry list modes (-l/-s/-m/-d)"
+            )
 
         if results.extract:
             results.extract = results.extract[0]
-            info("Asked to extract INDX_ALLOCATION attribute "
-                 "for the path " + results.infomode)
+            info(
+                "Asked to extract INDX_ALLOCATION attribute "
+                "for the path " + results.infomode
+            )
 
     if results.extract and not results.infomode:
-        warning("Extract (-e) doesn't make sense "
-                "without information mode (-i)")
+        warning("Extract (-e) doesn't make sense " "without information mode (-i)")
 
     if results.extract and not results.filetype == "image":
-        error("Cannot extract non-resident attributes "
-              "from anything but an image")
+        error("Cannot extract non-resident attributes " "from anything but an image")
 
-    if not (results.indxlist or
-            results.slack or
-            results.mftlist or
-            results.deleted or
-            results.infomode):
+    if not (
+        results.indxlist
+        or results.slack
+        or results.mftlist
+        or results.deleted
+        or results.infomode
+    ):
         error("You must choose a mode (-i/-l/-s/-m/-d)")
 
     if results.filter:
         results.filter = results.filter[0]
-        info("Asked to only list file entry information "
-             "for paths matching the regular expression: " + results.filter)
+        info(
+            "Asked to only list file entry information "
+            "for paths matching the regular expression: " + results.filter
+        )
         if results.infomode:
             warning("This filter has no meaning with information mode (-i)")
 
     if results.infomode:
         print_indx_info(results)
-    elif results.indxlist or \
-         results.slack or \
-         results.mftlist or \
-         results.deleted:
+    elif results.indxlist or results.slack or results.mftlist or results.deleted:
         print_bodyfile(results)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

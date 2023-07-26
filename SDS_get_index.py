@@ -27,23 +27,24 @@ def main():
     import mmap
     import sys
 
-    parser = argparse.ArgumentParser(description='Get an SDS record by index.')
-    parser.add_argument('-v', action="store_true", dest="verbose",
-                        help="Print debugging information")
-    parser.add_argument('SDS', action="store",
-                        help="Input SDS file path")
-    parser.add_argument('index', action="store", type=int,
-                        help="Entry index to fetch")
+    parser = argparse.ArgumentParser(description="Get an SDS record by index.")
+    parser.add_argument(
+        "-v", action="store_true", dest="verbose", help="Print debugging information"
+    )
+    parser.add_argument("SDS", action="store", help="Input SDS file path")
+    parser.add_argument("index", action="store", type=int, help="Entry index to fetch")
     results = parser.parse_args()
 
-    with open(results.SDS, 'r') as f:
-        with contextlib.closing(mmap.mmap(f.fileno(), 0,
-                                          access=mmap.ACCESS_READ)) as buf:
+    with open(results.SDS, "r") as f:
+        with contextlib.closing(
+            mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+        ) as buf:
             s = SDS(buf, 0, None)
             print("SDS")
             for e in s.sds_entries():
                 print("  SDS_ENTRY")
                 print((e.get_all_string(indent=2)))
+
 
 if __name__ == "__main__":
     main()

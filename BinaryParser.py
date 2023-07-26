@@ -31,6 +31,7 @@ class Mmap(object):
     """
     Convenience class for opening a read-only memory map for a file path.
     """
+
     def __init__(self, filename):
         super(Mmap, self).__init__()
         self._filename = filename
@@ -78,9 +79,7 @@ def hex_dump(src, start_addr=0):
       data is interpreted as starting at this offset, and
       the offset column is updated accordingly.
     """
-    FILTER = ''.join([(len(repr(chr(x))) == 3) and
-                        chr(x) or
-                        '.' for x in range(256)])
+    FILTER = "".join([(len(repr(chr(x))) == 3) and chr(x) or "." for x in range(256)])
     length = 16
     result = []
 
@@ -88,30 +87,32 @@ def hex_dump(src, start_addr=0):
 
     if start_addr % length != 0:
         base_addr = start_addr - (start_addr % length)
-        num_spaces = (start_addr % length)
+        num_spaces = start_addr % length
         num_chars = length - (start_addr % length)
 
         spaces = " ".join(["  " for i in range(num_spaces)])
         s = src[0:num_chars]
-        hexa = ' '.join(["%02X" % ord(x) for x in s])
+        hexa = " ".join(["%02X" % ord(x) for x in s])
         printable = s.translate(FILTER)
 
-        result.append("%04X   %s %s   %s%s\n" %
-                      (base_addr, spaces, hexa,
-                      " " * (num_spaces + 1), printable))
+        result.append(
+            "%04X   %s %s   %s%s\n"
+            % (base_addr, spaces, hexa, " " * (num_spaces + 1), printable)
+        )
 
         src = src[num_chars:]
         remainder_start_addr = base_addr + length
 
     for i in range(0, len(src), length):
-        s = src[i:i + length]
-        hexa = ' '.join(["%02X" % ord(x) for x in s])
+        s = src[i : i + length]
+        hexa = " ".join(["%02X" % ord(x) for x in s])
         printable = s.translate(FILTER)
-        result.append("%04X   %-*s   %s\n" %
-                         (remainder_start_addr + i, length * 3,
-                          hexa, printable))
+        result.append(
+            "%04X   %-*s   %s\n"
+            % (remainder_start_addr + i, length * 3, hexa, printable)
+        )
 
-    return ''.join(result)
+    return "".join(result)
 
 
 class decoratorargs(object):
@@ -120,12 +121,13 @@ class decoratorargs(object):
             self = object.__new__(typ)
             self.__init__(orig_func, *attr_args, **attr_kwargs)
             return self
+
         return decorator
 
 
 class memoize(decoratorargs):
     class Node:
-        __slots__ = ['key', 'value', 'older', 'newer']
+        __slots__ = ["key", "value", "older", "newer"]
 
         def __init__(self, key, value, older=None, newer=None):
             self.key = key
@@ -133,9 +135,12 @@ class memoize(decoratorargs):
             self.older = older
             self.newer = newer
 
-    def __init__(self, func, capacity=1000,
-                 keyfunc=lambda *args, **kwargs: pickle.dumps((args,
-                                                                kwargs))):
+    def __init__(
+        self,
+        func,
+        capacity=1000,
+        keyfunc=lambda *args, **kwargs: pickle.dumps((args, kwargs)),
+    ):
         if not isinstance(func, property):
             self.func = func
             self.name = func.__name__
@@ -249,19 +254,19 @@ def dosdate(dosdate: bytes, dostime: bytes) -> datetime:
     t: int
 
     try:
-        t  = dosdate[1] << 8
+        t = dosdate[1] << 8
         t |= dosdate[0]
-        day   = t & 0b0000000000011111
+        day = t & 0b0000000000011111
         month = (t & 0b0000000111100000) >> 5
-        year  = (t & 0b1111111000000000) >> 9
+        year = (t & 0b1111111000000000) >> 9
         year += 1980
 
-        t  = dostime[1] << 8
+        t = dostime[1] << 8
         t |= dostime[0]
-        sec     = t & 0b0000000000011111
-        sec    *= 2
-        minute  = (t & 0b0000011111100000) >> 5
-        hour    = (t & 0b1111100000000000) >> 11
+        sec = t & 0b0000000000011111
+        sec *= 2
+        minute = (t & 0b0000011111100000) >> 5
+        hour = (t & 0b1111100000000000) >> 11
 
         return datetime(year, month, day, hour, minute, sec)
     except:
@@ -273,7 +278,7 @@ def parse_filetime(qword):
     if qword:
         try:
             return datetime.utcfromtimestamp(float(qword) * 1e-7 - 11644473600)
-        except ValueError:       
+        except ValueError:
             return datetime(1970, 1, 1, 0, 0, 0)
 
 
@@ -281,6 +286,7 @@ class BinaryParserException(Exception):
     """
     Base Exception class for binary parsing.
     """
+
     def __init__(self, value):
         """
         Constructor.
@@ -302,6 +308,7 @@ class ParseException(BinaryParserException):
     An exception to be thrown during binary parsing, such as
     when an invalid header is encountered.
     """
+
     def __init__(self, value):
         """
         Constructor.
@@ -326,8 +333,7 @@ class OverrunBufferException(ParseException):
         return "OverrunBufferException(%r)" % (self._value)
 
     def __str__(self):
-        return "Tried to parse beyond the end of the file (%s)" % \
-            (self._value)
+        return "Tried to parse beyond the end of the file (%s)" % (self._value)
 
 
 def read_byte(buf: bytes, offset: int) -> int:
@@ -380,6 +386,7 @@ class Block(object):
     Base class for structure blocks in binary parsing.
     A block is associated with a offset into a byte-string.
     """
+
     def __init__(self, buf, offset):
         """
         Constructor.
@@ -458,22 +465,28 @@ class Block(object):
             typename = type_.__name__
 
             if count == 0:
+
                 def no_class_handler():
                     return
+
                 handler = no_class_handler
             elif is_generator:
+
                 def many_class_handler():
                     ofs = offset
                     for _ in range(count):
                         r = type_(self._buf, self.absolute_offset(ofs), self)
                         ofs += len(r)
                         yield r
+
                 handler = many_class_handler
 
                 if hasattr(type_, "structure_size"):
                     ofs = offset
                     for _ in range(count):
-                        ofs += type_.structure_size(self._buf, self.absolute_offset(ofs), self)
+                        ofs += type_.structure_size(
+                            self._buf, self.absolute_offset(ofs), self
+                        )
                     self._implicit_offset = ofs
                 else:
                     ofs = offset
@@ -485,20 +498,24 @@ class Block(object):
                 # TODO(wb): this needs to cache/memoize
                 def class_handler():
                     return type_(self._buf, self.absolute_offset(offset), self)
+
                 handler = class_handler
 
                 if hasattr(type_, "structure_size"):
-                    size = type_.structure_size(self._buf, self.absolute_offset(offset), self)
+                    size = type_.structure_size(
+                        self._buf, self.absolute_offset(offset), self
+                    )
                     self._implicit_offset = offset + size
                 else:
                     temp = type_(self._buf, self.absolute_offset(offset), self)
 
                     self._implicit_offset = offset + len(temp)
         elif isinstance(type_, str):
-
             if count == 0:
+
                 def no_basic_handler():
                     return
+
                 handler = no_basic_handler
             elif is_generator:
                 # length must be in basic_sizes
@@ -508,14 +525,17 @@ class Block(object):
                     for _ in range(count):
                         yield f(ofs)
                         ofs += basic_sizes[type_]
+
                 handler = many_basic_handler
 
                 self._implicit_offset = offset + count * basic_sizes[type_]
             else:
                 if length is None:
+
                     def basic_no_length_handler():
                         f = getattr(self, "unpack_" + type_)
                         return f(offset)
+
                     handler = basic_no_length_handler
 
                     if type_ in basic_sizes:
@@ -527,13 +547,19 @@ class Block(object):
                     elif type_ == "wstring" and length is not None:
                         self._implicit_offset = offset + (2 * length)
                     elif "string" in type_ and length is None:
-                        raise ParseException("Implicit offset not supported for dynamic length strings")
+                        raise ParseException(
+                            "Implicit offset not supported for dynamic length strings"
+                        )
                     else:
-                        raise ParseException("Implicit offset not supported for type: " + type_)
+                        raise ParseException(
+                            "Implicit offset not supported for type: " + type_
+                        )
                 else:
+
                     def basic_length_handler():
                         f = getattr(self, "unpack_" + type_)
                         return f(offset, length)
+
                     handler = basic_length_handler
 
                     if type_ == "wstring":
@@ -546,15 +572,20 @@ class Block(object):
         self.add_explicit_field(offset, type_, name, length, count)
 
         try:
-            debug("(%s) %s\t@ %s\t: %s" % (type_.upper(),
-                                           name,
-                                           hex(self.absolute_offset(offset)),
-                                           str(handler())[:0x20]))
-        except ValueError: # invalid Windows timestamp
-            debug("(%s) %s\t@ %s\t: %s" % (type_.upper(),
-                                           name,
-                                           hex(self.absolute_offset(offset)),
-                                           "<<error>>"))
+            debug(
+                "(%s) %s\t@ %s\t: %s"
+                % (
+                    type_.upper(),
+                    name,
+                    hex(self.absolute_offset(offset)),
+                    str(handler())[:0x20],
+                )
+            )
+        except ValueError:  # invalid Windows timestamp
+            debug(
+                "(%s) %s\t@ %s\t: %s"
+                % (type_.upper(), name, hex(self.absolute_offset(offset)), "<<error>>")
+            )
 
     def add_explicit_field(self, offset, typename, name, length=None, count=1):
         """
@@ -574,16 +605,18 @@ class Block(object):
         @rtype: None
         @return: None
         """
-        
+
         if type(typename) == type:
             typename = typename.__name__
-        self._declared_fields.append({
+        self._declared_fields.append(
+            {
                 "offset": offset,
                 "type": typename,
                 "name": name,
                 "length": length,
                 "count": count,
-                })
+            }
+        )
 
     def get_all_string(self, indent=0):
         """
@@ -601,25 +634,41 @@ class Block(object):
             v = getattr(self, field["name"])()
             if isinstance(v, Block):
                 if hasattr(v, "string"):
-                    ret += "%s%s (%s)%s\t%s\n" % \
-                        ("  " * indent, hex(field["offset"]), field["type"], 
-                         field["name"], v.string())
+                    ret += "%s%s (%s)%s\t%s\n" % (
+                        "  " * indent,
+                        hex(field["offset"]),
+                        field["type"],
+                        field["name"],
+                        v.string(),
+                    )
                 else:
-                    ret += "%s%s (%s)%s\n" % \
-                        ("  " * indent, hex(field["offset"]), field["type"], 
-                         field["name"])
+                    ret += "%s%s (%s)%s\n" % (
+                        "  " * indent,
+                        hex(field["offset"]),
+                        field["type"],
+                        field["name"],
+                    )
                     ret += v.get_all_string(indent + 1)
             elif isinstance(v, types.GeneratorType):
-                ret += "%s%s (%s *)%s\n" % ("  " * indent, hex(field["offset"]), field["type"], field["name"],)
+                ret += "%s%s (%s *)%s\n" % (
+                    "  " * indent,
+                    hex(field["offset"]),
+                    field["type"],
+                    field["name"],
+                )
                 for i, j in enumerate(v):
                     ret += "%s[%d] (%s)\n" % ("  " * (indent + 1), i, field["type"])
                     ret += j.get_all_string(indent + 2)
             else:
                 if isinstance(v, int):
                     v = hex(v)
-                ret += "%s%s (%s)%s\t%s\n" % \
-                    ("  " * indent, hex(field["offset"]), field["type"], 
-                     field["name"],  str(v))
+                ret += "%s%s (%s)%s\t%s\n" % (
+                    "  " * indent,
+                    hex(field["offset"]),
+                    field["type"],
+                    field["name"],
+                    str(v),
+                )
         return ret
 
     def current_field_offset(self):
@@ -837,8 +886,9 @@ class Block(object):
         Throws:
         - `UnicodeDecodeError`
         """
-        return self._buf[self._offset + offset:self._offset + offset + \
-                             2 * length].decode("utf-16le")
+        return self._buf[
+            self._offset + offset : self._offset + offset + 2 * length
+        ].decode("utf-16le")
 
     def unpack_dosdate(self, offset: int) -> datetime:
         """
@@ -851,7 +901,7 @@ class Block(object):
         """
         try:
             o = self._offset + offset
-            return dosdate(self._buf[o:o + 2], self._buf[o + 2:o + 4])
+            return dosdate(self._buf[o : o + 2], self._buf[o + 2 : o + 4])
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
@@ -881,10 +931,15 @@ class Block(object):
             parts = struct.unpack_from("<WWWWWWWW", self._buf, o)
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
-        return datetime(parts[0], parts[1],
-                                 parts[3],  # skip part 2 (day of week)
-                                 parts[4], parts[5],
-                                 parts[6], parts[7])
+        return datetime(
+            parts[0],
+            parts[1],
+            parts[3],  # skip part 2 (day of week)
+            parts[4],
+            parts[5],
+            parts[6],
+            parts[7],
+        )
 
     def unpack_guid(self, offset: int) -> str:
         """
@@ -897,18 +952,33 @@ class Block(object):
         o = self._offset + offset
 
         try:
-            _bin = self._buf[o:o + 16]
+            _bin = self._buf[o : o + 16]
         except IndexError:
             raise OverrunBufferException(o, len(self._buf))
 
         # Yeah, this is ugly
         h = list(map(ord, _bin))
-        return "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x" % \
-            (h[3], h[2], h[1], h[0],
-             h[5], h[4],
-             h[7], h[6],
-             h[8], h[9],
-             h[10], h[11], h[12], h[13], h[14], h[15])
+        return (
+            "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x"
+            % (
+                h[3],
+                h[2],
+                h[1],
+                h[0],
+                h[5],
+                h[4],
+                h[7],
+                h[6],
+                h[8],
+                h[9],
+                h[10],
+                h[11],
+                h[12],
+                h[13],
+                h[14],
+                h[15],
+            )
+        )
 
     def absolute_offset(self, offset):
         """
@@ -933,6 +1003,7 @@ class Nestable(object):
     `structure_size` staticmethod.  This enables the parent Block to
     seek among its children.
     """
+
     def __init__(self, buf, offset):
         super(Nestable, self).__init__()
 

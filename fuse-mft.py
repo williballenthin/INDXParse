@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 
-
 import calendar
 import errno
 import inspect
@@ -33,14 +32,20 @@ def log(func):
     log is a decorator that logs the a function call with its
       parameters and return value.
     """
+
     def inner(*args, **kwargs):
         func_name = inspect.stack()[3][3]
         if func_name == "_wrapper":
             func_name = inspect.stack()[2][3]
         (uid, gid, pid) = fuse_get_context()
         pre = "(%s: UID=%d GID=%d PID=%d ARGS=(%s) KWARGS=(%s))" % (
-            func_name, uid, gid, pid,
-            ", ".join(map(str, list(args)[1:])), str(**kwargs))
+            func_name,
+            uid,
+            gid,
+            pid,
+            ", ".join(map(str, list(args)[1:])),
+            str(**kwargs),
+        )
         try:
             ret = func(*args, **kwargs)
             post = "  +--> %s" % (str(ret))
@@ -50,6 +55,7 @@ def log(func):
             post = "  +--> %s" % (str(e))
             sys.stderr.write("%s\n%s" % (pre, post))
             raise e
+
     return inner
 
 
@@ -59,6 +65,7 @@ class FH(object):
     Subclass it and override the get_data and get_size methods
       for specific behavior.
     """
+
     def __init__(self, fh, record):
         super(FH, self).__init__()
         self._fh = fh
@@ -85,14 +92,14 @@ class RegularFH(FH):
     """
     RegularFH is a class used to represent an open file.
     """
+
     def __init__(self, fh, record):
         super(RegularFH, self).__init__(fh, record)
 
     def get_data(self):
         data_attribute = self._record.data_attribute()
-        if data_attribute is not None and \
-           data_attribute.non_resident() == 0:
-                return data_attribute.value()
+        if data_attribute is not None and data_attribute.non_resident() == 0:
+            return data_attribute.value()
         return ""
 
     def get_size(self):
@@ -121,6 +128,7 @@ class MetaFH(FH):
     A class used to represent a virtual file containing metadata
       for a regular file.
     """
+
     def __init__(self, fh, record, path, record_buf):
         super(MetaFH, self).__init__(fh, record)
         self._path = path
@@ -157,6 +165,7 @@ class MFTFuseOperations(Operations):
     """
     MFTFuseOperations is a FUSE driver for NTFS MFT files.
     """
+
     def __init__(self, root, mfttree, buf):
         self._root = root
         self._tree = mfttree
@@ -166,9 +175,9 @@ class MFTFuseOperations(Operations):
         record_cache = Cache(1024)
         path_cache = Cache(1024)
 
-        self._enumerator = MFTEnumerator(buf,
-                             record_cache=record_cache,
-                             path_cache=path_cache)
+        self._enumerator = MFTEnumerator(
+            buf, record_cache=record_cache, path_cache=path_cache
+        )
 
     # Helpers
     # =======
@@ -214,10 +223,10 @@ class MFTFuseOperations(Operations):
 
         record = self._get_record(working_path)
         if record.is_directory():
-            mode = (stat.S_IFDIR | PERMISSION_ALL_READ)
+            mode = stat.S_IFDIR | PERMISSION_ALL_READ
             nlink = 2
         else:
-            mode = (stat.S_IFREG | PERMISSION_ALL_READ)
+            mode = stat.S_IFREG | PERMISSION_ALL_READ
             nlink = 1
 
         # TODO(wb): fix the duplication of this code with the FH classes
@@ -241,7 +250,7 @@ class MFTFuseOperations(Operations):
         return {
             "st_atime": unixtimestamp(record.standard_information().accessed_time()),
             "st_ctime": unixtimestamp(record.standard_information().changed_time()),
-            #"st_crtime": unixtimestamp(record.standard_information().created_time()),
+            # "st_crtime": unixtimestamp(record.standard_information().created_time()),
             "st_mtime": unixtimestamp(record.standard_information().modified_time()),
             "st_size": size,
             "st_uid": uid,
@@ -252,7 +261,7 @@ class MFTFuseOperations(Operations):
 
     @log
     def readdir(self, path, fh):
-        dirents = ['.', '..']
+        dirents = [".", ".."]
         record = self._get_node(path)
         dirents.extend([r.get_filename() for r in record.get_children_nodes()])
         for r in dirents:
@@ -264,10 +273,21 @@ class MFTFuseOperations(Operations):
 
     @log
     def statfs(self, path):
-        return dict((key, 0) for key in ('f_bavail', 'f_bfree',
-                                         'f_blocks', 'f_bsize', 'f_favail',
-                                         'f_ffree', 'f_files', 'f_flag',
-                                         'f_frsize', 'f_namemax'))
+        return dict(
+            (key, 0)
+            for key in (
+                "f_bavail",
+                "f_bfree",
+                "f_blocks",
+                "f_bsize",
+                "f_favail",
+                "f_ffree",
+                "f_files",
+                "f_flag",
+                "f_frsize",
+                "f_namemax",
+            )
+        )
 
     @log
     def chmod(self, path, mode):
@@ -348,7 +368,7 @@ class MFTFuseOperations(Operations):
     @log
     def read(self, path, length, offset, fh):
         txt = self._opened_files[fh].get_data().encode("utf-8")
-        return txt[offset:offset+length]
+        return txt[offset : offset + length]
 
     @log
     def flush(self, path, fh):
@@ -382,5 +402,6 @@ def main(mft_filename, mountpoint):
         handler = MFTFuseOperations(mountpoint, tree, buf)
         FUSE(handler, mountpoint, foreground=True)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
