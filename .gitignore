@@ -3,4 +3,6 @@
 *.egg-info
 *.zip
 .idea/*
+.venv.done.log
 build
+venv
