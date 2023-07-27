@@ -255,7 +255,14 @@ def print_nonresident_indx_bodyfile(options, buf, basepath=""):
 
 def print_bodyfile(options):
     if options.filetype == "mft" or options.filetype == "image":
-        f = NTFSFile(options)
+        f = NTFSFile(
+            clustersize=options.clustersize,
+            filename=options.filename,
+            filetype=options.filetype,
+            offset=options.offset,
+            prefix=options.prefix,
+            progress=options.progress,
+        )
         if options.filter:
             refilter = re.compile(options.filter)
         for record in f.record_generator():
@@ -305,7 +312,14 @@ def print_bodyfile(options):
 
 
 def print_indx_info(options):
-    f = NTFSFile(options)
+    f = NTFSFile(
+        clustersize=options.clustersize,
+        filename=options.filename,
+        filetype=options.filetype,
+        offset=options.offset,
+        prefix=options.prefix,
+        progress=options.progress,
+    )
     try:
         record_num = int(options.infomode)
         record_buf = f.mft_get_record_buf(record_num)

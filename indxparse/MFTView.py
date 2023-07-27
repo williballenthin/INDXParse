@@ -179,14 +179,12 @@ class AppModel(wx.EvtHandler):
             f.seek(0)
 
         f = NTFSFile(
-            {
-                "filename": self._filename,
-                "filetype": "mft",
-                "offset": 0,
-                "clustersize": 4096,
-                "prefix": "C:",
-                "progress": False,
-            }
+            clustersize=4096,
+            filename=self._filename,
+            filetype="mft",
+            offset=0,
+            prefix="C:",
+            progress=False,
         )
 
         class RecordConflict(Exception):
@@ -1360,14 +1358,12 @@ class MFTFileView(wx.Panel):
         rec_num = self._tree.GetPyData(item)["rec_num"]
 
         f = NTFSFile(
-            {
-                "filename": self._filename,
-                "filetype": "mft",
-                "offset": 0,
-                "clustersize": 4096,
-                "prefix": "C:",
-                "progress": False,
-            }
+            clustersize=4096,
+            filename=self._filename,
+            filetype="mft",
+            offset=0,
+            prefix="C:",
+            progress=False,
         )
 
         try:

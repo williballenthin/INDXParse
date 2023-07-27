@@ -1283,23 +1283,24 @@ class MFTRecord(FixupBlock):
 
 
 class NTFSFile:
-    def __init__(self, options):
-        if type(options) == dict:
-            self.filename = options["filename"]
-            self.filetype = options["filetype"] or "mft"
-            self.offset = options["offset"] or 0
-            self.clustersize = options["clustersize"] or 4096
-            self.mftoffset = False
-            self.prefix = options["prefix"] or None
-            self.progress = options["progress"]
-        else:
-            self.filename = options.filename
-            self.filetype = options.filetype
-            self.offset = options.offset
-            self.clustersize = options.clustersize
-            self.mftoffset = False
-            self.prefix = options.prefix
-            self.progress = options.progress
+    def __init__(
+        self,
+        *args: typing.Any,
+        clustersize: int = 4096,
+        filename: str,
+        filetype: str,
+        offset: int = 0,
+        prefix: str,
+        progress: bool = False,
+        **kwargs: typing.Any
+    ) -> None:
+        self.clustersize = clustersize
+        self.filename = filename
+        self.filetype = filetype
+        self.offset = offset
+        self.mftoffset = False
+        self.prefix = prefix or None
+        self.progress = progress
 
     # TODO calculate cluster size
 
