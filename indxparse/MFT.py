@@ -710,12 +710,23 @@ class StandardInformation(Block):
     ) -> None:
         logging.debug("STANDARD INFORMATION ATTRIBUTE at %s.", hex(offset))
         super(StandardInformation, self).__init__(buf, offset)
+
         self.declare_field("filetime", "created_time", 0x0)
+        self.created_time: typing.Callable[[], datetime]
+
         self.declare_field("filetime", "modified_time")
+        self.modified_time: typing.Callable[[], datetime]
+
         self.declare_field("filetime", "changed_time")
+        self.changed_time: typing.Callable[[], datetime]
+
         self.declare_field("filetime", "accessed_time")
+        self.accessed_time: typing.Callable[[], datetime]
+
         self.declare_field("dword", "attributes")
+
         self.declare_field("binary", "reserved", self.current_field_offset(), 0xC)
+
         # self.declare_field("dword", "owner_id", 0x30)  # Win2k+, NTFS 3.x
         # self.declare_field("dword", "security_id")  # Win2k+, NTFS 3.x
         # self.declare_field("qword", "quota_charged")  # Win2k+, NTFS 3.x
@@ -788,16 +799,21 @@ class FilenameAttribute(Block, Nestable):
         self.declare_field("qword", "mft_parent_reference", 0x0)
 
         self.declare_field("filetime", "created_time")
+        self.created_time: typing.Callable[[], datetime]
 
         self.declare_field("filetime", "modified_time")
+        self.modified_time: typing.Callable[[], datetime]
 
         self.declare_field("filetime", "changed_time")
+        self.changed_time: typing.Callable[[], datetime]
 
         self.declare_field("filetime", "accessed_time")
+        self.accessed_time: typing.Callable[[], datetime]
 
         self.declare_field("qword", "physical_size")
 
         self.declare_field("qword", "logical_size")
+        self.logical_size: typing.Callable[[], int]
 
         self.declare_field("dword", "flags")
 
@@ -809,6 +825,7 @@ class FilenameAttribute(Block, Nestable):
         self.declare_field("byte", "filename_type")
 
         self.declare_field("wstring", "filename", 0x42, self.filename_length())
+        self.filename: typing.Callable[[], str]
 
     @staticmethod
     def structure_size(
@@ -1050,6 +1067,7 @@ class Attribute(Block, Nestable):
         logging.debug("ATTRIBUTE @ %s.", hex(offset))
 
         self.declare_field("dword", "type")
+        self.type: typing.Callable[[], int]
 
         self.declare_field(
             "dword", "size"
@@ -1088,6 +1106,7 @@ class Attribute(Block, Nestable):
             self.declare_field("qword", "allocated_size")
 
             self.declare_field("qword", "data_size")
+            self.data_size: typing.Callable[[], int]
 
             self.declare_field("qword", "initialized_size")
 
@@ -1166,6 +1185,7 @@ class MFTRecord(FixupBlock):
         logging.debug("MFTRECORD @ %s.", hex(offset))
 
         self.declare_field("dword", "magic")
+        self.magic: typing.Callable[[], int]
 
         self.declare_field("word", "usa_offset")
         self.usa_offset: typing.Callable[[], int]
