@@ -1325,10 +1325,9 @@ class NTFSFile:
             is_redirected = os.fstat(0) != os.fstat(1)
             should_progress = is_redirected and self.progress
             with open(self.filename, "rb") as f:
-                record = True
                 count = start_at - 1
                 f.seek(start_at * 1024, 0)
-                while record:
+                while True:
                     # TODO(wb): this really shouldn't be here
                     if count % 100 == 0 and should_progress:
                         n = (count * 1024 * 100) / float(size)
@@ -1354,9 +1353,8 @@ class NTFSFile:
                 if not self.mftoffset:
                     self._calculate_mftoffset()
                 f.seek(self.mftoffset + (start_at * 1024))
-                record = True
                 count = start_at - 1
-                while record:
+                while True:
                     count += 1
                     buf = array.array("B", f.read(1024))
                     if not buf:
