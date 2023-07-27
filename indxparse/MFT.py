@@ -741,7 +741,7 @@ class StandardInformation(Block):
         except OverrunBufferException:
             raise StandardInformationFieldDoesNotExist("Owner ID")
 
-    def security_id(self):
+    def security_id(self) -> int:
         """
         This is an explicit method because it may not exist in OSes under Win2k
 
@@ -807,6 +807,7 @@ class FilenameAttribute(Block, Nestable):
         self.filename_length: typing.Callable[[], int]
 
         self.declare_field("byte", "filename_type")
+        self.filename_type: typing.Callable[[], int]
 
         self.declare_field("wstring", "filename", 0x42, self.filename_length())
 
@@ -1050,6 +1051,7 @@ class Attribute(Block, Nestable):
         logging.debug("ATTRIBUTE @ %s.", hex(offset))
 
         self.declare_field("dword", "type")
+        self.type: typing.Callable[[], int]
 
         self.declare_field(
             "dword", "size"
@@ -1059,8 +1061,10 @@ class Attribute(Block, Nestable):
         self.non_resident: typing.Callable[[], int]
 
         self.declare_field("byte", "name_length")
+        self.name_length: typing.Callable[[], int]
 
         self.declare_field("word", "name_offset")
+        self.name_offset: typing.Callable[[], int]
 
         self.declare_field("word", "flags")
 
@@ -1107,6 +1111,7 @@ class Attribute(Block, Nestable):
             self.declare_field(
                 "binary", "value", self.value_offset(), self.value_length()
             )
+            self.value: typing.Callable[[], array.array]
 
     @staticmethod
     def structure_size(
@@ -1127,7 +1132,7 @@ class Attribute(Block, Nestable):
         s = self.unpack_dword(self._off_size)
         return s + (8 - (s % 8))
 
-    def name(self):
+    def name(self) -> str:
         return self.unpack_wstring(self.name_offset(), self.name_length())
 
 
@@ -1180,8 +1185,10 @@ class MFTRecord(FixupBlock):
         self.declare_field("word", "link_count")
 
         self.declare_field("word", "attrs_offset")
+        self.attrs_offset: typing.Callable[[], int]
 
         self.declare_field("word", "flags")
+        self.flags: typing.Callable[[], int]
 
         self.declare_field("dword", "bytes_in_use")
         self.bytes_in_use: typing.Callable[[], int]
@@ -1201,7 +1208,7 @@ class MFTRecord(FixupBlock):
 
         self.fixup(self.usa_count(), self.usa_offset())
 
-    def attributes(self):
+    def attributes(self) -> typing.Generator[Attribute, None, None]:
         offset = self.attrs_offset()
 
         while (
@@ -1219,14 +1226,14 @@ class MFTRecord(FixupBlock):
             if a.type() == attr_type:
                 return a
 
-    def is_directory(self):
+    def is_directory(self) -> int:
         return self.flags() & MFT_RECORD_FLAGS.MFT_RECORD_IS_DIRECTORY
 
-    def is_active(self):
+    def is_active(self) -> int:
         return self.flags() & MFT_RECORD_FLAGS.MFT_RECORD_IN_USE
 
     # this a required resident attribute
-    def filename_information(self):
+    def filename_information(self) -> typing.Optional[FilenameAttribute]:
         """
         MFT Records may have more than one FN info attribute,
         each with a different type of filename (8.3, POSIX, etc.)
@@ -1252,20 +1259,21 @@ class MFTRecord(FixupBlock):
         return fn
 
     # this a required resident attribute
-    def standard_information(self):
+    def standard_information(self) -> typing.Optional[StandardInformation]:
         try:
             attr = self.attribute(ATTR_TYPE.STANDARD_INFORMATION)
             return StandardInformation(attr.value(), 0, self)
         except AttributeError:
             return None
 
-    def data_attribute(self):
+    def data_attribute(self) -> typing.Optional[Attribute]:
         """
         Returns None if the default $DATA attribute does not exist
         """
         for attr in self.attributes():
             if attr.type() == ATTR_TYPE.DATA and attr.name() == "":
                 return attr
+        return None
 
     def slack_data(self) -> bytes:
         """
@@ -1304,7 +1312,7 @@ class NTFSFile:
 
     # TODO calculate cluster size
 
-    def _calculate_mftoffset(self):
+    def _calculate_mftoffset(self) -> None:
         with open(self.filename, "rb") as f:
             f.seek(self.offset)
             f.seek(0x30, 1)  # relative
@@ -1313,7 +1321,7 @@ class NTFSFile:
             self.mftoffset = self.offset + relmftoffset * self.clustersize
             logging.debug("MFT offset is %s", hex(self.mftoffset))
 
-    def record_generator(self, start_at=0):
+    def record_generator(self, start_at=0) -> typing.Generator[MFTRecord, None, None]:
         """
         @type start_at: int
         @param start_at: the inode number to start at
@@ -1452,7 +1460,7 @@ class NTFSFile:
 
 
 class InvalidAttributeException(INDXException):
-    def __init__(self, value):
+    def __init__(self, value) -> None:
         super(InvalidAttributeException, self).__init__(value)
 
     def __str__(self):
