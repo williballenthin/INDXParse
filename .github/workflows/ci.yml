@@ -42,3 +42,5 @@ jobs:
       run: |
         pip -q install pre-commit
         pre-commit run --all-files
+    - name: Run tests
+      run: make PYTHON3=python check
