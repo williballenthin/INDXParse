@@ -21,7 +21,8 @@ PYTHON3 ?= python3
 all:
 
 .PHONY: \
-  check-mypy
+  check-mypy \
+  check-third_party
 
 .venv.done.log: \
   setup.cfg \
@@ -41,7 +42,8 @@ all:
 	touch $@
 
 check: \
-  check-mypy
+  check-mypy \
+  check-third_party
 
 check-mypy: \
   .venv.done.log
@@ -50,6 +52,14 @@ check-mypy: \
 	    indxparse/MFTINDX.py \
 	    indxparse/list_mft.py
 
+check-third_party:
+	$(MAKE) \
+	  --directory third_party \
+	  check
+
 clean:
+	@$(MAKE) \
+	  --directory third_party \
+	  clean
 	@rm -f \
 	  .venv.done.log
