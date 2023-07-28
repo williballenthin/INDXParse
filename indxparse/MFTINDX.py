@@ -657,9 +657,9 @@ def main():
     else:
         with open(results.filename, "rb") as f:
             b = f.read(1024)
-            if b[0:4] == "FILE":
+            if b[0:4] == b"FILE":
                 results.filetype = "mft"
-            elif b[0:4] == "INDX":
+            elif b[0:4] == b"INDX":
                 results.filetype = "indx"
             else:
                 results.filetype = "image"
