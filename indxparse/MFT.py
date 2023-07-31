@@ -1340,7 +1340,7 @@ class NTFSFile:
             self.mftoffset = self.offset + relmftoffset * self.clustersize
             logging.debug("MFT offset is %s", hex(self.mftoffset))
 
-    def record_generator(self, start_at=0) -> typing.Generator[MFTRecord, None, None]:
+    def record_generator(self, start_at=0) -> typing.Iterator[MFTRecord]:
         """
         @type start_at: int
         @param start_at: the inode number to start at
