@@ -1245,11 +1245,11 @@ class MFTRecord(FixupBlock):
             if a.type() == attr_type:
                 return a
 
-    def is_directory(self) -> int:
-        return self.flags() & MFT_RECORD_FLAGS.MFT_RECORD_IS_DIRECTORY
+    def is_directory(self) -> bool:
+        return bool(self.flags() & MFT_RECORD_FLAGS.MFT_RECORD_IS_DIRECTORY)
 
-    def is_active(self) -> int:
-        return self.flags() & MFT_RECORD_FLAGS.MFT_RECORD_IN_USE
+    def is_active(self) -> bool:
+        return bool(self.flags() & MFT_RECORD_FLAGS.MFT_RECORD_IN_USE)
 
     # this a required resident attribute
     def filename_information(self) -> typing.Optional[FilenameAttribute]:
