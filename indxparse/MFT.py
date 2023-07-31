@@ -1208,7 +1208,7 @@ class MFTRecord(FixupBlock):
 
         self.fixup(self.usa_count(), self.usa_offset())
 
-    def attributes(self) -> typing.Generator[Attribute, None, None]:
+    def attributes(self) -> typing.Iterator[Attribute]:
         offset = self.attrs_offset()
 
         while (
