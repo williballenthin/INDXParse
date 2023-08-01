@@ -1010,7 +1010,7 @@ class Block(object):
         """
         return self._offset + offset
 
-    def offset(self):
+    def offset(self) -> int:
         """
         Equivalent to self.absolute_offset(0x0), which is the starting
           offset of this block.
