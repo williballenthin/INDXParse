@@ -11,7 +11,7 @@ import os
 import stat
 import sys
 
-from fuse import FUSE, FuseOSError, Operations, fuse_get_context
+from fuse import FUSE, FuseOSError, Operations, fuse_get_context  # type: ignore
 
 from indxparse.BinaryParser import Mmap
 from indxparse.get_file_info import format_record

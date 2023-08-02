@@ -18,6 +18,10 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+#
+#
+#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
+#   are not subject to US Copyright.
 
 import sys
 
@@ -29,9 +33,11 @@ if sys.argv[1] == "-h":
 f = open(
     sys.argv[1], "rb"
 )  # ewfmount'd drive expected as first argument on command line
-indxBytes = "494e445828000900"  # 49 4e 44 58 28 00 09 00  "INDX( header"
+indxBytes = (
+    b"\x49\x4e\x44\x58\x28\x00\x09\x00"  # 49 4e 44 58 28 00 09 00  "INDX( header"
+)
 offset = 0  # data processed
-byteChunk = "go"  # cheap do-while
+byteChunk = b"go"  # cheap do-while
 recordsFound = 0  # for progress
 outFile = open("INDX_records.raw", "wb")  # output file
 
@@ -41,12 +47,12 @@ print(
     "\tINDX_records.raw should be parsed with INDXparser.py which can be found at:\thttps://github.com/williballenthin/INDXParse\n"
 )
 
-while byteChunk != "":
+while byteChunk != b"":
     byteChunk = f.read(
         4096
     )  # Only searching for cluster aligned (4096 on Windows Server 2003) INDX records... records all appear to be 4096 bytes
     compare = byteChunk[0:8]  # Compare INDX header to first 8 bytes of the byteChunk
-    if compare.encode("hex") == indxBytes:
+    if compare == indxBytes:
         recordsFound = recordsFound + 1
         outFile.write(byteChunk)  # Write the byteChunk to the output file
 

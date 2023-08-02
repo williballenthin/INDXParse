@@ -27,10 +27,10 @@ import array
 import re
 import sys
 
-import wx
-import wx.lib.newevent
-import wx.lib.scrolledpanel as scrolled
-from wx.lib.evtmgr import eventManager
+import wx  # type: ignore
+import wx.lib.newevent  # type: ignore
+import wx.lib.scrolledpanel as scrolled  # type: ignore
+from wx.lib.evtmgr import eventManager  # type: ignore
 
 from indxparse.MFT import (
     ATTR_TYPE,
