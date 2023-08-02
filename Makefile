@@ -49,8 +49,7 @@ check-mypy: \
   .venv.done.log
 	source venv/bin/activate \
 	  && mypy \
-	    indxparse/MFTINDX.py \
-	    indxparse/list_mft.py
+	    indxparse
 
 check-third_party:
 	$(MAKE) \
