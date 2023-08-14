@@ -381,7 +381,9 @@ def print_indx_info(options):
         if data_attr and data_attr.non_resident() > 0:
             print("  size: %d bytes" % (data_attr.data_size()))
         else:
-            print("  size: %d bytes" % (record.filename_information().logical_size()))
+            rfni = record.filename_information()
+            if rfni is not None:
+                print("  size: %d bytes" % (rfni.logical_size()))
 
     def get_flags(flags):
         attributes = []
