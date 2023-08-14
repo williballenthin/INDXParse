@@ -475,7 +475,7 @@ def print_indx_info(options):
     for b in record.attributes():
         print("  %s" % (Attribute.TYPES[b.type()]))
         print("    attribute name: %s" % (b.name() or "<none>"))
-        print("    attribute flags: " + ", ".join(get_flags(attr.flags())))
+        print("    attribute flags: " + ", ".join(get_flags(b.flags())))
         if b.non_resident() > 0:
             print("    resident: no")
             print("    data size: %d" % (b.data_size()))
