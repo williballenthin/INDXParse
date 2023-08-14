@@ -30,7 +30,7 @@ import logging
 import re
 import sys
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from indxparse.BinaryParser import OverrunBufferException
 from indxparse.MFT import (
@@ -245,7 +245,7 @@ def record_indx_entries_bodyfile(options, ntfsfile, record):
     return ret
 
 
-def try_write(s):
+def try_write(s: str) -> None:
     try:
         sys.stdout.write(s)
     except (UnicodeEncodeError, UnicodeDecodeError):
@@ -385,7 +385,7 @@ def print_indx_info(options):
             if rfni is not None:
                 print("  size: %d bytes" % (rfni.logical_size()))
 
-    def get_flags(flags):
+    def get_flags(flags) -> List[str]:
         attributes = []
         if flags & 0x01:
             attributes.append("readonly")
