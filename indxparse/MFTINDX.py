@@ -512,7 +512,7 @@ def print_indx_info(options):
     if indxroot.non_resident() != 0:
         # This shouldn't happen.
         print("INDX_ROOT attribute is non-resident")
-        for rle in indxroot.runlist().entries():
+        for rle in indxroot.runlist()._entries():
             print("Cluster %s, length %s" % (hex(rle.offset()), hex(rle.length())))
     else:
         print("INDX_ROOT attribute is resident")
