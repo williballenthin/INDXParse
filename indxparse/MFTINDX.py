@@ -30,6 +30,7 @@ import logging
 import re
 import sys
 from datetime import datetime
+from typing import Optional
 
 from indxparse.BinaryParser import OverrunBufferException
 from indxparse.MFT import (
@@ -342,13 +343,14 @@ def print_indx_info(options):
         prefix=options.prefix,
         progress=options.progress,
     )
+    record: Optional[MFTRecord] = None
     try:
         record_num = int(options.infomode)
         record_buf = f.mft_get_record_buf(record_num)
         record = MFTRecord(record_buf, 0, False)
     except ValueError:
         record = f.mft_get_record_by_path(options.infomode)
-    if not record:
+    if record is None:
         print("Did not find directory entry for " + options.infomode)
         return
     print("Found directory entry for: " + options.infomode)
