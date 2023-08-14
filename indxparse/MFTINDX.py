@@ -23,12 +23,32 @@
 #
 #
 #   Version v.1.2.0
+import argparse
+import array
 import calendar
+import logging
+import re
+import sys
+from datetime import datetime
 
-from indxparse.MFT import *
+from indxparse.BinaryParser import OverrunBufferException
+from indxparse.MFT import (
+    ATTR_TYPE,
+    MREF,
+    MSEQNO,
+    NTATTR_STANDARD_INDEX_HEADER,
+    Attribute,
+    FilenameAttribute,
+    IndexRecordHeader,
+    IndexRootHeader,
+    InvalidAttributeException,
+    MFTRecord,
+    NTFSFile,
+    StandardInformation,
+    StandardInformationFieldDoesNotExist,
+)
 
 verbose = False
-import argparse
 
 
 def information_bodyfile(path, size, inode, owner_id, info, attributes=None):
