@@ -205,8 +205,8 @@ def record_indx_entries_bodyfile(options, ntfsfile, record):
             # TODO this shouldn't happen.
             pass
         else:
-            irh = IndexRootHeader(indxroot.value(), 0, False)
-            nh = irh.node_header()
+            iroh = IndexRootHeader(indxroot.value(), 0, False)
+            nh = iroh.node_header()
             ret += node_header_bodyfile(options, nh, basepath)
     extractbuf = array.array("B")
     for attr in record.attributes():
@@ -226,19 +226,19 @@ def record_indx_entries_bodyfile(options, ntfsfile, record):
         return ret
     offset = 0
     try:
-        irh = IndexRecordHeader(extractbuf, offset, False)
+        ireh = IndexRecordHeader(extractbuf, offset, False)
     except OverrunBufferException:
         return ret
     # TODO could miss something if there is an empty, valid record at the end
-    while irh.magic() == 0x58444E49:
-        nh = irh.node_header()
+    while ireh.magic() == 0x58444E49:
+        nh = ireh.node_header()
         ret += node_header_bodyfile(options, nh, basepath)
         # TODO get this from the boot record
         offset += options.clustersize
         if offset + 4096 > len(extractbuf):  # TODO make this INDX record size
             return ret
         try:
-            irh = IndexRecordHeader(extractbuf, offset, False)
+            ireh = IndexRecordHeader(extractbuf, offset, False)
         except OverrunBufferException:
             return ret
     return ret
@@ -275,7 +275,7 @@ def print_nonresident_indx_bodyfile(options, buf, basepath=""):
 
 def print_bodyfile(options):
     if options.filetype == "mft" or options.filetype == "image":
-        f = NTFSFile(
+        ntfs_file = NTFSFile(
             clustersize=options.clustersize,
             filename=options.filename,
             filetype=options.filetype,
@@ -285,25 +285,27 @@ def print_bodyfile(options):
         )
         if options.filter:
             refilter = re.compile(options.filter)
-        for record in f.record_generator():
+        for record in ntfs_file.record_generator():
             logging.debug("Considering MFT record %s" % (record.mft_record_number()))
             try:
                 if record.magic() != 0x454C4946:
                     logging.debug("Record has a bad magic value")
                     continue
                 if options.filter:
-                    path = f.mft_record_build_path(record, {})
+                    path = ntfs_file.mft_record_build_path(record, {})
                     if not refilter.search(path):
                         logging.debug(
                             "Skipping listing path " "due to regex filter: " + path
                         )
                         continue
                 if record.is_active() and options.mftlist:
-                    try_write(record_bodyfile(f, record))
+                    try_write(record_bodyfile(ntfs_file, record))
                 if options.indxlist or options.slack:
-                    try_write(record_indx_entries_bodyfile(options, f, record))
+                    try_write(record_indx_entries_bodyfile(options, ntfs_file, record))
                 elif (not record.is_active()) and options.deleted:
-                    try_write(record_bodyfile(f, record, attributes=["deleted"]))
+                    try_write(
+                        record_bodyfile(ntfs_file, record, attributes=["deleted"])
+                    )
                 if options.filetype == "image" and (options.indxlist or options.slack):
                     extractbuf = array.array("B")
                     found_indxalloc = False
@@ -315,19 +317,19 @@ def print_bodyfile(options):
                             for offset, length in attr.runlist().runs():
                                 ooff = offset * options.clustersize + options.offset
                                 llen = length * options.clustersize
-                                extractbuf += f.read(ooff, llen)
+                                extractbuf += ntfs_file.read(ooff, llen)
                         else:
                             pass  # This shouldn't happen.
                     if found_indxalloc and len(extractbuf) > 0:
-                        path = f.mft_record_build_path(record, {})
+                        path = ntfs_file.mft_record_build_path(record, {})
                         print_nonresident_indx_bodyfile(
                             options, extractbuf, basepath=path
                         )
             except InvalidAttributeException:
                 pass
     elif options.filetype == "indx":
-        with open(options.filename, "rb") as f:
-            buf = array.array("B", f.read())
+        with open(options.filename, "rb") as fh:
+            buf = array.array("B", fh.read())
         print_nonresident_indx_bodyfile(options, buf)
 
 
@@ -449,25 +451,25 @@ def print_indx_info(options):
         if b.type() != ATTR_TYPE.FILENAME_INFORMATION:
             continue
         try:
-            attr = FilenameAttribute(b.value(), 0, record)
-            a = attr.filename_type()
+            fnattr = FilenameAttribute(b.value(), 0, record)
+            a = fnattr.filename_type()
             print("  Type: %s" % (["POSIX", "WIN32", "DOS 8.3", "WIN32 + DOS 8.3"][a]))
-            print("    name: %s" % (str(attr.filename())))
-            print("    attributes: " + ", ".join(get_flags(attr.flags())))
-            print("    logical size:  %d bytes" % (attr.logical_size()))
-            print("    physical size: %d bytes" % (attr.physical_size()))
+            print("    name: %s" % (str(fnattr.filename())))
+            print("    attributes: " + ", ".join(get_flags(fnattr.flags())))
+            print("    logical size:  %d bytes" % (fnattr.logical_size()))
+            print("    physical size: %d bytes" % (fnattr.physical_size()))
 
-            crtime = attr.created_time().isoformat("T") + "Z"
-            mtime = attr.modified_time().isoformat("T") + "Z"
-            chtime = attr.changed_time().isoformat("T") + "Z"
-            atime = attr.accessed_time().isoformat("T") + "Z"
+            crtime = fnattr.created_time().isoformat("T") + "Z"
+            mtime = fnattr.modified_time().isoformat("T") + "Z"
+            chtime = fnattr.changed_time().isoformat("T") + "Z"
+            atime = fnattr.accessed_time().isoformat("T") + "Z"
 
             print("    modified: %s" % (mtime))
             print("    accessed: %s" % (atime))
             print("    changed: %s" % (chtime))
             print("    birthed: %s" % (crtime))
-            print("    parent ref: %d" % (MREF(attr.mft_parent_reference())))
-            print("    parent seq: %d" % (MSEQNO(attr.mft_parent_reference())))
+            print("    parent ref: %d" % (MREF(fnattr.mft_parent_reference())))
+            print("    parent seq: %d" % (MSEQNO(fnattr.mft_parent_reference())))
         except ZeroDivisionError:
             continue
 
@@ -507,31 +509,41 @@ def print_indx_info(options):
     if indxroot.non_resident() != 0:
         # This shouldn't happen.
         print("INDX_ROOT attribute is non-resident")
-        for e in indxroot.runlist().entries():
-            print("Cluster %s, length %s" % (hex(e.offset()), hex(e.length())))
+        for rle in indxroot.runlist().entries():
+            print("Cluster %s, length %s" % (hex(rle.offset()), hex(rle.length())))
     else:
         print("INDX_ROOT attribute is resident")
         irh = IndexRootHeader(indxroot.value(), 0, False)
         someentries = False
-        for e in irh.node_header().entries():
+        for nhe in irh.node_header().entries():
             if not someentries:
                 print("INDX_ROOT entries:")
             someentries = True
-            print("  " + e.filename_information().filename())
+            print("  " + nhe.filename_information().filename())
             print(
-                "    " + str(e.filename_information().logical_size()) + " bytes in size"
+                "    "
+                + str(nhe.filename_information().logical_size())
+                + " bytes in size"
             )
             print(
-                "    b " + e.filename_information().created_time().isoformat("T") + "Z"
+                "    b "
+                + nhe.filename_information().created_time().isoformat("T")
+                + "Z"
             )
             print(
-                "    m " + e.filename_information().modified_time().isoformat("T") + "Z"
+                "    m "
+                + nhe.filename_information().modified_time().isoformat("T")
+                + "Z"
             )
             print(
-                "    c " + e.filename_information().changed_time().isoformat("T") + "Z"
+                "    c "
+                + nhe.filename_information().changed_time().isoformat("T")
+                + "Z"
             )
             print(
-                "    a " + e.filename_information().accessed_time().isoformat("T") + "Z"
+                "    a "
+                + nhe.filename_information().accessed_time().isoformat("T")
+                + "Z"
             )
 
         if not someentries:
@@ -546,14 +558,14 @@ def print_indx_info(options):
             print("INDX_ROOT slack entries: (none)")
         extractbuf = array.array("B")
         found_indxalloc = False
-        for attr in record.attributes():
-            if attr.type() != ATTR_TYPE.INDEX_ALLOCATION:
+        for rattr in record.attributes():
+            if rattr.type() != ATTR_TYPE.INDEX_ALLOCATION:
                 continue
             found_indxalloc = True
             print("Found INDX_ALLOCATION attribute")
-            if attr.non_resident() != 0:
+            if rattr.non_resident() != 0:
                 print("INDX_ALLOCATION is non-resident")
-                for offset, length in attr.runlist().runs():
+                for offset, length in rattr.runlist().runs():
                     print("Cluster %s, length %s" % (hex(offset), hex(length)))
                     print(
                         "  Using clustersize %s (%s) bytes and volume offset %s (%s) bytes: \n  %s (%s) bytes for %s (%s) bytes"
