@@ -419,32 +419,31 @@ def print_indx_info(options):
             attributes.append("has-view-index")
         return attributes
 
-    print(
-        "  attributes: "
-        + ", ".join(get_flags(record.standard_information().attributes()))
-    )
+    rsi = record.standard_information()
+    if rsi is None:
+        print("  SI not found")
+    else:
+        print("  attributes: " + ", ".join(get_flags(rsi.attributes())))
 
-    crtime = record.standard_information().created_time().isoformat("T") + "Z"
-    mtime = record.standard_information().modified_time().isoformat("T") + "Z"
-    chtime = record.standard_information().changed_time().isoformat("T") + "Z"
-    atime = record.standard_information().accessed_time().isoformat("T") + "Z"
+        crtime = rsi.created_time().isoformat("T") + "Z"
+        mtime = rsi.modified_time().isoformat("T") + "Z"
+        chtime = rsi.changed_time().isoformat("T") + "Z"
+        atime = rsi.accessed_time().isoformat("T") + "Z"
 
-    print("  SI modified: %s" % (mtime))
-    print("  SI accessed: %s" % (atime))
-    print("  SI changed: %s" % (chtime))
-    print("  SI birthed: %s" % (crtime))
+        print("  SI modified: %s" % (mtime))
+        print("  SI accessed: %s" % (atime))
+        print("  SI changed: %s" % (chtime))
+        print("  SI birthed: %s" % (crtime))
 
-    try:
-        # since the fields are sequential, we can handle an exception half way through here
-        #  and then ignore the remaining items. Dont have to worry about individual try/catches
-        print(
-            "  owner id (quota info): %d" % (record.standard_information().owner_id())
-        )
-        print("  security id: %d" % (record.standard_information().security_id()))
-        print("  quota charged: %d" % (record.standard_information().quota_charged()))
-        print("  USN: %d" % (record.standard_information().usn()))
-    except StandardInformationFieldDoesNotExist:
-        pass
+        try:
+            # since the fields are sequential, we can handle an exception half way through here
+            #  and then ignore the remaining items. Dont have to worry about individual try/catches
+            print("  owner id (quota info): %d" % (rsi.owner_id()))
+            print("  security id: %d" % (rsi.security_id()))
+            print("  quota charged: %d" % (rsi.quota_charged()))
+            print("  USN: %d" % (rsi.usn()))
+        except StandardInformationFieldDoesNotExist:
+            pass
 
     print("Filenames:")
     for b in record.attributes():
