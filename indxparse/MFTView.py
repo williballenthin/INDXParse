@@ -191,7 +191,7 @@ class AppModel(wx.EvtHandler):
             def __init__(self, count):
                 self.value = count
 
-        def add_node(mftfile, record):
+        def add_node(mftfile: NTFSFile, record: MFTRecord) -> None:
             """
             Add the given record to the internal list of nodes,
               adding the parent nodes as appropriate.

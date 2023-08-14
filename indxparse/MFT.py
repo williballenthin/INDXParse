@@ -797,6 +797,7 @@ class FilenameAttribute(Block, Nestable):
         super(FilenameAttribute, self).__init__(buf, offset)
 
         self.declare_field("qword", "mft_parent_reference", 0x0)
+        self.mft_parent_reference: typing.Callable[[], int]
 
         self.declare_field("filetime", "created_time")
         self.created_time: typing.Callable[[], datetime]
@@ -1200,6 +1201,7 @@ class MFTRecord(FixupBlock):
         self.declare_field("qword", "lsn")
 
         self.declare_field("word", "sequence_number")
+        self.sequence_number: typing.Callable[[], int]
 
         self.declare_field("word", "link_count")
 
@@ -1395,7 +1397,7 @@ class NTFSFile:
                     logging.debug("Yielding record %d", count)
                     yield record
 
-    def mft_get_record_buf(self, number):
+    def mft_get_record_buf(self, number: int) -> array.array:
         if self.filetype == "indx":
             return array.array("B", "")
         if self.filetype == "mft":
@@ -1410,8 +1412,11 @@ class NTFSFile:
                 f.seek(self.mftoffset)
                 f.seek(number * 1024, 1)
                 return array.array("B", f.read(1024))
+        raise ValueError(
+            "Retrieval method not defined for self.filetype = %s." % self.filetype
+        )
 
-    def mft_get_record(self, number):
+    def mft_get_record(self, number: int) -> MFTRecord:
         buf = self.mft_get_record_buf(number)
         if buf == array.array("B", ""):
             raise InvalidMFTRecordNumber(number)
@@ -1426,7 +1431,11 @@ class NTFSFile:
         + str(r.mft_record_number())
         + str(r.flags()),
     )
-    def mft_record_build_path(self, record, cycledetector=None):
+    def mft_record_build_path(
+        self,
+        record: MFTRecord,
+        cycledetector: typing.Optional[typing.Dict[int, bool]] = None,
+    ) -> str:
         if cycledetector is None:
             cycledetector = {}
         rec_num = record.mft_record_number() & 0xFFFFFFFFFFFF
