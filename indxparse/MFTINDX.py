@@ -30,7 +30,7 @@ import logging
 import re
 import sys
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional, Union
 
 from indxparse.BinaryParser import OverrunBufferException
 from indxparse.MFT import (
@@ -52,7 +52,14 @@ from indxparse.MFT import (
 verbose = False
 
 
-def information_bodyfile(path, size, inode, owner_id, info, attributes=None):
+def information_bodyfile(
+    path: str,
+    size: int,
+    inode: int,
+    owner_id: int,
+    info: Union[FilenameAttribute, StandardInformation],
+    attributes: Optional[List[str]] = None,
+) -> str:
     if not attributes:
         attributes = []
     try:
@@ -86,7 +93,9 @@ def information_bodyfile(path, size, inode, owner_id, info, attributes=None):
     )
 
 
-def record_bodyfile(ntfsfile, record, inode=None, attributes=None):
+def record_bodyfile(
+    ntfsfile: NTFSFile, record: MFTRecord, attributes: Optional[List[str]] = None
+) -> str:
     """
     Return a bodyfile formatted string for the given MFT record.
     The string contains metadata for the one file described by the record.
@@ -162,7 +171,11 @@ def record_bodyfile(ntfsfile, record, inode=None, attributes=None):
     return ret
 
 
-def node_header_bodyfile(options, node_header, basepath):
+def node_header_bodyfile(
+    options: argparse.Namespace,
+    node_header: NTATTR_STANDARD_INDEX_HEADER,
+    basepath: str,
+) -> str:
     """
     Returns a bodyfile formatted string for all INDX entries following the
     given INDX node header.
@@ -189,7 +202,11 @@ def node_header_bodyfile(options, node_header, basepath):
     return ret
 
 
-def record_indx_entries_bodyfile(options, ntfsfile, record):
+def record_indx_entries_bodyfile(
+    options: argparse.Namespace,
+    ntfsfile: NTFSFile,
+    record: MFTRecord,
+) -> str:
     """
     Returns a bodyfile formatted string for all INDX entries associated with
     the given MFT record
@@ -254,7 +271,11 @@ def try_write(s: str) -> None:
         )
 
 
-def print_nonresident_indx_bodyfile(options, buf, basepath=""):
+def print_nonresident_indx_bodyfile(
+    options: argparse.Namespace,
+    buf: array.array[Any],
+    basepath: str = "",
+) -> None:
     offset = 0
     try:
         irh = IndexRecordHeader(buf, offset, False)
@@ -274,7 +295,9 @@ def print_nonresident_indx_bodyfile(options, buf, basepath=""):
     return
 
 
-def print_bodyfile(options):
+def print_bodyfile(
+    options: argparse.Namespace,
+) -> None:
     if options.filetype == "mft" or options.filetype == "image":
         ntfs_file = NTFSFile(
             clustersize=options.clustersize,
@@ -334,7 +357,7 @@ def print_bodyfile(options):
         print_nonresident_indx_bodyfile(options, buf)
 
 
-def print_indx_info(options):
+def print_indx_info(options: argparse.Namespace) -> None:
     f = NTFSFile(
         clustersize=options.clustersize,
         filename=options.filename,
@@ -385,7 +408,7 @@ def print_indx_info(options):
             if rfni is not None:
                 print("  size: %d bytes" % (rfni.logical_size()))
 
-    def get_flags(flags) -> List[str]:
+    def get_flags(flags: int) -> List[str]:
         attributes = []
         if flags & 0x01:
             attributes.append("readonly")
@@ -598,7 +621,7 @@ def print_indx_info(options):
     return
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Parse NTFS " "filesystem structures.")
     parser.add_argument(
         "-t",
