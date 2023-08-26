@@ -1,7 +1,8 @@
 #! /usr/bin/env python
 
-#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
-#   are not subject to US Copyright.
+#   Sheldon Douglas, NIST Associate, and Alex Nelson, NIST, contributed
+#   to this file.  Contributions of NIST are not subject to US
+#   Copyright.
 
 import argparse
 import array

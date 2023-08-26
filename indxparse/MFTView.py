@@ -18,8 +18,9 @@
 #   limitations under the License.
 #
 #
-#   Alex Nelson, NIST, contributed to this file.  Contributions of NIST
-#   are not subject to US Copyright.
+#   Sheldon Douglas, NIST Associate, and Alex Nelson, NIST, contributed
+#   to this file.  Contributions of NIST are not subject to US
+#   Copyright.
 #
 #
 #   Version v.2.0.0
