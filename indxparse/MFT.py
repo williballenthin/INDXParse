@@ -599,7 +599,7 @@ class SlackIndexEntry(IndexEntry):
         """
         super(SlackIndexEntry, self).__init__(buf, offset, parent)
 
-    def is_valid(self):
+    def is_valid(self) -> bool:
         # this is a bit of a mess, but it should work
         recent_date = datetime(1990, 1, 1, 0, 0, 0)
         future_date = datetime(2025, 1, 1, 0, 0, 0)
@@ -609,19 +609,29 @@ class SlackIndexEntry(IndexEntry):
             return False
         if not fn:
             return False
-        try:
-            return (
-                fn.modified_time() > recent_date
-                and fn.accessed_time() > recent_date
-                and fn.changed_time() > recent_date
-                and fn.created_time() > recent_date
-                and fn.modified_time() < future_date
-                and fn.accessed_time() < future_date
-                and fn.changed_time() < future_date
-                and fn.created_time() < future_date
-            )
-        except ValueError:
+
+        modified_time = fn.modified_time()
+        if modified_time is None:
             return False
+        accessed_time = fn.accessed_time()
+        if accessed_time is None:
+            return False
+        changed_time = fn.changed_time()
+        if changed_time is None:
+            return False
+        created_time = fn.created_time()
+        if created_time is None:
+            return False
+        return (
+            modified_time > recent_date
+            and accessed_time > recent_date
+            and changed_time > recent_date
+            and created_time > recent_date
+            and modified_time < future_date
+            and accessed_time < future_date
+            and changed_time < future_date
+            and created_time < future_date
+        )
 
 
 class NTATTR_STANDARD_INDEX_HEADER(Block):
