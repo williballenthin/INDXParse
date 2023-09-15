@@ -488,6 +488,153 @@ class INDEX_ROOT(Block, Nestable):
         return 0x10 + len(self.index())
 
 
+class FilenameAttribute(Block, Nestable):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
+        logging.debug("FILENAME ATTRIBUTE at %s.", hex(offset))
+        super(FilenameAttribute, self).__init__(buf, offset)
+
+        self.declare_field("qword", "mft_parent_reference", 0x0)
+        self.mft_parent_reference: typing.Callable[[], int]
+
+        self.declare_field("filetime", "created_time")
+        self.created_time: typing.Callable[[], datetime]
+
+        self.declare_field("filetime", "modified_time")
+        self.modified_time: typing.Callable[[], datetime]
+
+        self.declare_field("filetime", "changed_time")
+        self.changed_time: typing.Callable[[], datetime]
+
+        self.declare_field("filetime", "accessed_time")
+        self.accessed_time: typing.Callable[[], datetime]
+
+        self.declare_field("qword", "physical_size")
+        self.physical_size: typing.Callable[[], int]
+
+        self.declare_field("qword", "logical_size")
+        self.logical_size: typing.Callable[[], int]
+
+        self.declare_field("dword", "flags")
+        self.flags: typing.Callable[[], int]
+
+        self.declare_field("dword", "reparse_value")
+
+        self.declare_field("byte", "filename_length")
+        self.filename_length: typing.Callable[[], int]
+
+        self.declare_field("byte", "filename_type")
+        self.filename_type: typing.Callable[[], int]
+
+        self.declare_field("wstring", "filename", 0x42, self.filename_length())
+        self.filename: typing.Callable[[], str]
+
+    @staticmethod
+    def structure_size(
+        buf: array.array,
+        offset,
+        parent,
+    ) -> int:
+        return 0x42 + (read_byte(buf, offset + 0x40) * 2)
+
+    def __len__(self):
+        return 0x42 + (self.filename_length() * 2)
+
+
+class IndexEntry(Block):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
+        logging.debug("INDEX ENTRY at %s.", hex(offset))
+        super(IndexEntry, self).__init__(buf, offset)
+
+        self.declare_field("qword", "mft_reference", 0x0)
+
+        self.declare_field("word", "length")
+        self.length: typing.Callable[[], int]
+
+        self.declare_field("word", "filename_information_length")
+        self.filename_information_length: typing.Callable[[], int]
+
+        self.declare_field("dword", "flags")
+
+        self.declare_field(
+            "binary",
+            "filename_information_buffer",
+            self.current_field_offset(),
+            self.filename_information_length(),
+        )
+        self._off_filename_information_buffer: int
+
+        self.declare_field(
+            "qword", "child_vcn", align(self.current_field_offset(), 0x8)
+        )
+
+    def filename_information(self) -> FilenameAttribute:
+        return FilenameAttribute(
+            self._buf, self.offset() + self._off_filename_information_buffer, self
+        )
+
+
+class SlackIndexEntry(IndexEntry):
+    def __init__(
+        self,
+        buf: array.array,
+        offset,
+        parent,
+    ) -> None:
+        """
+        Constructor.
+        Arguments:
+        - `buf`: Byte string containing NTFS INDX file
+        - `offset`: The offset into the buffer at which the block starts.
+        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block,
+            which links to this block.
+        """
+        super(SlackIndexEntry, self).__init__(buf, offset, parent)
+
+    def is_valid(self) -> bool:
+        # this is a bit of a mess, but it should work
+        recent_date = datetime(1990, 1, 1, 0, 0, 0)
+        future_date = datetime(2025, 1, 1, 0, 0, 0)
+        try:
+            fn = self.filename_information()
+        except:
+            return False
+        if not fn:
+            return False
+
+        modified_time = fn.modified_time()
+        if modified_time is None:
+            return False
+        accessed_time = fn.accessed_time()
+        if accessed_time is None:
+            return False
+        changed_time = fn.changed_time()
+        if changed_time is None:
+            return False
+        created_time = fn.created_time()
+        if created_time is None:
+            return False
+        return (
+            modified_time > recent_date
+            and accessed_time > recent_date
+            and changed_time > recent_date
+            and created_time > recent_date
+            and modified_time < future_date
+            and accessed_time < future_date
+            and changed_time < future_date
+            and created_time < future_date
+        )
+
+
 class NTATTR_STANDARD_INDEX_HEADER(Block):
     def __init__(
         self,
@@ -659,44 +806,6 @@ class INDEX_ALLOCATION(FixupBlock):
         return 0x30 + len(self.index())
 
 
-class IndexEntry(Block):
-    def __init__(
-        self,
-        buf: array.array,
-        offset,
-        parent,
-    ) -> None:
-        logging.debug("INDEX ENTRY at %s.", hex(offset))
-        super(IndexEntry, self).__init__(buf, offset)
-
-        self.declare_field("qword", "mft_reference", 0x0)
-
-        self.declare_field("word", "length")
-        self.length: typing.Callable[[], int]
-
-        self.declare_field("word", "filename_information_length")
-        self.filename_information_length: typing.Callable[[], int]
-
-        self.declare_field("dword", "flags")
-
-        self.declare_field(
-            "binary",
-            "filename_information_buffer",
-            self.current_field_offset(),
-            self.filename_information_length(),
-        )
-        self._off_filename_information_buffer: int
-
-        self.declare_field(
-            "qword", "child_vcn", align(self.current_field_offset(), 0x8)
-        )
-
-    def filename_information(self) -> FilenameAttribute:
-        return FilenameAttribute(
-            self._buf, self.offset() + self._off_filename_information_buffer, self
-        )
-
-
 class StandardInformationFieldDoesNotExist(Exception):
     def __init__(self, msg):
         self._msg = msg
@@ -790,105 +899,6 @@ class StandardInformation(Block):
             return self.unpack_dword(0x40)
         except OverrunBufferException:
             raise StandardInformationFieldDoesNotExist("USN")
-
-
-class FilenameAttribute(Block, Nestable):
-    def __init__(
-        self,
-        buf: array.array,
-        offset,
-        parent,
-    ) -> None:
-        logging.debug("FILENAME ATTRIBUTE at %s.", hex(offset))
-        super(FilenameAttribute, self).__init__(buf, offset)
-
-        self.declare_field("qword", "mft_parent_reference", 0x0)
-        self.mft_parent_reference: typing.Callable[[], int]
-
-        self.declare_field("filetime", "created_time")
-        self.created_time: typing.Callable[[], datetime]
-
-        self.declare_field("filetime", "modified_time")
-        self.modified_time: typing.Callable[[], datetime]
-
-        self.declare_field("filetime", "changed_time")
-        self.changed_time: typing.Callable[[], datetime]
-
-        self.declare_field("filetime", "accessed_time")
-        self.accessed_time: typing.Callable[[], datetime]
-
-        self.declare_field("qword", "physical_size")
-        self.physical_size: typing.Callable[[], int]
-
-        self.declare_field("qword", "logical_size")
-        self.logical_size: typing.Callable[[], int]
-
-        self.declare_field("dword", "flags")
-        self.flags: typing.Callable[[], int]
-
-        self.declare_field("dword", "reparse_value")
-
-        self.declare_field("byte", "filename_length")
-        self.filename_length: typing.Callable[[], int]
-
-        self.declare_field("byte", "filename_type")
-        self.filename_type: typing.Callable[[], int]
-
-        self.declare_field("wstring", "filename", 0x42, self.filename_length())
-        self.filename: typing.Callable[[], str]
-
-    @staticmethod
-    def structure_size(
-        buf: array.array,
-        offset,
-        parent,
-    ) -> int:
-        return 0x42 + (read_byte(buf, offset + 0x40) * 2)
-
-    def __len__(self):
-        return 0x42 + (self.filename_length() * 2)
-
-
-class SlackIndexEntry(IndexEntry):
-    def __init__(
-        self,
-        buf: array.array,
-        offset,
-        parent,
-    ) -> None:
-        """
-        Constructor.
-        Arguments:
-        - `buf`: Byte string containing NTFS INDX file
-        - `offset`: The offset into the buffer at which the block starts.
-        - `parent`: The parent NTATTR_STANDARD_INDEX_HEADER block,
-            which links to this block.
-        """
-        super(SlackIndexEntry, self).__init__(buf, offset, parent)
-
-    def is_valid(self):
-        # this is a bit of a mess, but it should work
-        recent_date = datetime(1990, 1, 1, 0, 0, 0)
-        future_date = datetime(2025, 1, 1, 0, 0, 0)
-        try:
-            fn = self.filename_information()
-        except:
-            return False
-        if not fn:
-            return False
-        try:
-            return (
-                fn.modified_time() > recent_date
-                and fn.accessed_time() > recent_date
-                and fn.changed_time() > recent_date
-                and fn.created_time() > recent_date
-                and fn.modified_time() < future_date
-                and fn.accessed_time() < future_date
-                and fn.changed_time() < future_date
-                and fn.created_time() < future_date
-            )
-        except ValueError:
-            return False
 
 
 class Runentry(Block, Nestable):
