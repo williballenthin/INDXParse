@@ -35,10 +35,14 @@ out.json: \
   $(7_ntfs_undel_dd) \
   $(top_srcdir)/.venv.done.log \
   $(top_srcdir)/indxparse/list_mft.py
-	rm -f _$@
+	rm -f __$@ _$@
 	source $(top_srcdir)/venv/bin/activate \
 	  && list_mft.py \
 	    --json \
 	    $< \
-	    > _$@
+	    > __$@
+	python3 -m json.tool \
+	  __$@ \
+	  _$@
+	rm __$@
 	mv _$@ $@
