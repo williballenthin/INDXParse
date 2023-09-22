@@ -53,7 +53,9 @@ check-mypy: \
 	source venv/bin/activate \
 	  && mypy \
 	    --strict \
-	    indxparse/MFTINDX.py
+	    indxparse/INDXFind.py \
+	    indxparse/MFTINDX.py \
+	    indxparse/__init__.py
 
 check-third_party:
 	$(MAKE) \
