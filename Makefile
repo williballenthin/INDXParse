@@ -44,6 +44,9 @@ all:
 check: \
   check-mypy \
   check-third_party
+	$(MAKE) \
+	  --directory tests \
+	  check
 
 check-mypy: \
   .venv.done.log
@@ -61,6 +64,9 @@ check-third_party:
 	  check
 
 clean:
+	@$(MAKE) \
+	  --directory tests \
+	  clean
 	@$(MAKE) \
 	  --directory third_party \
 	  clean
