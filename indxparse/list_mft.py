@@ -360,7 +360,7 @@ def main() -> None:
         template = env.from_string(results.format[0])
     if results.format_file:
         flags_count += 1
-        with open(results.format_file[0], "r") as f:
+        with open(results.format_file[0], "r", encoding="utf-8") as f:
             template = env.from_string(f.read())
     if results.json:
         flags_count += 1
