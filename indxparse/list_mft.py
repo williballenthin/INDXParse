@@ -78,16 +78,11 @@ def format_bodyfile(
     )
     if not attributes:
         attributes = []
-    # TODO, WARNING - Three timestamp fields in this function defaulted to a
-    # hard-coded 1970-01-01; but, 'created' uses MINYEAR of 1 (via
-    # datetime.datetime.min), not 1970.
-    # https://docs.python.org/3/library/datetime.html#datetime.datetime.min
-    # https://docs.python.org/3/library/datetime.html#datetime.MINYEAR
     if isinstance(info, dict):
         modified = default_int
         accessed = default_int
         changed = default_int
-        created = int(calendar.timegm(datetime.datetime.min.timetuple()))
+        created = default_int
     else:
         try:
             modified = int(calendar.timegm(info.modified_time().timetuple()))
