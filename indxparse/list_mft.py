@@ -407,9 +407,13 @@ def main() -> None:
                     return json.JSONEncoder.default(self, obj)
 
             print("[")
+            record_count = 0
             for record, record_path in enum.enumerate_paths():
+                if record_count > 0:
+                    print(",")
+                record_count += 1
                 m = make_model(record, record_path)
-                print((json.dumps(m, cls=MFTEncoder, indent=2) + ","))
+                print(json.dumps(m, cls=MFTEncoder, indent=2))
                 progress.set_current(record.inode)
             print("]")
         else:

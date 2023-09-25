@@ -44,6 +44,9 @@ all:
 check: \
   check-mypy \
   check-third_party
+	$(MAKE) \
+	  --directory tests \
+	  check
 
 check-mypy: \
   .venv.done.log
@@ -53,7 +56,9 @@ check-mypy: \
 	source venv/bin/activate \
 	  && mypy \
 	    --strict \
+	    indxparse/INDXFind.py \
 	    indxparse/MFTINDX.py \
+	    indxparse/__init__.py \
 	    indxparse/list_mft.py
 
 check-third_party:
@@ -62,6 +67,9 @@ check-third_party:
 	  check
 
 clean:
+	@$(MAKE) \
+	  --directory tests \
+	  clean
 	@$(MAKE) \
 	  --directory third_party \
 	  clean
