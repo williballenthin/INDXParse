@@ -9,6 +9,7 @@ import array
 import datetime
 import logging
 import re
+from typing import Any, Dict
 
 from jinja2 import Template
 
@@ -22,6 +23,7 @@ from indxparse.MFT import (
     FilenameAttribute,
     IndexRootHeader,
     MFTEnumerator,
+    MFTRecord,
     StandardInformationFieldDoesNotExist,
 )
 
@@ -205,7 +207,7 @@ def make_attribute_model(attr):
     return ret
 
 
-def make_model(record, path):
+def make_model(record: MFTRecord, path: str) -> Dict[str, Any]:
     active_data = record.active_data()
     slack_data = record.slack_data()
     model = {
@@ -240,10 +242,12 @@ def make_model(record, path):
         data_attr = record.data_attribute()
         if data_attr and data_attr.non_resident() > 0:
             model["size"] = data_attr.data_size()
-        elif record.filename_information() is not None:
-            model["size"] = record.filename_information().logical_size()
         else:
-            model["size"] = 0
+            filename_attr = record.filename_information()
+            if filename_attr is not None:
+                model["size"] = filename_attr.logical_size()
+            else:
+                model["size"] = 0
 
     for b in record.attributes():
         if b.type() != ATTR_TYPE.FILENAME_INFORMATION:

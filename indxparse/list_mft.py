@@ -39,8 +39,9 @@ import json
 import logging
 import sys
 import types
+from typing import Any, Dict, List, Optional, Type, Union
 
-from jinja2 import Environment
+from jinja2 import Environment, Template
 
 from indxparse.BinaryParser import Mmap
 from indxparse.get_file_info import make_model
@@ -48,41 +49,57 @@ from indxparse.MFT import (
     ATTR_TYPE,
     MREF,
     Cache,
+    FilenameAttribute,
     IndexRootHeader,
     MFTEnumerator,
+    MFTRecord,
+    StandardInformation,
     StandardInformationFieldDoesNotExist,
 )
-from indxparse.Progress import NullProgress, ProgressBarProgress
+from indxparse.Progress import NullProgress, Progress, ProgressBarProgress
 
 
-def format_bodyfile(path, size, inode, owner_id, info, attributes=None):
+def format_bodyfile(
+    path: str,
+    size: int,
+    inode: int,
+    owner_id: int,
+    info: Union[FilenameAttribute, StandardInformation, Dict[Any, Any]],
+    attributes: List[str],
+) -> str:
     """
     Format a single line of Bodyfile output.
+    Arguments:
+    - `info`: This is optionally a dictionary to handle a special case
+        for Alternate Data Streams.
     """
+    default_int = int(
+        calendar.timegm(datetime.datetime(1970, 1, 1, 0, 0, 0).timetuple())
+    )
     if not attributes:
         attributes = []
-    try:
-        modified = int(calendar.timegm(info.modified_time().timetuple()))
-    except (ValueError, AttributeError):
-        modified = int(
-            calendar.timegm(datetime.datetime(1970, 1, 1, 0, 0, 0).timetuple())
-        )
-    try:
-        accessed = int(calendar.timegm(info.accessed_time().timetuple()))
-    except (ValueError, AttributeError):
-        accessed = int(
-            calendar.timegm(datetime.datetime(1970, 1, 1, 0, 0, 0).timetuple())
-        )
-    try:
-        changed = int(calendar.timegm(info.changed_time().timetuple()))
-    except (ValueError, AttributeError):
-        changed = int(
-            calendar.timegm(datetime.datetime(1970, 1, 1, 0, 0, 0).timetuple())
-        )
-    try:
-        created = int(calendar.timegm(info.created_time().timetuple()))
-    except (ValueError, AttributeError):
-        created = int(calendar.timegm(datetime.datetime.min.timetuple()))
+    if isinstance(info, dict):
+        modified = default_int
+        accessed = default_int
+        changed = default_int
+        created = default_int
+    else:
+        try:
+            modified = int(calendar.timegm(info.modified_time().timetuple()))
+        except (ValueError, AttributeError):
+            modified = default_int
+        try:
+            accessed = int(calendar.timegm(info.accessed_time().timetuple()))
+        except (ValueError, AttributeError):
+            accessed = default_int
+        try:
+            changed = int(calendar.timegm(info.changed_time().timetuple()))
+        except (ValueError, AttributeError):
+            changed = default_int
+        try:
+            created = int(calendar.timegm(info.created_time().timetuple()))
+        except (ValueError, AttributeError):
+            created = int(calendar.timegm(datetime.datetime.min.timetuple()))
     attributes_text = ""
     if len(attributes) > 0:
         attributes_text = " (%s)" % (", ".join(attributes))
@@ -98,7 +115,9 @@ def format_bodyfile(path, size, inode, owner_id, info, attributes=None):
     )
 
 
-def output_mft_record(mft_enumerator, record, prefix):
+def output_mft_record(
+    mft_enumerator: MFTEnumerator, record: MFTRecord, prefix: str
+) -> None:
     """
     Print to STDOUT all the Bodyfile formatted lines
       associated with a single record. This includes
@@ -229,7 +248,7 @@ def output_mft_record(mft_enumerator, record, prefix):
             print("# failed to print: %s" % (list(path)))
 
 
-def unixtimestampformat(value):
+def unixtimestampformat(value: Optional[datetime.datetime]) -> int:
     """
     A custom Jinja2 filter for converting a datetime.datetime
       a UNIX timestamp integer.
@@ -239,7 +258,7 @@ def unixtimestampformat(value):
     return int(calendar.timegm(value.timetuple()))
 
 
-def get_default_template(env):
+def get_default_template(env: Environment) -> Template:
     """
     Return a Jinja2 Template instance that formats an
       MFT record into bodyfile format.
@@ -264,7 +283,7 @@ def get_default_template(env):
     )
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Parse MFT " "filesystem structures.")
     parser.add_argument(
         "-c",
@@ -336,7 +355,7 @@ def main():
         template = env.from_string(results.format[0])
     if results.format_file:
         flags_count += 1
-        with open(results.format_file[0], "rb") as f:
+        with open(results.format_file[0], "r", encoding="utf-8") as f:
             template = env.from_string(f.read())
     if results.json:
         flags_count += 1
@@ -354,6 +373,9 @@ def main():
         template = get_default_template(env)
         use_default_output = True
 
+    # Syntax note for variable holding a class reference:
+    # https://docs.python.org/3/library/typing.html#the-type-of-class-objects
+    progress_cls: Type[Progress]
     if results.progress:
         progress_cls = ProgressBarProgress
     else:
@@ -372,7 +394,7 @@ def main():
         elif results.json:
 
             class MFTEncoder(json.JSONEncoder):
-                def default(self, obj):
+                def default(self, obj: Any) -> Any:
                     if isinstance(obj, datetime.datetime):
                         return obj.isoformat("T") + "Z"
                     elif isinstance(obj, types.GeneratorType):

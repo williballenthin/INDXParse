@@ -40,7 +40,7 @@ class Mmap(object):
     Convenience class for opening a read-only memory map for a file path.
     """
 
-    def __init__(self, filename):
+    def __init__(self, filename: str) -> None:
         super(Mmap, self).__init__()
         self._filename = filename
         self._f = None

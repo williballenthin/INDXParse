@@ -556,6 +556,7 @@ class IndexEntry(Block):
         super(IndexEntry, self).__init__(buf, offset)
 
         self.declare_field("qword", "mft_reference", 0x0)
+        self.mft_reference: typing.Callable[[], int]
 
         self.declare_field("word", "length")
         self.length: typing.Callable[[], int]
@@ -1222,11 +1223,13 @@ class MFTRecord(FixupBlock):
         self.usa_count: typing.Callable[[], int]
 
         self.declare_field("qword", "lsn")
+        self.lsn: typing.Callable[[], int]
 
         self.declare_field("word", "sequence_number")
         self.sequence_number: typing.Callable[[], int]
 
         self.declare_field("word", "link_count")
+        self.link_count: typing.Callable[[], int]
 
         self.declare_field("word", "attrs_offset")
         self.attrs_offset: typing.Callable[[], int]
@@ -1545,12 +1548,12 @@ class InvalidRecordException(Exception):
 
 
 class Cache(object):
-    def __init__(self, size_limit):
+    def __init__(self, size_limit: int) -> None:
         super(Cache, self).__init__()
-        self._c = OrderedDict()
+        self._c = OrderedDict()  # type: ignore
         self._size_limit = size_limit
 
-    def insert(self, k, v):
+    def insert(self, k, v) -> None:
         """
         add a key and value to the front
         """
@@ -1597,8 +1600,12 @@ class MFTEnumerator(object):
         self._record_cache = record_cache
         self._path_cache = path_cache
 
-    def len(self):
-        return len(self._buf) / MFT_RECORD_SIZE
+    def len(self) -> int:
+        floored_result = len(self._buf) // MFT_RECORD_SIZE
+        if len(self._buf) % MFT_RECORD_SIZE == 0:
+            return floored_result
+        else:
+            return floored_result + 1
 
     def get_record_buf(self, record_num):
         """
@@ -1611,7 +1618,7 @@ class MFTEnumerator(object):
 
         return array.array("B", self._buf[start:end])
 
-    def get_record(self, record_num):
+    def get_record(self, record_num: int) -> MFTRecord:
         """
         @raises OverrunBufferException: if the record_num is beyond the end of the MFT.
         @raises InvalidRecordException: if the record appears invalid (incorrect magic header).
@@ -1628,7 +1635,7 @@ class MFTEnumerator(object):
         self._record_cache.insert(record_num, record)
         return record
 
-    def enumerate_records(self):
+    def enumerate_records(self) -> typing.Iterator[MFTRecord]:
         index = 0
         while True:
             if index == 12:  # reserved records are 12-15
@@ -1643,12 +1650,12 @@ class MFTEnumerator(object):
                 index += 1
                 continue
 
-    def enumerate_paths(self):
+    def enumerate_paths(self) -> typing.Iterator[typing.Tuple[MFTRecord, str]]:
         for record in self.enumerate_records():
             path = self.get_path(record)
             yield record, path
 
-    def get_path(self, record):
+    def get_path(self, record: MFTRecord) -> str:
         """
         @type record: MFTRecord
         @rtype: str
@@ -1661,7 +1668,7 @@ class MFTEnumerator(object):
         """
         return self._get_path_impl(record, set())
 
-    def _get_path_impl(self, record, cycledetector):
+    def _get_path_impl(self, record: MFTRecord, cycledetector: typing.Set[int]) -> str:
         """
         @type cycledetector: set of int
         @param cycledetector: A set of numbers that describe which records have been processed
