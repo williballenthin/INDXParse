@@ -21,6 +21,7 @@ top_srcdir := $(shell cd ../.. ; pwd)
 7_ntfs_undel_dd := $(top_srcdir)/third_party/7-undel-ntfs/7-ntfs-undel.dd
 
 all: \
+  out.bodyfile \
   out.json
 
 check: \
@@ -28,8 +29,20 @@ check: \
 
 clean:
 	@rm -f \
+	  *.bodyfile \
 	  *.json \
 	  _*
+
+out.bodyfile: \
+  $(7_ntfs_undel_dd) \
+  $(top_srcdir)/.venv.done.log \
+  $(top_srcdir)/indxparse/list_mft.py
+	rm -f _$@
+	source $(top_srcdir)/venv/bin/activate \
+	  && list_mft.py \
+	    $< \
+	    > _$@
+	mv _$@ $@
 
 out.json: \
   $(7_ntfs_undel_dd) \
