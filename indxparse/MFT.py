@@ -29,9 +29,9 @@ import logging
 import os
 import struct
 import sys
-import typing
 from collections import OrderedDict  # python 2.7 only
 from datetime import datetime
+from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple
 
 from indxparse.BinaryParser import (
     Block,
@@ -345,10 +345,10 @@ class INDEX_HEADER(Block, Nestable):
         super(INDEX_HEADER, self).__init__(buf, offset)
 
         self.declare_field("dword", "entries_offset", 0x0)
-        self.entries_offset: typing.Callable[[], int]
+        self.entries_offset: Callable[[], int]
 
         self.declare_field("dword", "index_length")
-        self.index_length: typing.Callable[[], int]
+        self.index_length: Callable[[], int]
 
         self.declare_field("dword", "allocated_size")
 
@@ -395,7 +395,7 @@ class INDEX(Block, Nestable):
         super(INDEX, self).__init__(buf, offset)
 
         self.declare_field(INDEX_HEADER, "header", 0x0)
-        self.header: typing.Callable[[], INDEX_HEADER]
+        self.header: Callable[[], INDEX_HEADER]
 
         self.add_explicit_field(self.header().entries_offset(), INDEX_ENTRY, "entries")
 
@@ -499,39 +499,39 @@ class FilenameAttribute(Block, Nestable):
         super(FilenameAttribute, self).__init__(buf, offset)
 
         self.declare_field("qword", "mft_parent_reference", 0x0)
-        self.mft_parent_reference: typing.Callable[[], int]
+        self.mft_parent_reference: Callable[[], int]
 
         self.declare_field("filetime", "created_time")
-        self.created_time: typing.Callable[[], datetime]
+        self.created_time: Callable[[], datetime]
 
         self.declare_field("filetime", "modified_time")
-        self.modified_time: typing.Callable[[], datetime]
+        self.modified_time: Callable[[], datetime]
 
         self.declare_field("filetime", "changed_time")
-        self.changed_time: typing.Callable[[], datetime]
+        self.changed_time: Callable[[], datetime]
 
         self.declare_field("filetime", "accessed_time")
-        self.accessed_time: typing.Callable[[], datetime]
+        self.accessed_time: Callable[[], datetime]
 
         self.declare_field("qword", "physical_size")
-        self.physical_size: typing.Callable[[], int]
+        self.physical_size: Callable[[], int]
 
         self.declare_field("qword", "logical_size")
-        self.logical_size: typing.Callable[[], int]
+        self.logical_size: Callable[[], int]
 
         self.declare_field("dword", "flags")
-        self.flags: typing.Callable[[], int]
+        self.flags: Callable[[], int]
 
         self.declare_field("dword", "reparse_value")
 
         self.declare_field("byte", "filename_length")
-        self.filename_length: typing.Callable[[], int]
+        self.filename_length: Callable[[], int]
 
         self.declare_field("byte", "filename_type")
-        self.filename_type: typing.Callable[[], int]
+        self.filename_type: Callable[[], int]
 
         self.declare_field("wstring", "filename", 0x42, self.filename_length())
-        self.filename: typing.Callable[[], str]
+        self.filename: Callable[[], str]
 
     @staticmethod
     def structure_size(
@@ -556,13 +556,13 @@ class IndexEntry(Block):
         super(IndexEntry, self).__init__(buf, offset)
 
         self.declare_field("qword", "mft_reference", 0x0)
-        self.mft_reference: typing.Callable[[], int]
+        self.mft_reference: Callable[[], int]
 
         self.declare_field("word", "length")
-        self.length: typing.Callable[[], int]
+        self.length: Callable[[], int]
 
         self.declare_field("word", "filename_information_length")
-        self.filename_information_length: typing.Callable[[], int]
+        self.filename_information_length: Callable[[], int]
 
         self.declare_field("dword", "flags")
 
@@ -647,13 +647,13 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
         super(NTATTR_STANDARD_INDEX_HEADER, self).__init__(buf, offset)
 
         self.declare_field("dword", "entry_list_start", 0x0)
-        self.entry_list_start: typing.Callable[[], int]
+        self.entry_list_start: Callable[[], int]
 
         self.declare_field("dword", "entry_list_end")
-        self.entry_list_end: typing.Callable[[], int]
+        self.entry_list_end: Callable[[], int]
 
         self.declare_field("dword", "entry_list_allocation_end")
-        self.entry_list_allocation_end: typing.Callable[[], int]
+        self.entry_list_allocation_end: Callable[[], int]
 
         self.declare_field("dword", "flags")
 
@@ -664,7 +664,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
             self.entry_list_allocation_end() - self.entry_list_start(),
         )
 
-    def entries(self) -> typing.Iterator[IndexEntry]:
+    def entries(self) -> Iterator[IndexEntry]:
         """
         A generator that returns each INDX entry associated with this node.
         """
@@ -678,7 +678,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
             offset += e.length()
             yield e
 
-    def slack_entries(self) -> typing.Iterator[SlackIndexEntry]:
+    def slack_entries(self) -> Iterator[SlackIndexEntry]:
         """
         A generator that yields INDX entries found in the slack space
         associated with this header.
@@ -736,13 +736,13 @@ class IndexRecordHeader(FixupBlock):
         super(IndexRecordHeader, self).__init__(buf, offset, parent)
 
         self.declare_field("dword", "magic", 0x0)
-        self.magic: typing.Callable[[], int]
+        self.magic: Callable[[], int]
 
         self.declare_field("word", "usa_offset")
-        self.usa_offset: typing.Callable[[], int]
+        self.usa_offset: Callable[[], int]
 
         self.declare_field("word", "usa_count")
-        self.usa_count: typing.Callable[[], int]
+        self.usa_count: Callable[[], int]
 
         self.declare_field("qword", "lsn")
 
@@ -774,10 +774,10 @@ class INDEX_ALLOCATION(FixupBlock):
         self.declare_field("dword", "magic", 0x0)
 
         self.declare_field("word", "usa_offset")
-        self.usa_offset: typing.Callable[[], int]
+        self.usa_offset: Callable[[], int]
 
         self.declare_field("word", "usa_count")
-        self.usa_count: typing.Callable[[], int]
+        self.usa_count: Callable[[], int]
 
         self.declare_field("qword", "lsn")
 
@@ -827,19 +827,19 @@ class StandardInformation(Block):
         super(StandardInformation, self).__init__(buf, offset)
 
         self.declare_field("filetime", "created_time", 0x0)
-        self.created_time: typing.Callable[[], datetime]
+        self.created_time: Callable[[], datetime]
 
         self.declare_field("filetime", "modified_time")
-        self.modified_time: typing.Callable[[], datetime]
+        self.modified_time: Callable[[], datetime]
 
         self.declare_field("filetime", "changed_time")
-        self.changed_time: typing.Callable[[], datetime]
+        self.changed_time: Callable[[], datetime]
 
         self.declare_field("filetime", "accessed_time")
-        self.accessed_time: typing.Callable[[], datetime]
+        self.accessed_time: Callable[[], datetime]
 
         self.declare_field("dword", "attributes")
-        self.attributes: typing.Callable[[], int]
+        self.attributes: Callable[[], int]
 
         self.declare_field("binary", "reserved", self.current_field_offset(), 0xC)
 
@@ -913,7 +913,7 @@ class Runentry(Block, Nestable):
         logging.debug("RUNENTRY @ %s.", hex(offset))
 
         self.declare_field("byte", "header")
-        self.header: typing.Callable[[], int]
+        self.header: Callable[[], int]
 
         self._offset_length = self.header() >> 4
         self._length_length = self.header() & 0x0F
@@ -921,12 +921,12 @@ class Runentry(Block, Nestable):
         self.declare_field(
             "binary", "length_binary", self.current_field_offset(), self._length_length
         )
-        self.length_binary: typing.Callable[[], array.array]
+        self.length_binary: Callable[[], array.array]
 
         self.declare_field(
             "binary", "offset_binary", self.current_field_offset(), self._offset_length
         )
-        self.offset_binary: typing.Callable[[], array.array]
+        self.offset_binary: Callable[[], array.array]
 
     @staticmethod
     def structure_size(
@@ -1006,7 +1006,7 @@ class Runlist(Block):
     def __len__(self):
         return sum(map(len, self._entries()))
 
-    def _entries(self, length: typing.Optional[int] = None) -> typing.List[Runentry]:
+    def _entries(self, length: Optional[int] = None) -> List[Runentry]:
         ret = []
         offset = self.offset()
         entry = Runentry(self._buf, offset, self)
@@ -1020,7 +1020,7 @@ class Runlist(Block):
             entry = Runentry(self._buf, offset, self)
         return ret
 
-    def runs(self, length=None) -> typing.Iterator[typing.Tuple[int, int]]:
+    def runs(self, length=None) -> Iterator[Tuple[int, int]]:
         """
         Yields tuples (volume offset, length).
         Recall that the entries are relative to one another
@@ -1090,23 +1090,23 @@ class Attribute(Block, Nestable):
         logging.debug("ATTRIBUTE @ %s.", hex(offset))
 
         self.declare_field("dword", "type")
-        self.type: typing.Callable[[], int]
+        self.type: Callable[[], int]
 
         self.declare_field(
             "dword", "size"
         )  # this value must rounded up to 0x8 byte alignment
 
         self.declare_field("byte", "non_resident")
-        self.non_resident: typing.Callable[[], int]
+        self.non_resident: Callable[[], int]
 
         self.declare_field("byte", "name_length")
-        self.name_length: typing.Callable[[], int]
+        self.name_length: Callable[[], int]
 
         self.declare_field("word", "name_offset")
-        self.name_offset: typing.Callable[[], int]
+        self.name_offset: Callable[[], int]
 
         self.declare_field("word", "flags")
-        self.flags: typing.Callable[[], int]
+        self.flags: Callable[[], int]
 
         self.declare_field("word", "instance")
 
@@ -1116,7 +1116,7 @@ class Attribute(Block, Nestable):
             self.declare_field("qword", "highest_vcn")
 
             self.declare_field("word", "runlist_offset")
-            self.runlist_offset: typing.Callable[[], int]
+            self.runlist_offset: Callable[[], int]
 
             self.declare_field("byte", "compression_unit")
 
@@ -1131,10 +1131,10 @@ class Attribute(Block, Nestable):
             self.declare_field("byte", "reserved5")
 
             self.declare_field("qword", "allocated_size")
-            self.allocated_size: typing.Callable[[], int]
+            self.allocated_size: Callable[[], int]
 
             self.declare_field("qword", "data_size")
-            self.data_size: typing.Callable[[], int]
+            self.data_size: Callable[[], int]
 
             self.declare_field("qword", "initialized_size")
 
@@ -1142,10 +1142,10 @@ class Attribute(Block, Nestable):
 
         else:
             self.declare_field("dword", "value_length", 0x10)
-            self.value_length: typing.Callable[[], int]
+            self.value_length: Callable[[], int]
 
             self.declare_field("word", "value_offset")
-            self.value_offset: typing.Callable[[], int]
+            self.value_offset: Callable[[], int]
 
             self.declare_field("byte", "value_flags")
 
@@ -1154,7 +1154,7 @@ class Attribute(Block, Nestable):
             self.declare_field(
                 "binary", "value", self.value_offset(), self.value_length()
             )
-            self.value: typing.Callable[[], array.array]
+            self.value: Callable[[], array.array]
 
     @staticmethod
     def structure_size(
@@ -1214,31 +1214,31 @@ class MFTRecord(FixupBlock):
         logging.debug("MFTRECORD @ %s.", hex(offset))
 
         self.declare_field("dword", "magic")
-        self.magic: typing.Callable[[], int]
+        self.magic: Callable[[], int]
 
         self.declare_field("word", "usa_offset")
-        self.usa_offset: typing.Callable[[], int]
+        self.usa_offset: Callable[[], int]
 
         self.declare_field("word", "usa_count")
-        self.usa_count: typing.Callable[[], int]
+        self.usa_count: Callable[[], int]
 
         self.declare_field("qword", "lsn")
-        self.lsn: typing.Callable[[], int]
+        self.lsn: Callable[[], int]
 
         self.declare_field("word", "sequence_number")
-        self.sequence_number: typing.Callable[[], int]
+        self.sequence_number: Callable[[], int]
 
         self.declare_field("word", "link_count")
-        self.link_count: typing.Callable[[], int]
+        self.link_count: Callable[[], int]
 
         self.declare_field("word", "attrs_offset")
-        self.attrs_offset: typing.Callable[[], int]
+        self.attrs_offset: Callable[[], int]
 
         self.declare_field("word", "flags")
-        self.flags: typing.Callable[[], int]
+        self.flags: Callable[[], int]
 
         self.declare_field("dword", "bytes_in_use")
-        self.bytes_in_use: typing.Callable[[], int]
+        self.bytes_in_use: Callable[[], int]
 
         self.declare_field("dword", "bytes_allocated")
 
@@ -1249,13 +1249,13 @@ class MFTRecord(FixupBlock):
         self.declare_field("word", "reserved")
 
         self.declare_field("dword", "mft_record_number")
-        self.mft_record_number: typing.Callable[[], int]
+        self.mft_record_number: Callable[[], int]
 
         self.inode = inode or self.mft_record_number()
 
         self.fixup(self.usa_count(), self.usa_offset())
 
-    def attributes(self) -> typing.Iterator[Attribute]:
+    def attributes(self) -> Iterator[Attribute]:
         offset = self.attrs_offset()
 
         while (
@@ -1268,7 +1268,7 @@ class MFTRecord(FixupBlock):
             offset += len(a)
             yield a
 
-    def attribute(self, attr_type) -> typing.Optional[Attribute]:
+    def attribute(self, attr_type) -> Optional[Attribute]:
         for a in self.attributes():
             if a.type() == attr_type:
                 return a
@@ -1281,7 +1281,7 @@ class MFTRecord(FixupBlock):
         return bool(self.flags() & MFT_RECORD_FLAGS.MFT_RECORD_IN_USE)
 
     # this a required resident attribute
-    def filename_information(self) -> typing.Optional[FilenameAttribute]:
+    def filename_information(self) -> Optional[FilenameAttribute]:
         """
         MFT Records may have more than one FN info attribute,
         each with a different type of filename (8.3, POSIX, etc.)
@@ -1307,7 +1307,7 @@ class MFTRecord(FixupBlock):
         return fn
 
     # this a required resident attribute
-    def standard_information(self) -> typing.Optional[StandardInformation]:
+    def standard_information(self) -> Optional[StandardInformation]:
         try:
             attr = self.attribute(ATTR_TYPE.STANDARD_INFORMATION)
             if attr is None:
@@ -1316,7 +1316,7 @@ class MFTRecord(FixupBlock):
         except AttributeError:
             return None
 
-    def data_attribute(self) -> typing.Optional[Attribute]:
+    def data_attribute(self) -> Optional[Attribute]:
         """
         Returns None if the default $DATA attribute does not exist
         """
@@ -1343,14 +1343,14 @@ class MFTRecord(FixupBlock):
 class NTFSFile:
     def __init__(
         self,
-        *args: typing.Any,
+        *args: Any,
         clustersize: int = 4096,
         filename: str,
         filetype: str,
         offset: int = 0,
         prefix: str,
         progress: bool = False,
-        **kwargs: typing.Any
+        **kwargs: Any
     ) -> None:
         self.clustersize = clustersize
         self.filename = filename
@@ -1371,7 +1371,7 @@ class NTFSFile:
             self.mftoffset = self.offset + relmftoffset * self.clustersize
             logging.debug("MFT offset is %s", hex(self.mftoffset))
 
-    def record_generator(self, start_at=0) -> typing.Iterator[MFTRecord]:
+    def record_generator(self, start_at=0) -> Iterator[MFTRecord]:
         """
         @type start_at: int
         @param start_at: the inode number to start at
@@ -1463,7 +1463,7 @@ class NTFSFile:
     def mft_record_build_path(
         self,
         record: MFTRecord,
-        cycledetector: typing.Optional[typing.Dict[int, bool]] = None,
+        cycledetector: Optional[Dict[int, bool]] = None,
     ) -> str:
         if cycledetector is None:
             cycledetector = {}
@@ -1492,7 +1492,7 @@ class NTFSFile:
         cycledetector[rec_num] = True
         return self.mft_record_build_path(parent, cycledetector) + "\\" + fn.filename()
 
-    def mft_get_record_by_path(self, path) -> typing.Optional[MFTRecord]:
+    def mft_get_record_by_path(self, path) -> Optional[MFTRecord]:
         # TODO could optimize here by trying to use INDX buffers
         # and actually walk through the FS
         count = -1
@@ -1635,7 +1635,7 @@ class MFTEnumerator(object):
         self._record_cache.insert(record_num, record)
         return record
 
-    def enumerate_records(self) -> typing.Iterator[MFTRecord]:
+    def enumerate_records(self) -> Iterator[MFTRecord]:
         index = 0
         while True:
             if index == 12:  # reserved records are 12-15
@@ -1650,7 +1650,7 @@ class MFTEnumerator(object):
                 index += 1
                 continue
 
-    def enumerate_paths(self) -> typing.Iterator[typing.Tuple[MFTRecord, str]]:
+    def enumerate_paths(self) -> Iterator[Tuple[MFTRecord, str]]:
         for record in self.enumerate_records():
             path = self.get_path(record)
             yield record, path
@@ -1668,7 +1668,7 @@ class MFTEnumerator(object):
         """
         return self._get_path_impl(record, set())
 
-    def _get_path_impl(self, record: MFTRecord, cycledetector: typing.Set[int]) -> str:
+    def _get_path_impl(self, record: MFTRecord, cycledetector: Set[int]) -> str:
         """
         @type cycledetector: set of int
         @param cycledetector: A set of numbers that describe which records have been processed
@@ -1770,7 +1770,7 @@ class MFTTree(object):
     ) -> None:
         super(MFTTree, self).__init__()
         self._buf = buf
-        self._nodes: typing.Dict[int, MFTTreeNode] = {}  # array of MFTTreeNodes
+        self._nodes: Dict[int, MFTTreeNode] = {}  # array of MFTTreeNodes
 
     def _add_record(self, mft_enumerator, record):
         record_num = record.mft_record_number()
