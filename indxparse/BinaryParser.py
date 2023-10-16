@@ -29,8 +29,8 @@ import pickle
 import struct
 import sys
 import types
-import typing
 from datetime import datetime
+from typing import Dict, List, Union
 
 verbose = False
 
@@ -416,9 +416,7 @@ class Block(object):
         self._implicit_offset = 0
         # list of dict(offset:number, type:string, name:string,
         #              length:number, count:number)
-        self._declared_fields: typing.List[
-            typing.Dict[str, typing.Union[str, int]]
-        ] = []
+        self._declared_fields: List[Dict[str, Union[str, int]]] = []
 
     def __repr__(self):
         return "Block(buf=%r, offset=%r)" % (self._buf, self._offset)
