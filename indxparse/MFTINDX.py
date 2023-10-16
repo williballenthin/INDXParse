@@ -846,18 +846,18 @@ def main() -> None:
     if results.mftlist:
         logging.info("Asked to list active file entries in the MFT")
         if results.filetype == "indx":
-            logging.error("Cannot list MFT entries of an INDX record")
+            raise ValueError("Cannot list MFT entries of an INDX record")
 
     if results.deleted:
         logging.info("Asked to list deleted file entries in the MFT")
         if results.filetype == "indx":
-            logging.error("Cannot list MFT entries of an INDX record")
+            raise ValueError("Cannot list MFT entries of an INDX record")
 
     if results.infomode:
         results.infomode = results.infomode[0]
         logging.info("Asked to list information about path " + results.infomode)
         if results.indxlist or results.slack or results.mftlist or results.deleted:
-            logging.error(
+            raise ValueError(
                 "Information mode (-i) cannot be run "
                 "with file entry list modes (-l/-s/-m/-d)"
             )
@@ -875,7 +875,7 @@ def main() -> None:
         )
 
     if results.extract and not results.filetype == "image":
-        logging.error(
+        raise ValueError(
             "Cannot extract non-resident attributes " "from anything but an image"
         )
 
@@ -886,7 +886,7 @@ def main() -> None:
         or results.deleted
         or results.infomode
     ):
-        logging.error("You must choose a mode (-i/-l/-s/-m/-d)")
+        raise ValueError("You must choose a mode (-i/-l/-s/-m/-d)")
 
     if results.filter_pattern:
         results.filter_pattern = results.filter_pattern[0]
