@@ -276,7 +276,7 @@ def make_model(record: MFTRecord, path: str) -> Dict[str, Any]:
     return model
 
 
-def format_record(record, path):
+def format_record(record: MFTRecord, path: str) -> str:
     template = Template(
         """\
 MFT Record: {{ record.inode }}
