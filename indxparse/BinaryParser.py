@@ -1054,7 +1054,7 @@ class Nestable(object):
         @rtype: int
         @return The length of the Block starting at the given location.
         """
-        raise NotImplemented
+        raise NotImplementedError
 
     def __len__(self):
         """
@@ -1065,4 +1065,4 @@ class Nestable(object):
         @rtype: int
         @return The length of this Block in bytes.
         """
-        raise NotImplemented
+        raise NotImplementedError
