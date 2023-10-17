@@ -16,41 +16,31 @@
 
 SHELL := /bin/bash
 
+top_srcdir := $(shell cd ../.. ; pwd)
+
+7_ntfs_undel_dd_mft := $(top_srcdir)/third_party/7-ntfs-undel.dd.mft
+
 all: \
-  all-console_scripts
+  7-ntfs-undel.dd.mft.txt
 
-.PHONY: \
-  all-console_scripts \
-  all-list_mft \
-  all-tree_mft
-
-# TODO: This list of unimplemented tests lines up with setup.cfg.
-# * all-INDXParse
-# * all-MFTINDX
-# * all-MFTView
-# * all-SDS_get_index
-# * all-extract_mft_record_slack
-# * all-fuse-mft
-# * all-get_file_info
-all-console_scripts: \
-  all-list_mft \
-  all-tree_mft
-
-all-list_mft:
-	$(MAKE) \
-	  --directory list_mft
-
-all-tree_mft:
-	$(MAKE) \
-	  --directory tree_mft
+7-ntfs-undel.dd.mft.txt: \
+  $(7_ntfs_undel_dd_mft) \
+  $(top_srcdir)/.venv.done.log \
+  $(top_srcdir)/indxparse/BinaryParser.py \
+  $(top_srcdir)/indxparse/MFT.py \
+  $(top_srcdir)/indxparse/Progress.py \
+  $(top_srcdir)/indxparse/tree_mft.py
+	rm -f _$@
+	source $(top_srcdir)/venv/bin/activate \
+	  && tree_mft.py \
+	    $< \
+	    > _$@
+	mv _$@ $@
 
 check: \
   all
 
 clean:
-	@$(MAKE) \
-	  --directory tree_mft \
-	  clean
-	@$(MAKE) \
-	  --directory list_mft \
-	  clean
+	@rm -f \
+	  *.txt \
+	  _*

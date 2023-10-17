@@ -20,20 +20,15 @@ top_srcdir := $(shell cd ../.. ; pwd)
 
 7_ntfs_undel_dd := $(top_srcdir)/third_party/7-undel-ntfs/7-ntfs-undel.dd
 
+7_ntfs_undel_dd_mft := $(top_srcdir)/third_party/7-ntfs-undel.dd.mft
+
 all: \
-  out.bodyfile \
-  out.json
+  7-ntfs-undel.dd.bodyfile \
+  7-ntfs-undel.dd.json \
+  7-ntfs-undel.dd.mft.bodyfile \
+  7-ntfs-undel.dd.mft.json
 
-check: \
-  all
-
-clean:
-	@rm -f \
-	  *.bodyfile \
-	  *.json \
-	  _*
-
-out.bodyfile: \
+7-ntfs-undel.dd.bodyfile: \
   $(7_ntfs_undel_dd) \
   $(top_srcdir)/.venv.done.log \
   $(top_srcdir)/indxparse/list_mft.py
@@ -44,7 +39,7 @@ out.bodyfile: \
 	    > _$@
 	mv _$@ $@
 
-out.json: \
+7-ntfs-undel.dd.json: \
   $(7_ntfs_undel_dd) \
   $(top_srcdir)/.venv.done.log \
   $(top_srcdir)/indxparse/list_mft.py
@@ -59,3 +54,39 @@ out.json: \
 	  _$@
 	rm __$@
 	mv _$@ $@
+
+7-ntfs-undel.dd.mft.bodyfile: \
+  $(7_ntfs_undel_dd_mft) \
+  $(top_srcdir)/.venv.done.log \
+  $(top_srcdir)/indxparse/list_mft.py
+	rm -f _$@
+	source $(top_srcdir)/venv/bin/activate \
+	  && list_mft.py \
+	    $< \
+	    > _$@
+	mv _$@ $@
+
+7-ntfs-undel.dd.mft.json: \
+  $(7_ntfs_undel_dd_mft) \
+  $(top_srcdir)/.venv.done.log \
+  $(top_srcdir)/indxparse/list_mft.py
+	rm -f __$@ _$@
+	source $(top_srcdir)/venv/bin/activate \
+	  && list_mft.py \
+	    --json \
+	    $< \
+	    > __$@
+	python3 -m json.tool \
+	  __$@ \
+	  _$@
+	rm __$@
+	mv _$@ $@
+
+check: \
+  all
+
+clean:
+	@rm -f \
+	  *.bodyfile \
+	  *.json \
+	  _*

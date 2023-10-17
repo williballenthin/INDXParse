@@ -1,0 +1,23 @@
+\.
+  $MFT
+  $MFTMirr
+  $LogFile
+  $Volume
+  $AttrDef
+  $Bitmap
+  $Boot
+  $BadClus
+  $Secure
+  $UpCase
+  $Extend
+    $Quota
+    $ObjId
+    $Reparse
+  System Volume Information
+    tracking.log
+  frag1.dat
+  frag2.dat
+  sing1.dat
+  mult1.dat
+  dir1
+  res1.dat
