@@ -623,7 +623,7 @@ class Block(object):
         @return: None
         """
 
-        if type(typename) == type:
+        if isinstance(typename, type):
             typename = typename.__name__
         self._declared_fields.append(
             {
