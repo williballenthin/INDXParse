@@ -277,7 +277,7 @@ def dosdate(dosdate: array.array, dostime: array.array) -> datetime:
         hour = (t & 0b1111100000000000) >> 11
 
         return datetime(year, month, day, hour, minute, sec)
-    except:
+    except ValueError:
         return datetime.min
 
 

@@ -241,7 +241,7 @@ class MFT_INDEX_ENTRY(Block, Nestable):
         future_date = datetime(2025, 1, 1, 0, 0, 0)
         try:
             fn = self.filename_information()
-        except:
+        except Exception:
             return False
         if not fn:
             return False
@@ -607,7 +607,7 @@ class SlackIndexEntry(IndexEntry):
         future_date = datetime(2025, 1, 1, 0, 0, 0)
         try:
             fn = self.filename_information()
-        except:
+        except Exception:
             return False
         if not fn:
             return False
