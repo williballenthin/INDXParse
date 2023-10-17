@@ -479,8 +479,6 @@ class Block(object):
             if not issubclass(type_, Nestable):
                 raise TypeError("Invalid nested structure")
 
-            typename = type_.__name__
-
             if count == 0:
 
                 def no_class_handler():
