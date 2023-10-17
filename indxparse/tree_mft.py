@@ -4,12 +4,10 @@
 #   are not subject to US Copyright.
 
 import argparse
-import calendar
 import logging
 import mmap
-from datetime import datetime
 
-from indxparse.MFT import Cache, MFTEnumerator, MFTTree, MFTTreeNode
+from indxparse.MFT import Cache, MFTTree, MFTTreeNode
 
 
 class Mmap(object):
