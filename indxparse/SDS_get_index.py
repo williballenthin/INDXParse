@@ -30,7 +30,6 @@ def main():
     import argparse
     import contextlib
     import mmap
-    import sys
 
     parser = argparse.ArgumentParser(description="Get an SDS record by index.")
     parser.add_argument(

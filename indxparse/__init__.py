@@ -3,4 +3,12 @@
 
 __version__ = "1.1.9"
 
-from . import MFT, SDS, BinaryParser, FileMap, Progress, SortedCollection, get_file_info
+from . import (  # noqa: F401
+    MFT,
+    SDS,
+    BinaryParser,
+    FileMap,
+    Progress,
+    SortedCollection,
+    get_file_info,
+)

@@ -6,7 +6,6 @@
 import sys
 from collections import OrderedDict
 from struct import calcsize
-from struct import unpack_from as old_unpack
 from struct import unpack_from as old_unpack_from
 
 # From: http://code.activestate.com/recipes/577197-sortedcollection/
@@ -445,17 +444,6 @@ def unpack_from(fmt, buffer, off=0):
     size = calcsize(fmt)
     buf = buffer[off : off + size]
     return old_unpack_from(fmt, buf, 0x0)
-
-
-def unpack(fmt, string):
-    """
-    Like the shimmed unpack_from, but for struct.unpack.
-    """
-    if not isinstance(buffer, FileMap):
-        return old_unpack(fmt, string)
-    size = calcsize(fmt)
-    buf = string[:size]
-    return old_unpack(fmt, buf, 0x0)
 
 
 def struct_test():
