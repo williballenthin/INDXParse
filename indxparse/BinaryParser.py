@@ -277,7 +277,7 @@ def dosdate(dosdate: array.array, dostime: array.array) -> datetime:
         hour = (t & 0b1111100000000000) >> 11
 
         return datetime(year, month, day, hour, minute, sec)
-    except:
+    except ValueError:
         return datetime.min
 
 
@@ -479,8 +479,6 @@ class Block(object):
             if not issubclass(type_, Nestable):
                 raise TypeError("Invalid nested structure")
 
-            typename = type_.__name__
-
             if count == 0:
 
                 def no_class_handler():
@@ -623,7 +621,7 @@ class Block(object):
         @return: None
         """
 
-        if type(typename) == type:
+        if isinstance(typename, type):
             typename = typename.__name__
         self._declared_fields.append(
             {
@@ -1054,7 +1052,7 @@ class Nestable(object):
         @rtype: int
         @return The length of the Block starting at the given location.
         """
-        raise NotImplemented
+        raise NotImplementedError
 
     def __len__(self):
         """
@@ -1065,4 +1063,4 @@ class Nestable(object):
         @rtype: int
         @return The length of this Block in bytes.
         """
-        raise NotImplemented
+        raise NotImplementedError

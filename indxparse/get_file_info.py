@@ -9,6 +9,7 @@ import array
 import datetime
 import logging
 import re
+from string import printable
 from typing import Any, Dict
 
 from jinja2 import Template
@@ -27,7 +28,7 @@ from indxparse.MFT import (
     StandardInformationFieldDoesNotExist,
 )
 
-ASCII_BYTE = b" !\"#\$%&'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~"
+ASCII_BYTE: bytes = printable.encode("ascii")
 
 
 def ascii_strings(buf, n=4):
@@ -275,7 +276,7 @@ def make_model(record: MFTRecord, path: str) -> Dict[str, Any]:
     return model
 
 
-def format_record(record, path):
+def format_record(record: MFTRecord, path: str) -> str:
     template = Template(
         """\
 MFT Record: {{ record.inode }}

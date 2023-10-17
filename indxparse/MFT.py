@@ -241,7 +241,7 @@ class MFT_INDEX_ENTRY(Block, Nestable):
         future_date = datetime(2025, 1, 1, 0, 0, 0)
         try:
             fn = self.filename_information()
-        except:
+        except Exception:
             return False
         if not fn:
             return False
@@ -607,7 +607,7 @@ class SlackIndexEntry(IndexEntry):
         future_date = datetime(2025, 1, 1, 0, 0, 0)
         try:
             fn = self.filename_information()
-        except:
+        except Exception:
             return False
         if not fn:
             return False
@@ -1656,7 +1656,7 @@ class MFTEnumerator(object):
             yield record, path
 
     def get_path(self, record: MFTRecord) -> str:
-        """
+        r"""
         @type record: MFTRecord
         @rtype: str
         @return: A string containing the path of the given record. It will begin with the first
@@ -1780,7 +1780,7 @@ class MFTTree(object):
 
         if record_num == ROOT_INDEX:
             self._nodes[ROOT_INDEX] = MFTTreeNode(
-                self._nodes, ROOT_INDEX, "\.", ROOT_INDEX
+                self._nodes, ROOT_INDEX, r"\.", ROOT_INDEX
             )
             return
 

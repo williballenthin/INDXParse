@@ -15,7 +15,7 @@ from fuse import FUSE, FuseOSError, Operations, fuse_get_context  # type: ignore
 
 from indxparse.BinaryParser import Mmap
 from indxparse.get_file_info import format_record
-from indxparse.MFT import Cache, MFTEnumerator, MFTTree
+from indxparse.MFT import Cache, MFTEnumerator, MFTRecord, MFTTree
 from indxparse.Progress import ProgressBarProgress
 
 PERMISSION_ALL_READ = int("444", 8)
@@ -116,7 +116,7 @@ class RegularFH(FH):
             return self._record.standard_information.logical_size()
 
 
-def get_meta_for_file(record, path):
+def get_meta_for_file(record: MFTRecord, path: str) -> str:
     """
     Given an MFT record, print out metadata about the relevant file.
     @type record: MFT.MFTRecord
@@ -238,7 +238,8 @@ class MFTFuseOperations(Operations):
             (working_path, special) = explode_special_file(path)
             if special == "meta":
                 node = self._get_node(working_path)
-                record_buf = self._enumerator.get_record_buf(node.get_record_number())
+                # TODO - Check to see if anything further in the control flow relies on a side-effect of this call.
+                _ = self._enumerator.get_record_buf(node.get_record_number())
                 size = len(get_meta_for_file(record, working_path))
         else:
             data_attribute = record.data_attribute()
