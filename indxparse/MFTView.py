@@ -27,6 +27,7 @@
 import array
 import re
 import sys
+from string import printable
 
 import wx  # type: ignore
 import wx.lib.newevent  # type: ignore
@@ -665,7 +666,7 @@ class RecordPane(scrolled.ScrolledPanel):
         print("Warning: Unbound Record Pane update")
 
 
-ascii_byte = " !\"#\$%&'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~"
+ascii_byte: str = printable
 
 
 def ascii_strings(buf, n=4):
