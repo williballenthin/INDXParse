@@ -1711,7 +1711,8 @@
             }
         ],
         "active_ascii_strings": [
-            "FILE0"
+            "FILE0",
+            ".\n?E"
         ],
         "active_unicode_strings": [
             "$Secure",
