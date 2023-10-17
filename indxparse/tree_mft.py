@@ -9,7 +9,7 @@ import logging
 import mmap
 from datetime import datetime
 
-from indxparse.MFT import Cache, MFTEnumerator, MFTTree
+from indxparse.MFT import Cache, MFTEnumerator, MFTTree, MFTTreeNode
 
 
 class Mmap(object):
@@ -33,7 +33,7 @@ class Mmap(object):
         self._f.close()
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Parse MFT " "filesystem structures.")
     parser.add_argument(
         "-c",
@@ -61,9 +61,9 @@ def main():
         tree = MFTTree(buf)
         tree.build(record_cache=record_cache, path_cache=path_cache)
 
-        def rec(node, prefix):
+        def rec(node: MFTTreeNode, prefix: str) -> None:
             print(prefix + node.get_filename())
-            for child in node.get_children():
+            for child in node.get_children_nodes():
                 rec(child, prefix + "  ")
 
         rec(tree.get_root(), "")

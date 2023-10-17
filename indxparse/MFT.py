@@ -1739,7 +1739,7 @@ class MFTTreeNode(object):
     def get_record_number(self):
         return self._record_number
 
-    def get_filename(self):
+    def get_filename(self) -> str:
         return self._filename
 
     def get_parent(self):
@@ -1748,7 +1748,7 @@ class MFTTreeNode(object):
     def add_child_record_number(self, child_record_number):
         self._children_record_numbers.append(child_record_number)
 
-    def get_children_nodes(self):
+    def get_children_nodes(self) -> List["MFTTreeNode"]:
         return [self._nodes[n] for n in self._children_record_numbers]
 
     def get_child_node(self, filename):
@@ -1822,7 +1822,9 @@ class MFTTree(object):
         if parent_node:
             parent_node.add_child_record_number(record_num)
 
-    def build(self, record_cache=None, path_cache=None, progress_class=NullProgress):
+    def build(
+        self, record_cache=None, path_cache=None, progress_class=NullProgress
+    ) -> None:
         DEFAULT_CACHE_SIZE = 1024
         if record_cache is None:
             record_cache = Cache(size_limit=DEFAULT_CACHE_SIZE)
@@ -1845,5 +1847,5 @@ class MFTTree(object):
             progress.set_current(count)
         progress.set_complete()
 
-    def get_root(self):
+    def get_root(self) -> MFTTreeNode:
         return self._nodes[ROOT_INDEX]
