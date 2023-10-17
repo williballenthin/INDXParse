@@ -21,19 +21,10 @@ top_srcdir := $(shell cd ../.. ; pwd)
 7_ntfs_undel_dd := $(top_srcdir)/third_party/7-undel-ntfs/7-ntfs-undel.dd
 
 all: \
-  out.bodyfile \
-  out.json
+  7-ntfs-undel.dd.bodyfile \
+  7-ntfs-undel.dd.json
 
-check: \
-  all
-
-clean:
-	@rm -f \
-	  *.bodyfile \
-	  *.json \
-	  _*
-
-out.bodyfile: \
+7-ntfs-undel.dd.bodyfile: \
   $(7_ntfs_undel_dd) \
   $(top_srcdir)/.venv.done.log \
   $(top_srcdir)/indxparse/list_mft.py
@@ -44,7 +35,7 @@ out.bodyfile: \
 	    > _$@
 	mv _$@ $@
 
-out.json: \
+7-ntfs-undel.dd.json: \
   $(7_ntfs_undel_dd) \
   $(top_srcdir)/.venv.done.log \
   $(top_srcdir)/indxparse/list_mft.py
@@ -59,3 +50,12 @@ out.json: \
 	  _$@
 	rm __$@
 	mv _$@ $@
+
+check: \
+  all
+
+clean:
+	@rm -f \
+	  *.bodyfile \
+	  *.json \
+	  _*
