@@ -103,7 +103,7 @@ def format_bodyfile(
     attributes_text = ""
     if len(attributes) > 0:
         attributes_text = " (%s)" % (", ".join(attributes))
-    return "0|%s|%s|0|%d|0|%s|%s|%s|%s|%s\n" % (
+    return "0|%s|%s|0|%d|0|%s|%s|%s|%s|%s" % (
         path + attributes_text,
         inode,
         owner_id,
@@ -193,7 +193,7 @@ def output_mft_record(
     # si
     if si:
         try:
-            print(format_bodyfile(path, size, inode, si_index, si, tags), end=" ")
+            print(format_bodyfile(path, size, inode, si_index, si, tags))
         except UnicodeEncodeError:
             print("# failed to print: %s" % (list(path)))
 
@@ -203,7 +203,7 @@ def output_mft_record(
         if not record.is_active():
             tags.append("inactive")
         try:
-            print(format_bodyfile(path, size, inode, si_index, fn, tags), end=" ")
+            print(format_bodyfile(path, size, inode, si_index, fn, tags))
         except UnicodeEncodeError:
             print("# failed to print: %s" % (list(path)))
 
@@ -217,7 +217,6 @@ def output_mft_record(
                 format_bodyfile(
                     path + ":" + ads[0], ads[1], inode, si_index, si or {}, tags
                 ),
-                end=" ",
             )
         except UnicodeEncodeError:
             print("# failed to print: %s" % (list(path)))
@@ -230,7 +229,6 @@ def output_mft_record(
                 format_bodyfile(
                     path + "\\" + indx[0], indx[1], MREF(indx[2]), 0, indx[3], tags
                 ),
-                end=" ",
             )
         except UnicodeEncodeError:
             print("# failed to print: %s" % (list(path)))
@@ -242,7 +240,6 @@ def output_mft_record(
                 format_bodyfile(
                     path + "\\" + indx[0], indx[1], MREF(indx[2]), 0, indx[3], tags
                 ),
-                end=" ",
             )
         except UnicodeEncodeError:
             print("# failed to print: %s" % (list(path)))
