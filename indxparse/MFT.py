@@ -1656,7 +1656,7 @@ class MFTEnumerator(object):
             yield record, path
 
     def get_path(self, record: MFTRecord) -> str:
-        """
+        r"""
         @type record: MFTRecord
         @rtype: str
         @return: A string containing the path of the given record. It will begin with the first
@@ -1780,7 +1780,7 @@ class MFTTree(object):
 
         if record_num == ROOT_INDEX:
             self._nodes[ROOT_INDEX] = MFTTreeNode(
-                self._nodes, ROOT_INDEX, "\.", ROOT_INDEX
+                self._nodes, ROOT_INDEX, r"\.", ROOT_INDEX
             )
             return
 
