@@ -26,6 +26,7 @@
 #   Version v.1.1.8
 import array
 import logging
+import mmap
 import os
 import struct
 import sys
@@ -1586,7 +1587,7 @@ CYCLE_ENTRY = "<CYCLE>"
 class MFTEnumerator(object):
     def __init__(
         self,
-        buf: array.array,
+        buf: mmap.mmap,
         record_cache=None,
         path_cache=None,
     ) -> None:
@@ -1766,7 +1767,7 @@ class MFTTree(object):
 
     def __init__(
         self,
-        buf: array.array,
+        buf: mmap.mmap,
     ) -> None:
         super(MFTTree, self).__init__()
         self._buf = buf

@@ -5,8 +5,8 @@
 
 import argparse
 import logging
+import mmap
 
-from indxparse.BinaryParser import Mmap
 from indxparse.MFT import Cache, MFTTree, MFTTreeNode
 
 
@@ -31,19 +31,20 @@ def main() -> None:
     if results.verbose:
         logging.basicConfig(level=logging.DEBUG)
 
-    with Mmap(results.filename) as buf:
-        record_cache = Cache(results.cache_size)
-        path_cache = Cache(results.cache_size)
+    with open(results.filename, "rb") as fh:
+        with mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+            record_cache = Cache(results.cache_size)
+            path_cache = Cache(results.cache_size)
 
-        tree = MFTTree(buf)
-        tree.build(record_cache=record_cache, path_cache=path_cache)
+            tree = MFTTree(mm)
+            tree.build(record_cache=record_cache, path_cache=path_cache)
 
-        def rec(node: MFTTreeNode, prefix: str) -> None:
-            print(prefix + node.get_filename())
-            for child in node.get_children_nodes():
-                rec(child, prefix + "  ")
+            def rec(node: MFTTreeNode, prefix: str) -> None:
+                print(prefix + node.get_filename())
+                for child in node.get_children_nodes():
+                    rec(child, prefix + "  ")
 
-        rec(tree.get_root(), "")
+            rec(tree.get_root(), "")
 
 
 if __name__ == "__main__":
