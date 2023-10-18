@@ -1608,7 +1608,7 @@ class MFTEnumerator(object):
         else:
             return floored_result + 1
 
-    def get_record_buf(self, record_num):
+    def get_record_buf(self, record_num: int) -> array.array:
         """
         @raises OverrunBufferException: if the record_num is beyond the end of the MFT
         """
