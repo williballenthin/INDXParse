@@ -26,7 +26,7 @@ import sys
 from indxparse.MFT import MFTEnumerator
 
 
-def main():
+def main() -> None:
     filename = sys.argv[1]
 
     with open(filename, "rb") as fh:
@@ -34,8 +34,8 @@ def main():
             enum = MFTEnumerator(mm)
             for record in enum.enumerate_records():
                 slack = record.slack_data()
-                sys.stdout.write("\x00" * (1024 - len(slack)))
-                sys.stdout.write(slack)
+                sys.stdout.buffer.write(b"\x00" * (1024 - len(slack)))
+                sys.stdout.buffer.write(slack)
 
 
 if __name__ == "__main__":
