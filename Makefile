@@ -59,7 +59,8 @@ check-mypy: \
 	    indxparse/INDXFind.py \
 	    indxparse/MFTINDX.py \
 	    indxparse/__init__.py \
-	    indxparse/list_mft.py
+	    indxparse/list_mft.py \
+	    indxparse/tree_mft.py
 
 check-third_party:
 	$(MAKE) \

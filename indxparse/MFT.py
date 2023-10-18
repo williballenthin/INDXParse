@@ -26,6 +26,7 @@
 #   Version v.1.1.8
 import array
 import logging
+import mmap
 import os
 import struct
 import sys
@@ -1586,7 +1587,7 @@ CYCLE_ENTRY = "<CYCLE>"
 class MFTEnumerator(object):
     def __init__(
         self,
-        buf: array.array,
+        buf: mmap.mmap,
         record_cache=None,
         path_cache=None,
     ) -> None:
@@ -1607,7 +1608,7 @@ class MFTEnumerator(object):
         else:
             return floored_result + 1
 
-    def get_record_buf(self, record_num):
+    def get_record_buf(self, record_num: int) -> array.array:
         """
         @raises OverrunBufferException: if the record_num is beyond the end of the MFT
         """
@@ -1766,7 +1767,7 @@ class MFTTree(object):
 
     def __init__(
         self,
-        buf: array.array,
+        buf: mmap.mmap,
     ) -> None:
         super(MFTTree, self).__init__()
         self._buf = buf
