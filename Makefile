@@ -60,7 +60,8 @@ check-mypy: \
 	    indxparse/MFTINDX.py \
 	    indxparse/__init__.py \
 	    indxparse/extract_mft_record_slack.py \
-	    indxparse/list_mft.py
+	    indxparse/list_mft.py \
+	    indxparse/tree_mft.py
 
 check-third_party:
 	$(MAKE) \

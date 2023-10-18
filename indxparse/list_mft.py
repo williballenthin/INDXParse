@@ -37,13 +37,13 @@ import calendar
 import datetime
 import json
 import logging
+import mmap
 import sys
 import types
 from typing import Any, Dict, List, Optional, Type, Union
 
 from jinja2 import Environment, Template
 
-from indxparse.BinaryParser import Mmap
 from indxparse.get_file_info import make_model
 from indxparse.MFT import (
     ATTR_TYPE,
@@ -378,46 +378,48 @@ def main() -> None:
     else:
         progress_cls = NullProgress
 
-    with Mmap(results.filename) as buf:
-        record_cache = Cache(results.cache_size)
-        path_cache = Cache(results.cache_size)
+    with open(results.filename, "rb") as fh:
+        with mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+            record_cache = Cache(results.cache_size)
+            path_cache = Cache(results.cache_size)
 
-        enum = MFTEnumerator(buf, record_cache=record_cache, path_cache=path_cache)
-        progress = progress_cls(enum.len())
-        if use_default_output:
-            for record, record_path in enum.enumerate_paths():
-                output_mft_record(enum, record, results.prefix[0])
-                progress.set_current(record.inode)
-        elif results.json:
+            enum = MFTEnumerator(mm, record_cache=record_cache, path_cache=path_cache)
+            progress = progress_cls(enum.len())
+            if use_default_output:
+                for record, record_path in enum.enumerate_paths():
+                    output_mft_record(enum, record, results.prefix[0])
+                    progress.set_current(record.inode)
+            elif results.json:
 
-            class MFTEncoder(json.JSONEncoder):
-                def default(self, obj: Any) -> Any:
-                    if isinstance(obj, datetime.datetime):
-                        return obj.isoformat("T") + "Z"
-                    elif isinstance(obj, types.GeneratorType):
-                        return [o for o in obj]
-                    return json.JSONEncoder.default(self, obj)
+                class MFTEncoder(json.JSONEncoder):
+                    def default(self, obj: Any) -> Any:
+                        if isinstance(obj, datetime.datetime):
+                            return obj.isoformat("T") + "Z"
+                        elif isinstance(obj, types.GeneratorType):
+                            return [o for o in obj]
+                        return json.JSONEncoder.default(self, obj)
 
-            print("[")
-            record_count = 0
-            for record, record_path in enum.enumerate_paths():
-                if record_count > 0:
-                    print(",")
-                record_count += 1
-                m = make_model(record, record_path)
-                print(json.dumps(m, cls=MFTEncoder, indent=2))
-                progress.set_current(record.inode)
-            print("]")
-        else:
-            for record, record_path in enum.enumerate_paths():
-                sys.stdout.write(
-                    template.render(
-                        record=make_model(record, record_path), prefix=results.prefix[0]
+                print("[")
+                record_count = 0
+                for record, record_path in enum.enumerate_paths():
+                    if record_count > 0:
+                        print(",")
+                    record_count += 1
+                    m = make_model(record, record_path)
+                    print(json.dumps(m, cls=MFTEncoder, indent=2))
+                    progress.set_current(record.inode)
+                print("]")
+            else:
+                for record, record_path in enum.enumerate_paths():
+                    sys.stdout.write(
+                        template.render(
+                            record=make_model(record, record_path),
+                            prefix=results.prefix[0],
+                        )
+                        + "\n"
                     )
-                    + "\n"
-                )
-                progress.set_current(record.inode)
-        progress.set_complete()
+                    progress.set_current(record.inode)
+            progress.set_complete()
 
 
 if __name__ == "__main__":

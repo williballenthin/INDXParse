@@ -8,13 +8,13 @@ import argparse
 import array
 import datetime
 import logging
+import mmap
 import re
 from string import printable
 from typing import Any, Dict
 
 from jinja2 import Template
 
-from indxparse.BinaryParser import Mmap
 from indxparse.MFT import (
     ATTR_TYPE,
     MREF,
@@ -418,27 +418,28 @@ def main():
     if results.verbose:
         logging.basicConfig(level=logging.DEBUG)
 
-    with Mmap(results.mft) as buf:
-        record_cache = Cache(results.cache_size)
-        path_cache = Cache(results.cache_size)
+    with open(results.mft, "rb") as fh:
+        with mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+            record_cache = Cache(results.cache_size)
+            path_cache = Cache(results.cache_size)
 
-        enum = MFTEnumerator(buf, record_cache=record_cache, path_cache=path_cache)
+            enum = MFTEnumerator(mm, record_cache=record_cache, path_cache=path_cache)
 
-        should_use_inode = False
-        try:
-            record_num = int(results.record_or_path)
-            should_use_inode = True
-        except ValueError:
             should_use_inode = False
+            try:
+                record_num = int(results.record_or_path)
+                should_use_inode = True
+            except ValueError:
+                should_use_inode = False
 
-        if should_use_inode:
-            record = enum.get_record(record_num)
-            path = results.prefix + enum.get_path(record)
-            print_indx_info(record, path)
-        else:
-            path = results.record_or_path
-            record = enum.get_record_by_path(path)
-            print_indx_info(record, results.prefix + path)
+            if should_use_inode:
+                record = enum.get_record(record_num)
+                path = results.prefix + enum.get_path(record)
+                print_indx_info(record, path)
+            else:
+                path = results.record_or_path
+                record = enum.get_record_by_path(path)
+                print_indx_info(record, results.prefix + path)
 
 
 if __name__ == "__main__":

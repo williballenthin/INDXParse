@@ -7,13 +7,14 @@
 import calendar
 import errno
 import inspect
+import mmap
 import os
 import stat
 import sys
+from typing import Dict
 
 from fuse import FUSE, FuseOSError, Operations, fuse_get_context  # type: ignore
 
-from indxparse.BinaryParser import Mmap
 from indxparse.get_file_info import format_record
 from indxparse.MFT import Cache, MFTEnumerator, MFTRecord, MFTTree
 from indxparse.Progress import ProgressBarProgress
@@ -169,11 +170,11 @@ class MFTFuseOperations(Operations):
     MFTFuseOperations is a FUSE driver for NTFS MFT files.
     """
 
-    def __init__(self, root, mfttree, buf):
+    def __init__(self, root, mfttree, buf: mmap.mmap) -> None:
         self._root = root
         self._tree = mfttree
         self._buf = buf
-        self._opened_files = {}  # dict(int --> FH subclass)
+        self._opened_files: Dict[int, FH] = {}
 
         record_cache = Cache(1024)
         path_cache = Cache(1024)
@@ -402,11 +403,12 @@ class MFTFuseOperations(Operations):
 def main():
     mft_filename = sys.argv[1]
     mountpoint = sys.argv[2]
-    with Mmap(mft_filename) as buf:
-        tree = MFTTree(buf)
-        tree.build(progress_class=ProgressBarProgress)
-        handler = MFTFuseOperations(mountpoint, tree, buf)
-        FUSE(handler, mountpoint, foreground=True)
+    with open(mft_filename, "rb") as fh:
+        with mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+            tree = MFTTree(mm)
+            tree.build(progress_class=ProgressBarProgress)
+            handler = MFTFuseOperations(mountpoint, tree, mm)
+            FUSE(handler, mountpoint, foreground=True)
 
 
 if __name__ == "__main__":
