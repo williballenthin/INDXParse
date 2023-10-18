@@ -30,6 +30,7 @@ import calendar
 import logging
 import re
 import sys
+from collections.abc import MutableSequence
 from datetime import datetime
 from typing import Any, List, Optional, Union
 
@@ -281,7 +282,7 @@ def try_write(s: str) -> None:
 
 
 def print_nonresident_indx_bodyfile(
-    buf: array.array[Any],
+    buf: MutableSequence[int],
     basepath: str = "",
     *args: Any,
     clustersize: int,
