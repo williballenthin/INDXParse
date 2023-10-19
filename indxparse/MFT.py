@@ -31,7 +31,6 @@ import os
 import struct
 import sys
 from collections import OrderedDict  # python 2.7 only
-from collections.abc import MutableSequence
 from datetime import datetime
 from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple
 
@@ -47,6 +46,11 @@ from indxparse.BinaryParser import (
     read_word,
 )
 from indxparse.Progress import NullProgress
+
+if sys.version_info >= (3, 9):
+    from collections.abc import MutableSequence
+else:
+    from typing import MutableSequence
 
 
 class INDXException(Exception):

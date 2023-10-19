@@ -30,7 +30,6 @@ import calendar
 import logging
 import re
 import sys
-from collections.abc import MutableSequence
 from datetime import datetime
 from typing import Any, List, Optional, Union
 
@@ -50,6 +49,11 @@ from indxparse.MFT import (
     StandardInformation,
     StandardInformationFieldDoesNotExist,
 )
+
+if sys.version_info >= (3, 9):
+    from collections.abc import MutableSequence
+else:
+    from typing import MutableSequence
 
 verbose = False
 
