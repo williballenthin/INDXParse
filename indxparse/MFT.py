@@ -1430,7 +1430,7 @@ class NTFSFile:
 
     def mft_get_record_buf(self, number: int) -> array.array:
         if self.filetype == "indx":
-            return array.array("B", "")
+            return array.array("B", b"")
         if self.filetype == "mft":
             with open(self.filename, "rb") as f:
                 f.seek(number * 1024)
@@ -1449,7 +1449,7 @@ class NTFSFile:
 
     def mft_get_record(self, number: int) -> MFTRecord:
         buf = self.mft_get_record_buf(number)
-        if buf == array.array("B", ""):
+        if buf == array.array("B", b""):
             raise InvalidMFTRecordNumber(number)
         return MFTRecord(buf, 0, False)
 
@@ -1480,7 +1480,7 @@ class NTFSFile:
             return "\\??"
         parent_record_num = fn.mft_parent_reference() & 0xFFFFFFFFFFFF
         parent_buf = self.mft_get_record_buf(parent_record_num)
-        if parent_buf == array.array("B", ""):
+        if parent_buf == array.array("B", b""):
             return "\\??\\" + fn.filename()
         parent = MFTRecord(parent_buf, 0, False)
         if parent.sequence_number() != fn.mft_parent_reference() >> 48:
@@ -1515,7 +1515,7 @@ class NTFSFile:
             with open(self.filename, "rb") as f:
                 f.seek(offset)
                 return array.array("B", f.read(length))
-        return array.array("B", "")
+        return array.array("B", b"")
 
 
 class InvalidAttributeException(INDXException):
