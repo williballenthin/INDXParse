@@ -20,13 +20,17 @@ all: \
   all-console_scripts
 
 .PHONY: \
+  all-MFTINDX \
   all-console_scripts \
   all-list_mft \
   all-tree_mft
 
+all-MFTINDX:
+	$(MAKE) \
+	  --directory MFTINDX
+
 # TODO: This list of unimplemented tests lines up with setup.cfg.
 # * all-INDXParse
-# * all-MFTINDX
 # * all-MFTView
 # * all-SDS_get_index
 # * all-extract_mft_record_slack
@@ -34,7 +38,8 @@ all: \
 # * all-get_file_info
 all-console_scripts: \
   all-list_mft \
-  all-tree_mft
+  all-tree_mft \
+  all-MFTINDX
 
 all-list_mft:
 	$(MAKE) \
@@ -48,6 +53,9 @@ check: \
   all
 
 clean:
+	@$(MAKE) \
+	  --directory MFTINDX \
+	  clean
 	@$(MAKE) \
 	  --directory tree_mft \
 	  clean
