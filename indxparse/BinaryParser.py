@@ -162,7 +162,7 @@ class memoize(decoratorargs):
         except KeyError:
             # We have an entry not in the cache
             self.misses += 1
-            func = types.MethodType(self.func, self.obj, self.name)
+            func = types.MethodType(self.func, self.obj)
             value = func(*args, **kwargs)
             lru = self.mru.newer  # Always true
             # If we haven't reached capacity
