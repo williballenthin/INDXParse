@@ -33,6 +33,7 @@ from typing import Dict, List, Union
 
 if sys.version_info >= (3, 9):
     from collections.abc import MutableSequence
+
 else:
     from typing import MutableSequence
 
@@ -234,7 +235,7 @@ def align(offset, alignment):
     return offset + (alignment - (offset % alignment))
 
 
-def dosdate(dosdate: MutableSequence[int], dostime: MutableSequence[int]) -> datetime:
+def dosdate(dosdate: bytes, dostime: bytes) -> datetime:
     """
     `dosdate`: 2 bytes, little endian.
     `dostime`: 2 bytes, little endian.
@@ -328,7 +329,7 @@ class OverrunBufferException(ParseException):
 
 
 def read_byte(
-    buf: MutableSequence[int],
+    buf: bytes,
     offset: int,
 ) -> int:
     """
@@ -346,7 +347,7 @@ def read_byte(
 
 
 def read_word(
-    buf: MutableSequence[int],
+    buf: bytes,
     offset: int,
 ) -> int:
     """
@@ -364,7 +365,7 @@ def read_word(
 
 
 def read_dword(
-    buf: MutableSequence[int],
+    buf: bytes,
     offset: int,
 ) -> int:
     """
@@ -680,7 +681,8 @@ class Block(object):
         Throws:
         - `OverrunBufferException`
         """
-        return read_byte(self._buf, self._offset + offset)
+        _read_offset = self._offset + offset
+        return read_byte(bytes(self._buf[_read_offset : _read_offset + 1]), 0)
 
     def unpack_int8(self, offset: int) -> int:
         """
@@ -705,7 +707,8 @@ class Block(object):
         Throws:
         - `OverrunBufferException`
         """
-        return read_word(self._buf, self._offset + offset)
+        _read_offset = self._offset + offset
+        return read_word(bytes(self._buf[_read_offset : _read_offset + 2]), 0)
 
     def unpack_word_be(self, offset: int) -> int:
         """
@@ -755,7 +758,8 @@ class Block(object):
         Throws:
         - `OverrunBufferException`
         """
-        return read_dword(self._buf, self._offset + offset)
+        _read_offset = self._offset + offset
+        return read_dword(bytes(self._buf[_read_offset : _read_offset + 4]), 0)
 
     def unpack_dword_be(self, offset: int) -> int:
         """
@@ -901,7 +905,7 @@ class Block(object):
         """
         try:
             o = self._offset + offset
-            return dosdate(self._buf[o : o + 2], self._buf[o + 2 : o + 4])
+            return dosdate(bytes(self._buf[o : o + 2]), bytes(self._buf[o + 2 : o + 4]))
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
