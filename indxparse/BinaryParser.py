@@ -341,7 +341,7 @@ def read_byte(
     - `OverrunBufferException`
     """
     try:
-        return struct.unpack_from("<B", bytes(buf), offset)[0]
+        return struct.unpack_from("<B", buf, offset)[0]
     except struct.error:
         raise OverrunBufferException(offset, len(buf))
 
@@ -359,7 +359,7 @@ def read_word(
     - `OverrunBufferException`
     """
     try:
-        return struct.unpack_from("<H", bytes(buf), offset)[0]
+        return struct.unpack_from("<H", buf, offset)[0]
     except struct.error:
         raise OverrunBufferException(offset, len(buf))
 
@@ -377,7 +377,7 @@ def read_dword(
     - `OverrunBufferException`
     """
     try:
-        return struct.unpack_from("<I", bytes(buf), offset)[0]
+        return struct.unpack_from("<I", buf, offset)[0]
     except struct.error:
         raise OverrunBufferException(offset, len(buf))
 
