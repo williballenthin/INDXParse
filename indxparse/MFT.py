@@ -32,7 +32,7 @@ import struct
 import sys
 from collections import OrderedDict  # python 2.7 only
 from datetime import datetime
-from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, cast
 
 from indxparse.BinaryParser import (
     Block,
@@ -206,8 +206,7 @@ class INDEX_ENTRY(Block, Nestable):
         offset,
         parent,
     ) -> int:
-        _read_offset = offset + 0x8
-        return read_word(bytes(buf[_read_offset : _read_offset + 2]), 0)
+        return read_word(cast(bytes, buf), offset + 0x8)
 
     def __len__(self):
         return self.header().length()
@@ -237,8 +236,7 @@ class MFT_INDEX_ENTRY(Block, Nestable):
         offset,
         parent,
     ) -> int:
-        _read_offset = offset + 0x8
-        return read_word(bytes(buf[_read_offset : _read_offset + 2]), 0)
+        return read_word(cast(bytes, buf), offset + 0x8)
 
     def __len__(self):
         return self.header().length()
@@ -289,8 +287,7 @@ class SII_INDEX_ENTRY(Block, Nestable):
         offset,
         parent,
     ) -> int:
-        _read_offset = offset + 0x8
-        return read_word(bytes(buf[_read_offset : _read_offset + 2]), 0)
+        return read_word(cast(bytes, buf), offset + 0x8)
 
     def __len__(self):
         return self.header().length()
@@ -324,8 +321,7 @@ class SDH_INDEX_ENTRY(Block, Nestable):
         offset,
         parent,
     ) -> int:
-        _read_offset = offset + 0x8
-        return read_word(bytes(buf[_read_offset : _read_offset + 2]), 0)
+        return read_word(cast(bytes, buf), offset + 0x8)
 
     def __len__(self):
         return self.header().length()
@@ -419,8 +415,7 @@ class INDEX(Block, Nestable):
         offset,
         parent,
     ) -> int:
-        _read_offset = offset + 0x8
-        return read_dword(bytes(buf[_read_offset : _read_offset + 4]), 0)
+        return read_dword(cast(bytes, buf), offset + 0x8)
 
     def __len__(self):
         return self.header().allocated_size()
@@ -550,9 +545,7 @@ class FilenameAttribute(Block, Nestable):
         offset,
         parent,
     ) -> int:
-        _read_offset = offset + 0x40
-        extra_size = read_byte(bytes(buf[_read_offset : _read_offset + 1]), 0) * 2
-        return 0x42 + extra_size
+        return 0x42 + (read_byte(cast(bytes, buf), offset + 0x40) * 2)
 
     def __len__(self):
         return 0x42 + (self.filename_length() * 2)
@@ -947,7 +940,7 @@ class Runentry(Block, Nestable):
         offset,
         parent,
     ) -> int:
-        b = read_byte(bytes(buf[offset : offset + 1]), 0)
+        b = read_byte(cast(bytes, buf), offset)
         return (b >> 4) + (b & 0x0F) + 1
 
     def __len__(self):
@@ -1009,8 +1002,7 @@ class Runlist(Block):
     ) -> int:
         length = 0
         while True:
-            _read_offset = offset + length
-            b = read_byte(bytes(buf[_read_offset : _read_offset + 1]), 0)
+            b = read_byte(cast(bytes, buf), offset + length)
             length += 1
             if b == 0:
                 return length
@@ -1176,8 +1168,7 @@ class Attribute(Block, Nestable):
         offset,
         parent,
     ) -> int:
-        _read_offset = offset + 0x4
-        s = read_dword(bytes(buf[_read_offset : _read_offset + 4]), 0)
+        s = read_dword(cast(bytes, buf), offset + 0x4)
         return s + (8 - (s % 8))
 
     def __len__(self):
@@ -1643,7 +1634,7 @@ class MFTEnumerator(object):
             return self._record_cache.get(record_num)
 
         record_buf = self.get_record_buf(record_num)
-        if read_dword(bytes(record_buf[0:4]), 0x0) != 0x454C4946:
+        if read_dword(cast(bytes, record_buf), 0x0) != 0x454C4946:
             raise InvalidRecordException("record_num: %d" % record_num)
 
         record = MFTRecord(record_buf, 0, False, inode=record_num)
