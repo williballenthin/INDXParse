@@ -252,7 +252,7 @@ class AppModel(wx.EvtHandler):
             if parent_record_num not in self._nodes:
                 # no parent --> orphan with correct filename
                 parent_buf = mftfile.mft_get_record_buf(parent_record_num)
-                if parent_buf == array.array("B", ""):
+                if parent_buf == array.array("B", b""):
                     node = Node(rec_num, fn.filename(), None, record.is_directory())
                     self._orphans.append(node)
                     self._nodes[rec_num] = node

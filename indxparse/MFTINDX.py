@@ -50,6 +50,11 @@ from indxparse.MFT import (
     StandardInformationFieldDoesNotExist,
 )
 
+if sys.version_info >= (3, 9):
+    from collections.abc import MutableSequence
+else:
+    from typing import MutableSequence
+
 verbose = False
 
 
@@ -281,7 +286,7 @@ def try_write(s: str) -> None:
 
 
 def print_nonresident_indx_bodyfile(
-    buf: array.array[Any],
+    buf: MutableSequence[int],
     basepath: str = "",
     *args: Any,
     clustersize: int,

@@ -32,7 +32,7 @@ import struct
 import sys
 from collections import OrderedDict  # python 2.7 only
 from datetime import datetime
-from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, cast
 
 from indxparse.BinaryParser import (
     Block,
@@ -46,6 +46,11 @@ from indxparse.BinaryParser import (
     read_word,
 )
 from indxparse.Progress import NullProgress
+
+if sys.version_info >= (3, 9):
+    from collections.abc import MutableSequence
+else:
+    from typing import MutableSequence
 
 
 class INDXException(Exception):
@@ -69,7 +74,7 @@ class INDXException(Exception):
 class FixupBlock(Block):
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -111,7 +116,7 @@ class INDEX_ENTRY_FLAGS:
 class INDEX_ENTRY_HEADER(Block, Nestable):
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -123,7 +128,7 @@ class INDEX_ENTRY_HEADER(Block, Nestable):
 
     @staticmethod
     def structure_size(
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> int:
@@ -149,7 +154,7 @@ class MFT_INDEX_ENTRY_HEADER(INDEX_ENTRY_HEADER):
 
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -164,7 +169,7 @@ class SECURE_INDEX_ENTRY_HEADER(INDEX_ENTRY_HEADER):
 
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -182,7 +187,7 @@ class INDEX_ENTRY(Block, Nestable):
 
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -197,11 +202,11 @@ class INDEX_ENTRY(Block, Nestable):
 
     @staticmethod
     def structure_size(
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> int:
-        return read_word(buf, offset + 0x8)
+        return read_word(cast(bytes, buf), offset + 0x8)
 
     def __len__(self):
         return self.header().length()
@@ -217,7 +222,7 @@ class MFT_INDEX_ENTRY(Block, Nestable):
 
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -227,11 +232,11 @@ class MFT_INDEX_ENTRY(Block, Nestable):
 
     @staticmethod
     def structure_size(
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> int:
-        return read_word(buf, offset + 0x8)
+        return read_word(cast(bytes, buf), offset + 0x8)
 
     def __len__(self):
         return self.header().length()
@@ -268,7 +273,7 @@ class SII_INDEX_ENTRY(Block, Nestable):
 
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -278,11 +283,11 @@ class SII_INDEX_ENTRY(Block, Nestable):
 
     @staticmethod
     def structure_size(
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> int:
-        return read_word(buf, offset + 0x8)
+        return read_word(cast(bytes, buf), offset + 0x8)
 
     def __len__(self):
         return self.header().length()
@@ -301,7 +306,7 @@ class SDH_INDEX_ENTRY(Block, Nestable):
 
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -312,11 +317,11 @@ class SDH_INDEX_ENTRY(Block, Nestable):
 
     @staticmethod
     def structure_size(
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> int:
-        return read_word(buf, offset + 0x8)
+        return read_word(cast(bytes, buf), offset + 0x8)
 
     def __len__(self):
         return self.header().length()
@@ -339,7 +344,7 @@ class INDEX_HEADER_FLAGS:
 class INDEX_HEADER(Block, Nestable):
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -359,7 +364,7 @@ class INDEX_HEADER(Block, Nestable):
 
     @staticmethod
     def structure_size(
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> int:
@@ -387,7 +392,7 @@ class INDEX_HEADER(Block, Nestable):
 class INDEX(Block, Nestable):
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
         index_entry_class,
@@ -406,11 +411,11 @@ class INDEX(Block, Nestable):
 
     @staticmethod
     def structure_size(
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> int:
-        return read_dword(buf, offset + 0x8)
+        return read_dword(cast(bytes, buf), offset + 0x8)
 
     def __len__(self):
         return self.header().allocated_size()
@@ -459,7 +464,7 @@ class INDEX(Block, Nestable):
 class INDEX_ROOT(Block, Nestable):
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -479,7 +484,7 @@ class INDEX_ROOT(Block, Nestable):
 
     @staticmethod
     def structure_size(
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> int:
@@ -492,7 +497,7 @@ class INDEX_ROOT(Block, Nestable):
 class FilenameAttribute(Block, Nestable):
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -536,11 +541,11 @@ class FilenameAttribute(Block, Nestable):
 
     @staticmethod
     def structure_size(
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> int:
-        return 0x42 + (read_byte(buf, offset + 0x40) * 2)
+        return 0x42 + (read_byte(cast(bytes, buf), offset + 0x40) * 2)
 
     def __len__(self):
         return 0x42 + (self.filename_length() * 2)
@@ -549,7 +554,7 @@ class FilenameAttribute(Block, Nestable):
 class IndexEntry(Block):
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -588,7 +593,7 @@ class IndexEntry(Block):
 class SlackIndexEntry(IndexEntry):
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -640,7 +645,7 @@ class SlackIndexEntry(IndexEntry):
 class NTATTR_STANDARD_INDEX_HEADER(Block):
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -705,7 +710,7 @@ class NTATTR_STANDARD_INDEX_HEADER(Block):
 class IndexRootHeader(Block):
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -729,7 +734,7 @@ class IndexRootHeader(Block):
 class IndexRecordHeader(FixupBlock):
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -761,7 +766,7 @@ class IndexRecordHeader(FixupBlock):
 class INDEX_ALLOCATION(FixupBlock):
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -798,7 +803,7 @@ class INDEX_ALLOCATION(FixupBlock):
 
     @staticmethod
     def structure_size(
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> int:
@@ -820,7 +825,7 @@ class StandardInformation(Block):
     # TODO(wb): implement sizing so we can make this nestable
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -906,7 +911,7 @@ class StandardInformation(Block):
 class Runentry(Block, Nestable):
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -931,11 +936,11 @@ class Runentry(Block, Nestable):
 
     @staticmethod
     def structure_size(
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> int:
-        b = read_byte(buf, offset)
+        b = read_byte(cast(bytes, buf), offset)
         return (b >> 4) + (b & 0x0F) + 1
 
     def __len__(self):
@@ -944,7 +949,7 @@ class Runentry(Block, Nestable):
     def is_valid(self):
         return self._offset_length > 0 and self._length_length > 0
 
-    def lsb2num(self, binary: array.array):
+    def lsb2num(self, binary: MutableSequence[int]):
         count = 0
         ret = 0
         for b in binary:
@@ -952,7 +957,7 @@ class Runentry(Block, Nestable):
             count += 1
         return ret
 
-    def lsb2signednum(self, binary: array.array):
+    def lsb2signednum(self, binary: MutableSequence[int]):
         count = 0
         ret = 0
         working = []
@@ -982,7 +987,7 @@ class Runentry(Block, Nestable):
 class Runlist(Block):
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -991,13 +996,13 @@ class Runlist(Block):
 
     @staticmethod
     def structure_size(
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> int:
         length = 0
         while True:
-            b = read_byte(buf, offset + length)
+            b = read_byte(cast(bytes, buf), offset + length)
             length += 1
             if b == 0:
                 return length
@@ -1083,7 +1088,7 @@ class Attribute(Block, Nestable):
 
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> None:
@@ -1159,11 +1164,11 @@ class Attribute(Block, Nestable):
 
     @staticmethod
     def structure_size(
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
     ) -> int:
-        s = read_dword(buf, offset + 0x4)
+        s = read_dword(cast(bytes, buf), offset + 0x4)
         return s + (8 - (s % 8))
 
     def __len__(self):
@@ -1206,7 +1211,7 @@ class MFTRecord(FixupBlock):
 
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset,
         parent,
         inode=None,
@@ -1330,15 +1335,15 @@ class MFTRecord(FixupBlock):
         """
         Returns A binary string containing the MFT record slack.
         """
-        return self._buf[
-            self.offset() + self.bytes_in_use() : self.offset() + 1024
-        ].tobytes()
+        return bytes(
+            self._buf[self.offset() + self.bytes_in_use() : self.offset() + 1024]
+        )
 
     def active_data(self) -> bytes:
         """
         Returns A binary string containing the MFT record slack.
         """
-        return self._buf[self.offset() : self.offset() + self.bytes_in_use()].tobytes()
+        return bytes(self._buf[self.offset() : self.offset() + self.bytes_in_use()])
 
 
 class NTFSFile:
@@ -1429,7 +1434,7 @@ class NTFSFile:
 
     def mft_get_record_buf(self, number: int) -> array.array:
         if self.filetype == "indx":
-            return array.array("B", "")
+            return array.array("B", b"")
         if self.filetype == "mft":
             with open(self.filename, "rb") as f:
                 f.seek(number * 1024)
@@ -1448,7 +1453,7 @@ class NTFSFile:
 
     def mft_get_record(self, number: int) -> MFTRecord:
         buf = self.mft_get_record_buf(number)
-        if buf == array.array("B", ""):
+        if buf == array.array("B", b""):
             raise InvalidMFTRecordNumber(number)
         return MFTRecord(buf, 0, False)
 
@@ -1479,7 +1484,7 @@ class NTFSFile:
             return "\\??"
         parent_record_num = fn.mft_parent_reference() & 0xFFFFFFFFFFFF
         parent_buf = self.mft_get_record_buf(parent_record_num)
-        if parent_buf == array.array("B", ""):
+        if parent_buf == array.array("B", b""):
             return "\\??\\" + fn.filename()
         parent = MFTRecord(parent_buf, 0, False)
         if parent.sequence_number() != fn.mft_parent_reference() >> 48:
@@ -1514,7 +1519,7 @@ class NTFSFile:
             with open(self.filename, "rb") as f:
                 f.seek(offset)
                 return array.array("B", f.read(length))
-        return array.array("B", "")
+        return array.array("B", b"")
 
 
 class InvalidAttributeException(INDXException):
@@ -1629,7 +1634,7 @@ class MFTEnumerator(object):
             return self._record_cache.get(record_num)
 
         record_buf = self.get_record_buf(record_num)
-        if read_dword(record_buf, 0x0) != 0x454C4946:
+        if read_dword(cast(bytes, record_buf), 0x0) != 0x454C4946:
             raise InvalidRecordException("record_num: %d" % record_num)
 
         record = MFTRecord(record_buf, 0, False, inode=record_num)

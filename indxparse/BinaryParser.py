@@ -29,7 +29,13 @@ import struct
 import sys
 import types
 from datetime import datetime
-from typing import Dict, List, Union
+from typing import Dict, List, Union, cast
+
+if sys.version_info >= (3, 9):
+    from collections.abc import MutableSequence
+
+else:
+    from typing import MutableSequence
 
 verbose = False
 
@@ -161,7 +167,7 @@ class memoize(decoratorargs):
         except KeyError:
             # We have an entry not in the cache
             self.misses += 1
-            func = types.MethodType(self.func, self.obj, self.name)
+            func = types.MethodType(self.func, self.obj)
             value = func(*args, **kwargs)
             lru = self.mru.newer  # Always true
             # If we haven't reached capacity
@@ -229,7 +235,7 @@ def align(offset, alignment):
     return offset + (alignment - (offset % alignment))
 
 
-def dosdate(dosdate: array.array, dostime: array.array) -> datetime:
+def dosdate(dosdate: bytes, dostime: bytes) -> datetime:
     """
     `dosdate`: 2 bytes, little endian.
     `dostime`: 2 bytes, little endian.
@@ -323,7 +329,7 @@ class OverrunBufferException(ParseException):
 
 
 def read_byte(
-    buf: array.array,
+    buf: bytes,
     offset: int,
 ) -> int:
     """
@@ -341,7 +347,7 @@ def read_byte(
 
 
 def read_word(
-    buf: array.array,
+    buf: bytes,
     offset: int,
 ) -> int:
     """
@@ -359,7 +365,7 @@ def read_word(
 
 
 def read_dword(
-    buf: array.array,
+    buf: bytes,
     offset: int,
 ) -> int:
     """
@@ -382,7 +388,7 @@ class Block(object):
     A block is associated with a offset into a byte-string.
     """
 
-    def __init__(self, buf: array.array, offset: int) -> None:
+    def __init__(self, buf: MutableSequence[int], offset: int) -> None:
         """
         Constructor.
         Arguments:
@@ -675,7 +681,7 @@ class Block(object):
         Throws:
         - `OverrunBufferException`
         """
-        return read_byte(self._buf, self._offset + offset)
+        return read_byte(cast(bytes, self._buf), self._offset + offset)
 
     def unpack_int8(self, offset: int) -> int:
         """
@@ -687,7 +693,7 @@ class Block(object):
         """
         o = self._offset + offset
         try:
-            return struct.unpack_from("<b", self._buf, o)[0]
+            return struct.unpack_from("<b", cast(bytes, self._buf), o)[0]
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
@@ -700,7 +706,7 @@ class Block(object):
         Throws:
         - `OverrunBufferException`
         """
-        return read_word(self._buf, self._offset + offset)
+        return read_word(cast(bytes, self._buf), self._offset + offset)
 
     def unpack_word_be(self, offset: int) -> int:
         """
@@ -713,7 +719,7 @@ class Block(object):
         """
         o = self._offset + offset
         try:
-            return struct.unpack_from(">H", self._buf, o)[0]
+            return struct.unpack_from(">H", cast(bytes, self._buf), o)[0]
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
@@ -728,7 +734,7 @@ class Block(object):
         """
         o = self._offset + offset
         try:
-            return struct.unpack_from("<h", self._buf, o)[0]
+            return struct.unpack_from("<h", cast(bytes, self._buf), o)[0]
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
@@ -750,7 +756,7 @@ class Block(object):
         Throws:
         - `OverrunBufferException`
         """
-        return read_dword(self._buf, self._offset + offset)
+        return read_dword(cast(bytes, self._buf), self._offset + offset)
 
     def unpack_dword_be(self, offset: int) -> int:
         """
@@ -762,7 +768,7 @@ class Block(object):
         """
         o = self._offset + offset
         try:
-            return struct.unpack_from(">I", self._buf, o)[0]
+            return struct.unpack_from(">I", cast(bytes, self._buf), o)[0]
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
@@ -777,7 +783,7 @@ class Block(object):
         """
         o = self._offset + offset
         try:
-            return struct.unpack_from("<i", self._buf, o)[0]
+            return struct.unpack_from("<i", cast(bytes, self._buf), o)[0]
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
@@ -791,7 +797,7 @@ class Block(object):
         """
         o = self._offset + offset
         try:
-            return struct.unpack_from("<Q", self._buf, o)[0]
+            return struct.unpack_from("<Q", cast(bytes, self._buf), o)[0]
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
@@ -806,7 +812,7 @@ class Block(object):
         """
         o = self._offset + offset
         try:
-            return struct.unpack_from("<q", self._buf, o)[0]
+            return struct.unpack_from("<q", cast(bytes, self._buf), o)[0]
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
@@ -821,7 +827,7 @@ class Block(object):
         """
         o = self._offset + offset
         try:
-            return struct.unpack_from("<f", self._buf, o)[0]
+            return struct.unpack_from("<f", cast(bytes, self._buf), o)[0]
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
@@ -836,7 +842,7 @@ class Block(object):
         """
         o = self._offset + offset
         try:
-            return struct.unpack_from("<d", self._buf, o)[0]
+            return struct.unpack_from("<d", cast(bytes, self._buf), o)[0]
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
@@ -855,7 +861,7 @@ class Block(object):
         o = self._offset + offset
         try:
             return array.array(
-                "B", struct.unpack_from("<%ds" % (length), self._buf, o)[0]
+                "B", struct.unpack_from("<%ds" % (length), cast(bytes, self._buf), o)[0]
             )
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
@@ -881,11 +887,9 @@ class Block(object):
         Throws:
         - `UnicodeDecodeError`
         """
-        return (
+        return bytes(
             self._buf[self._offset + offset : self._offset + offset + 2 * length]
-            .tobytes()
-            .decode("utf-16le")
-        )
+        ).decode("utf-16le")
 
     def unpack_dosdate(self, offset: int) -> datetime:
         """
@@ -898,7 +902,9 @@ class Block(object):
         """
         try:
             o = self._offset + offset
-            return dosdate(self._buf[o : o + 2], self._buf[o + 2 : o + 4])
+            return dosdate(
+                cast(bytes, self._buf[o : o + 2]), cast(bytes, self._buf[o + 2 : o + 4])
+            )
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
 
@@ -925,7 +931,7 @@ class Block(object):
         """
         o = self._offset + offset
         try:
-            parts = struct.unpack_from("<WWWWWWWW", self._buf, o)
+            parts = struct.unpack_from("<WWWWWWWW", cast(bytes, self._buf), o)
         except struct.error:
             raise OverrunBufferException(o, len(self._buf))
         return datetime(
@@ -954,26 +960,25 @@ class Block(object):
             raise OverrunBufferException(o, len(self._buf))
 
         # Yeah, this is ugly
-        h = list(map(ord, _bin))
         return (
             "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x"
             % (
-                h[3],
-                h[2],
-                h[1],
-                h[0],
-                h[5],
-                h[4],
-                h[7],
-                h[6],
-                h[8],
-                h[9],
-                h[10],
-                h[11],
-                h[12],
-                h[13],
-                h[14],
-                h[15],
+                _bin[3],
+                _bin[2],
+                _bin[1],
+                _bin[0],
+                _bin[5],
+                _bin[4],
+                _bin[7],
+                _bin[6],
+                _bin[8],
+                _bin[9],
+                _bin[10],
+                _bin[11],
+                _bin[12],
+                _bin[13],
+                _bin[14],
+                _bin[15],
             )
         )
 
@@ -1003,14 +1008,14 @@ class Nestable(object):
 
     def __init__(
         self,
-        buf: array.array,
+        buf: MutableSequence[int],
         offset: int,
     ) -> None:
         super(Nestable, self).__init__()
 
     @staticmethod
     def structure_size(
-        buf: array.array,
+        buf: MutableSequence[int],
         offset: int,
         parent,
     ) -> int:
